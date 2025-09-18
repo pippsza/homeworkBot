@@ -28,12 +28,14 @@
   },
   "users": {
     "ADMINS": [
-      "@pippsza",
-      "@teacher2"
+      "@pippsza"
     ],
     "ANSWER_VIEWERS": [
-      "@pippsza",
-      "@viewer2"
+      "@pippsza"
+    ],
+    "SUPERUSERS": [
+      "@astakhovBohdan",
+      "@pippsza"
     ]
   }
 }

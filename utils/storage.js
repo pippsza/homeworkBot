@@ -5,8 +5,8 @@ const DATA_PATH = path.join(__dirname, "../data.json");
 const ATTACHMENTS_DIR = path.join(__dirname, "../attachments");
 
 const DEFAULT_USERS = {
-  ADMINS: ["@pippsza", "@teacher2"],
-  ANSWER_VIEWERS: ["@pippsza", "@viewer2"],
+  ADMINS: ["@pippsza"],
+  ANSWER_VIEWERS: ["@pippsza"],
 };
 
 function loadData() {

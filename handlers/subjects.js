@@ -1,30 +1,75 @@
 const { Markup } = require("telegraf");
-const storage = require("../utils/storage");
-const constants = require("../constants.json");
+const fs = require("fs");
+const path = require("path");
+
+const DATA_PATH = path.join(__dirname, "../data.json");
+const ATTACHMENTS_DIR = path.join(__dirname, "../attachments");
+const DEFAULT_USERS = {
+  ADMINS: ["@pippsza"],
+  ANSWER_VIEWERS: ["@pippsza"],
+  SUPERUSERS: ["@pippsza"],
+};
+function loadData() {
+  if (fs.existsSync(DATA_PATH)) {
+    try {
+      const json = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
+      if (!json.users) json.users = DEFAULT_USERS;
+      if (!json.subjects) json.subjects = [];
+      if (!json.subjectEmojis) json.subjectEmojis = {};
+      return json;
+    } catch (e) {
+      return {
+        users: DEFAULT_USERS,
+        subjects: [],
+        subjectEmojis: {},
+      };
+    }
+  }
+  return {
+    users: DEFAULT_USERS,
+    subjects: [],
+    subjectEmojis: {},
+  };
+}
+function saveData(data) {
+  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+}
+function saveAttachment(fileId, buffer, ext = "") {
+  const filePath = path.join(ATTACHMENTS_DIR, `${fileId}${ext}`);
+  fs.writeFileSync(filePath, buffer);
+  return filePath;
+}
+const data = loadData();
 
 function isAdmin(ctx) {
   return (
     ctx.from &&
-    (constants.ADMINS.includes(`@${ctx.from.username}`) ||
-      constants.SUPERUSERS.includes(`@${ctx.from.username}`))
+    Array.isArray(data.users?.ADMINS) &&
+    Array.isArray(data.users?.SUPERUSERS) &&
+    (data.users.ADMINS.includes(`@${ctx.from.username}`) ||
+      data.users.SUPERUSERS.includes(`@${ctx.from.username}`))
   );
 }
 function isAnswerViewer(ctx) {
   return (
     ctx.from &&
-    (constants.ANSWER_VIEWERS.includes(`@${ctx.from.username}`) ||
-      constants.SUPERUSERS.includes(`@${ctx.from.username}`))
+    Array.isArray(data.users?.ANSWER_VIEWERS) &&
+    Array.isArray(data.users?.SUPERUSERS) &&
+    (data.users.ANSWER_VIEWERS.includes(`@${ctx.from.username}`) ||
+      data.users.SUPERUSERS.includes(`@${ctx.from.username}`))
   );
 }
 function isSuperuser(ctx) {
-  return ctx.from && constants.SUPERUSERS.includes(`@${ctx.from.username}`);
+  return (
+    ctx.from &&
+    Array.isArray(data.users?.SUPERUSERS) &&
+    data.users.SUPERUSERS.includes(`@${ctx.from.username}`)
+  );
 }
 function isPrivate(ctx) {
   return ctx.chat && ctx.chat.type === "private";
 }
-
 const replyKeyboard = Markup.keyboard([["/start"]]).resize();
-
 async function mainMenu(ctx) {
   const buttons = [
     [Markup.button.callback("📚 Предметы", "subjects")],
@@ -35,16 +80,13 @@ async function mainMenu(ctx) {
     parse_mode: "HTML",
   });
 }
-
 let interactiveMessageId = {};
-
 function saveInteractiveMessageId(ctx) {
   if (ctx.chat && ctx.from && ctx.update && ctx.update.callback_query) {
     interactiveMessageId[ctx.chat.id] =
       ctx.update.callback_query.message.message_id;
   }
 }
-
 async function editOrSend(ctx, text, keyboard) {
   saveInteractiveMessageId(ctx);
   const msgId = interactiveMessageId[ctx.chat.id];
@@ -60,12 +102,10 @@ async function editOrSend(ctx, text, keyboard) {
     }
   } catch (e) {
     console.error("[editOrSend error]", e);
-    // Всегда отправляем новое сообщение при ошибке
     const sent = await ctx.reply(text, { ...keyboard, parse_mode: "HTML" });
     interactiveMessageId[ctx.chat.id] = sent.message_id;
   }
 }
-
 function subjectsHandler(bot) {
   bot.start((ctx) => {
     return ctx.reply(
@@ -79,7 +119,7 @@ function subjectsHandler(bot) {
   bot.action("main_menu", async (ctx) => {
     const buttons = [
       [Markup.button.callback("📚 Предметы", "subjects")],
-      [Markup.button.callback("⚙️ Настройки", "settings")], // Кнопка всегда показывается
+      [Markup.button.callback("⚙️ Настройки", "settings")],
     ];
     await editOrSend(ctx, "Главное меню", Markup.inlineKeyboard(buttons));
   });
@@ -89,7 +129,7 @@ function subjectsHandler(bot) {
 
   // Изменённый вывод списка предметов
   bot.action("subjects", async (ctx) => {
-    if (storage.subjects.length === 0) {
+    if (data.subjects.length === 0) {
       const buttons = [];
       if (isAdmin(ctx)) {
         buttons.push([
@@ -101,19 +141,19 @@ function subjectsHandler(bot) {
       return; // чтобы не отправлять лишнее сообщение
     }
     let msg = "Список предметов:\n";
-    storage.subjects.forEach((s, i) => {
-      const emoji = storage.subjectEmojis[s.name] || "📚";
+    data.subjects.forEach((s, i) => {
+      const emoji = data.subjectEmojis[s.name] || "📚";
       msg += `${emoji} ${s.name}\n`;
     });
     // Формируем кнопки по 3 в ряд
     const subjectButtons = [];
-    for (let i = 0; i < storage.subjects.length; i += 3) {
+    for (let i = 0; i < data.subjects.length; i += 3) {
       subjectButtons.push(
-        storage.subjects
+        data.subjects
           .slice(i, i + 3)
           .map((s, j) =>
             Markup.button.callback(
-              storage.subjectEmojis[s.name] || "📚",
+              data.subjectEmojis[s.name] || "📚",
               `subject_${i + j}`
             )
           )
@@ -131,7 +171,7 @@ function subjectsHandler(bot) {
 
   bot.action(/subject_(\d+)/, async (ctx) => {
     const idx = Number(ctx.match[1]);
-    const subject = storage.subjects[idx];
+    const subject = data.subjects[idx];
     if (!subject)
       return editOrSend(
         ctx,
@@ -175,7 +215,7 @@ function subjectsHandler(bot) {
   bot.action(/task_(\d+)_(\d+)/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
-    const subject = storage.subjects[sIdx];
+    const subject = data.subjects[sIdx];
     const task = subject?.tasks[tIdx];
     if (!task)
       return editOrSend(
@@ -279,7 +319,7 @@ function subjectsHandler(bot) {
       return;
     }
 
-    // Фильтрация: слушаем только от инициатора
+    // Фильтрации: слушаем только от инициатора
     const mode = waitingForInput[ctx.from.id];
     const taskState = taskInputState[ctx.from.id];
     if (
@@ -301,9 +341,9 @@ function subjectsHandler(bot) {
     if (mode === "add_subject_emoji") {
       const emoji = ctx.message.text.trim();
       const name = waitingForInput[`${ctx.from.id}_subjectName`];
-      storage.subjects.push({ name, tasks: [] });
-      storage.subjectEmojis[name] = emoji || "📚";
-      storage.save();
+      data.subjects.push({ name, tasks: [] });
+      data.subjectEmojis[name] = emoji || "📚";
+      saveData(data);
       delete waitingForInput[ctx.from.id];
       delete waitingForInput[`${ctx.from.id}_subjectName`];
       await ctx.reply(`Предмет "${emoji || "📚"} ${name}" добавлен!`);
@@ -315,12 +355,12 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "add_admin") {
       const username = ctx.message.text.trim();
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (constants.ADMINS.includes(username))
+      if (data.users.ADMINS.includes(username))
         return ctx.reply("Уже есть такой админ.");
-      constants.ADMINS.push(username);
+      data.users.ADMINS.push(username);
       require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../constants.json"),
-        JSON.stringify(constants, null, 2)
+        require("path").resolve(__dirname, "../data.json"),
+        JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
       await ctx.reply(`Админ ${username} добавлен.`);
@@ -332,12 +372,12 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "add_viewer") {
       const username = ctx.message.text.trim();
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (constants.ANSWER_VIEWERS.includes(username))
+      if (data.users.ANSWER_VIEWERS.includes(username))
         return ctx.reply("Уже есть такой ANSWER_VIEWER.");
-      constants.ANSWER_VIEWERS.push(username);
+      data.users.ANSWER_VIEWERS.push(username);
       require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../constants.json"),
-        JSON.stringify(constants, null, 2)
+        require("path").resolve(__dirname, "../data.json"),
+        JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
       await ctx.reply(`ANSWER_VIEWER ${username} добавлен.`);
@@ -351,12 +391,12 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "add_superuser") {
       const username = ctx.message.text.trim();
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (constants.SUPERUSERS.includes(username))
+      if (data.users.SUPERUSERS.includes(username))
         return ctx.reply("Уже есть такой SUPERUSER.");
-      constants.SUPERUSERS.push(username);
+      data.users.SUPERUSERS.push(username);
       require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../constants.json"),
-        JSON.stringify(constants, null, 2)
+        require("path").resolve(__dirname, "../data.json"),
+        JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
       await ctx.reply(`SUPERUSER ${username} добавлен.`);
@@ -407,10 +447,10 @@ function subjectsHandler(bot) {
       return;
     }
     if (taskState && taskState.step === "answer") {
-      storage.subjects[taskState.sIdx].tasks[taskState.tIdx].answers.push(
+      data.subjects[taskState.sIdx].tasks[taskState.tIdx].answers.push(
         ctx.message.text
       );
-      storage.save();
+      saveData(data);
       await ctx.reply("Ответ добавлен!");
       delete taskInputState[ctx.from.id];
       return;
@@ -420,8 +460,8 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "edit_title") {
       const title = ctx.message.text.trim();
       if (!title) return ctx.reply("Заголовок не может быть пустым.");
-      storage.subjects[taskState.sIdx].tasks[taskState.tIdx].title = title;
-      storage.save();
+      data.subjects[taskState.sIdx].tasks[taskState.tIdx].title = title;
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply("Заголовок обновлён!");
       await editOrSend(
@@ -463,9 +503,9 @@ function subjectsHandler(bot) {
       return;
     }
     if (taskState && taskState.step === "edit_emoji") {
-      storage.subjects[taskState.sIdx].tasks[taskState.tIdx].emoji =
+      data.subjects[taskState.sIdx].tasks[taskState.tIdx].emoji =
         ctx.message.text.trim() || "📄";
-      storage.save();
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply("Emoji обновлён!");
       await editOrSend(
@@ -507,9 +547,9 @@ function subjectsHandler(bot) {
       return;
     }
     if (taskState && taskState.step === "edit_description") {
-      storage.subjects[taskState.sIdx].tasks[taskState.tIdx].description =
+      data.subjects[taskState.sIdx].tasks[taskState.tIdx].description =
         ctx.message.text.trim();
-      storage.save();
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply("Описание обновлено!");
       await editOrSend(
@@ -593,10 +633,10 @@ function subjectsHandler(bot) {
     }
     const state = taskInputState[ctx.from.id];
     if (state && state.step === "answer") {
-      storage.subjects[state.sIdx].tasks[state.tIdx].answers.push(
+      data.subjects[state.sIdx].tasks[state.tIdx].answers.push(
         ctx.message.document.file_id
       );
-      storage.save();
+      saveData(data);
       await ctx.reply("Ответ (файл) добавлен!");
       delete taskInputState[ctx.from.id];
       return;
@@ -652,9 +692,9 @@ function subjectsHandler(bot) {
       answers: [],
       emoji: taskState.emoji || "📄",
     };
-    storage.subjects[taskState.sIdx].tasks.push(newTask);
-    storage.save();
-    const tIdx = storage.subjects[taskState.sIdx].tasks.length - 1;
+    data.subjects[taskState.sIdx].tasks.push(newTask);
+    saveData(data);
+    const tIdx = data.subjects[taskState.sIdx].tasks.length - 1;
     delete taskInputState[ctx.from.id];
     await ctx.reply("Задание добавлено!");
     // После добавления задания сразу предлагаем редактировать
@@ -737,8 +777,8 @@ function subjectsHandler(bot) {
     const state = taskInputState[ctx.from.id];
     if (!state || state.sIdx !== sIdx || state.tIdx !== tIdx)
       return ctx.reply("Ошибка состояния.");
-    storage.subjects[sIdx].tasks[tIdx].attachments = state.attachments;
-    storage.save();
+    data.subjects[sIdx].tasks[tIdx].attachments = state.attachments;
+    saveData(data);
     delete taskInputState[ctx.from.id];
     await ctx.reply("Вложения обновлены!");
     await editOrSend(
@@ -784,8 +824,8 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "edit_title") {
       const title = ctx.message.text.trim();
       if (!title) return ctx.reply("Заголовок не может быть пустым.");
-      storage.subjects[taskState.sIdx].tasks[taskState.tIdx].title = title;
-      storage.save();
+      data.subjects[taskState.sIdx].tasks[taskState.tIdx].title = title;
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply("Заголовок обновлён!");
       await editOrSend(
@@ -822,9 +862,9 @@ function subjectsHandler(bot) {
       return;
     }
     if (taskState && taskState.step === "edit_emoji") {
-      storage.subjects[taskState.sIdx].tasks[taskState.tIdx].emoji =
+      data.subjects[taskState.sIdx].tasks[taskState.tIdx].emoji =
         ctx.message.text.trim() || "📄";
-      storage.save();
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply("Emoji обновлён!");
       await editOrSend(
@@ -866,9 +906,9 @@ function subjectsHandler(bot) {
       return;
     }
     if (taskState && taskState.step === "edit_description") {
-      storage.subjects[taskState.sIdx].tasks[taskState.tIdx].description =
+      data.subjects[taskState.sIdx].tasks[taskState.tIdx].description =
         ctx.message.text.trim();
-      storage.save();
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply("Описание обновлено!");
       await editOrSend(
@@ -923,10 +963,10 @@ function subjectsHandler(bot) {
     }
     const state = taskInputState[ctx.from.id];
     if (state && state.step === "answer") {
-      storage.subjects[state.sIdx].tasks[state.tIdx].answers.push(
+      data.subjects[state.sIdx].tasks[state.tIdx].answers.push(
         ctx.message.document.file_id
       );
-      storage.save();
+      saveData(data);
       await ctx.reply("Ответ (файл) добавлен!");
       delete taskInputState[ctx.from.id];
       return;
@@ -952,39 +992,18 @@ function subjectsHandler(bot) {
     console.log(`[DEBUG] delete_subject triggered by ${ctx.from.username}`);
     if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
     const idx = Number(ctx.match[1]);
-    if (!storage.subjects[idx]) return ctx.reply("Предмет не найден.");
-
-    storage.subjects.splice(idx, 1);
-    storage.save();
-    await ctx.answerCbQuery("Предмет удалён!");
-
-    let msg = "Предмет удалён!\nСписок предметов:\n";
-    storage.subjects.forEach((s) => {
-      const emoji = storage.subjectEmojis[s.name] || "📚";
-      msg += `${emoji} ${s.name}\n`;
-    });
-
-    // Пересоздаём кнопки с актуальными индексами
-    const buttons = [];
-    for (let i = 0; i < storage.subjects.length; i += 3) {
-      buttons.push(
-        storage.subjects
-          .slice(i, i + 3)
-          .map((s, j) =>
-            Markup.button.callback(
-              storage.subjectEmojis[s.name] || "📚",
-              `subject_${i + j}`
-            )
-          )
-      );
-    }
-    if (isAdmin(ctx))
-      buttons.push([
-        Markup.button.callback("➕ Добавить предмет", "add_subject"),
-      ]);
-    buttons.push([Markup.button.callback("⬅ Назад", "main_menu")]);
-
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    if (!data.subjects || !data.subjects[idx])
+      return ctx.reply("Предмет не найден.");
+    const removed = data.subjects.splice(idx, 1);
+    fs.writeFileSync(
+      path.resolve(__dirname, "../data.json"),
+      JSON.stringify(data, null, 2)
+    );
+    await ctx.reply(`Предмет ${removed[0]?.name || "?"} удалён.`);
+    await mainMenu(ctx);
+    console.log(
+      `[LOG] ${ctx.from.username} удалил предмет: ${removed[0]?.name}`
+    );
   });
 
   bot.action(/delete_task_(\d+)_(\d+)/, async (ctx) => {
@@ -992,65 +1011,23 @@ function subjectsHandler(bot) {
     if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
-    if (storage.subjects[sIdx]?.tasks[tIdx]) {
-      const subjectsCopy = [...storage.subjects];
-      const tasksCopy = [...subjectsCopy[sIdx].tasks];
-      tasksCopy.splice(tIdx, 1);
-      subjectsCopy[sIdx] = {
-        ...subjectsCopy[sIdx],
-        tasks: tasksCopy,
-      };
-      storage.subjects = subjectsCopy;
-      storage.save();
-      await ctx.answerCbQuery("Задание удалено!");
-      // После удаления возвращаем к списку заданий через editOrSend
-      const subject = storage.subjects[sIdx];
-      let msg = `Задание удалено!\n`;
-      if (subject) {
-        msg += `Предмет: ${subject.name}\n`;
-        // Формируем кнопки заданий по 3 в ряд, показываем только иконки
-        const taskButtons = [];
-        for (let j = 0; j < subject.tasks.length; j += 3) {
-          taskButtons.push(
-            subject.tasks
-              .slice(j, j + 3)
-              .map((t, k) =>
-                Markup.button.callback(t.emoji || "📄", `task_${sIdx}_${j + k}`)
-              )
-          );
-        }
-        let buttons = [...taskButtons];
-        if (isAdmin(ctx)) {
-          buttons.push([
-            Markup.button.callback("➕ Добавить задание", `add_task_${sIdx}`),
-          ]);
-          buttons.push([
-            Markup.button.callback(
-              "🗑 Удалить предмет",
-              `delete_subject_${sIdx}`
-            ),
-          ]);
-        }
-        buttons.push([Markup.button.callback("⬅ Назад", "subjects")]);
-        await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
-      } else {
-        await editOrSend(
-          ctx,
-          "Предмет не найден.",
-          Markup.inlineKeyboard([
-            [Markup.button.callback("⬅ Назад", "subjects")],
-          ])
-        );
-      }
-    } else {
-      await editOrSend(
-        ctx,
-        "Задание не найдено.",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("⬅ Назад", `subject_${sIdx}`)],
-        ])
-      );
+    if (
+      !data.subjects ||
+      !data.subjects[sIdx] ||
+      !data.subjects[sIdx].tasks[tIdx]
+    ) {
+      return ctx.reply("Задание не найдено.");
     }
+    const removed = data.subjects[sIdx].tasks.splice(tIdx, 1);
+    fs.writeFileSync(
+      path.resolve(__dirname, "../data.json"),
+      JSON.stringify(data, null, 2)
+    );
+    await ctx.reply(`Задание ${removed[0]?.title || "?"} удалено.`);
+    await mainMenu(ctx);
+    console.log(
+      `[LOG] ${ctx.from.username} удалил задание: ${removed[0]?.title}`
+    );
   });
 
   // Обработчик настроек для суперюзеров
@@ -1107,7 +1084,7 @@ function subjectsHandler(bot) {
   // --- Функция обновления меню ANSWER_VIEWERS ---
   async function refreshAnswerViewers(ctx) {
     const { msg, keyboard } = roleMenu(
-      constants.ANSWER_VIEWERS,
+      data.users.ANSWER_VIEWERS,
       "ANSWER_VIEWERS",
       "viewers"
     );
@@ -1120,7 +1097,7 @@ function subjectsHandler(bot) {
   // --- Функция обновления меню ADMINS ---
   async function showAdminMenu(ctx) {
     if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
-    const { msg, keyboard } = roleMenu(constants.ADMINS, "ADMINS", "admins");
+    const { msg, keyboard } = roleMenu(data.users.ADMINS, "ADMINS", "admins");
     await editOrSend(ctx, msg, keyboard);
     console.log(
       `[LOG] ${ctx.from.username} открыл меню редактирования ADMINS (showAdminMenu)`
@@ -1130,7 +1107,7 @@ function subjectsHandler(bot) {
   async function showSuperusersMenu(ctx) {
     if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
     const { msg, keyboard } = roleMenu(
-      constants.SUPERUSERS,
+      data.users.SUPERUSERS,
       "SUPERUSERS",
       "superusers"
     );
@@ -1146,12 +1123,12 @@ function subjectsHandler(bot) {
   bot.action(/admins_remove_(\d+)/, async (ctx) => {
     if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
     const idx = Number(ctx.match[1]);
-    if (constants.ADMINS.length <= 1)
+    if (data.users.ADMINS.length <= 1)
       return ctx.reply("Должен быть хотя бы один админ!");
-    const removed = constants.ADMINS.splice(idx, 1);
+    const removed = data.users.ADMINS.splice(idx, 1);
     require("fs").writeFileSync(
-      require("path").resolve(__dirname, "../constants.json"),
-      JSON.stringify(constants, null, 2)
+      require("path").resolve(__dirname, "../data.json"),
+      JSON.stringify(data, null, 2)
     );
     await ctx.reply(`Админ ${removed} удалён.`);
     await showAdminMenu(ctx);
@@ -1184,10 +1161,10 @@ function subjectsHandler(bot) {
   bot.action(/viewers_remove_(\d+)/, async (ctx) => {
     if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
     const idx = Number(ctx.match[1]);
-    const removed = constants.ANSWER_VIEWERS.splice(idx, 1);
+    const removed = data.users.ANSWER_VIEWERS.splice(idx, 1);
     require("fs").writeFileSync(
-      require("path").resolve(__dirname, "../constants.json"),
-      JSON.stringify(constants, null, 2)
+      require("path").resolve(__dirname, "../data.json"),
+      JSON.stringify(data, null, 2)
     );
     await ctx.reply(`ANSWER_VIEWER ${removed} удалён.`);
     await refreshAnswerViewers(ctx);
@@ -1209,12 +1186,12 @@ function subjectsHandler(bot) {
   bot.action(/superusers_remove_(\d+)/, async (ctx) => {
     if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
     const idx = Number(ctx.match[1]);
-    if (constants.SUPERUSERS.length <= 1)
+    if (data.users.SUPERUSERS.length <= 1)
       return ctx.reply("Должен быть хотя бы один суперюзер!");
-    const removed = constants.SUPERUSERS.splice(idx, 1);
+    const removed = data.users.SUPERUSERS.splice(idx, 1);
     require("fs").writeFileSync(
-      require("path").resolve(__dirname, "../constants.json"),
-      JSON.stringify(constants, null, 2)
+      require("path").resolve(__dirname, "../data.json"),
+      JSON.stringify(data, null, 2)
     );
     await ctx.reply(`SUPERUSER ${removed} удалён.`);
     await showSuperusersMenu(ctx);
@@ -1234,12 +1211,12 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "add_admin") {
       const username = ctx.message.text.trim();
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (constants.ADMINS.includes(username))
+      if (data.users.ADMINS.includes(username))
         return ctx.reply("Уже есть такой админ.");
-      constants.ADMINS.push(username);
+      data.users.ADMINS.push(username);
       require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../constants.json"),
-        JSON.stringify(constants, null, 2)
+        require("path").resolve(__dirname, "../data.json"),
+        JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
       await ctx.reply(`Админ ${username} добавлен.`);
@@ -1250,12 +1227,12 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "add_viewer") {
       const username = ctx.message.text.trim();
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (constants.ANSWER_VIEWERS.includes(username))
+      if (data.users.ANSWER_VIEWERS.includes(username))
         return ctx.reply("Уже есть такой ANSWER_VIEWER.");
-      constants.ANSWER_VIEWERS.push(username);
+      data.users.ANSWER_VIEWERS.push(username);
       require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../constants.json"),
-        JSON.stringify(constants, null, 2)
+        require("path").resolve(__dirname, "../data.json"),
+        JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
       await ctx.reply(`ANSWER_VIEWER ${username} добавлен.`);
@@ -1268,12 +1245,12 @@ function subjectsHandler(bot) {
     if (taskState && taskState.step === "add_superuser") {
       const username = ctx.message.text.trim();
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (constants.SUPERUSERS.includes(username))
+      if (data.users.SUPERUSERS.includes(username))
         return ctx.reply("Уже есть такой SUPERUSER.");
-      constants.SUPERUSERS.push(username);
+      data.users.SUPERUSERS.push(username);
       require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../constants.json"),
-        JSON.stringify(constants, null, 2)
+        require("path").resolve(__dirname, "../data.json"),
+        JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
       await ctx.reply(`SUPERUSER ${username} добавлен.`);
