@@ -19,6 +19,7 @@ function loadData() {
       if (!json.subjectEmojis) json.subjectEmojis = {};
       return json;
     } catch (e) {
+      console.error("[loadData] parse error, returning defaults", e);
       return {
         users: DEFAULT_USERS,
         subjects: [],
@@ -34,8 +35,12 @@ function loadData() {
 }
 
 function saveData(data) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-  console.log("Данные успешно сохранены");
+  try {
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+    console.log("[saveData] Данные успешно сохранены to", DATA_PATH);
+  } catch (e) {
+    console.error("[saveData] Ошибка при сохранении данных", e);
+  }
 }
 
 function saveAttachment(fileId, buffer, ext = "") {
@@ -147,11 +152,14 @@ function subjectsHandler(bot) {
     await editOrSend(ctx, "Главное меню", Markup.inlineKeyboard(buttons));
   });
 
-  // Добавление emoji для предмета
-  const subjectEmojis = {};
-
   // Изменённый вывод списка предметов
   bot.action("subjects", async (ctx) => {
+    console.log(
+      "[ACTION] subjects by",
+      ctx.from && ctx.from.username,
+      "subjectsLen=",
+      data.subjects.length
+    );
     if (data.subjects.length === 0) {
       const buttons = [];
       if (isAdmin(ctx)) {
@@ -191,7 +199,13 @@ function subjectsHandler(bot) {
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
   });
 
-  bot.action(/subject_(\d+)/, async (ctx) => {
+  bot.action(/^subject_(\d+)$/, async (ctx) => {
+    console.log(
+      "[ACTION] subject by",
+      ctx.from && ctx.from.username,
+      "match=",
+      ctx.match
+    );
     const idx = Number(ctx.match[1]);
     const subject = data.subjects[idx];
     if (!subject)
@@ -225,14 +239,20 @@ function subjectsHandler(bot) {
         Markup.button.callback("➕ Добавить задание", `add_task_${idx}`),
       ]);
       buttons.push([
-        Markup.button.callback("🗑 Удалить предмет", `delete_subject_${idx}`),
+        Markup.button.callback("🗑 Удалить предмет", `subjects_remove_${idx}`),
       ]);
     }
     buttons.push([Markup.button.callback("⬅ Назад", "subjects")]);
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
   });
 
-  bot.action(/task_(\d+)_(\d+)/, async (ctx) => {
+  bot.action(/^task_(\d+)_(\d+)$/, async (ctx) => {
+    console.log(
+      "[ACTION] task by",
+      ctx.from && ctx.from.username,
+      "match=",
+      ctx.match
+    );
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     const subject = data.subjects[sIdx];
@@ -266,7 +286,7 @@ function subjectsHandler(bot) {
       buttons.push([
         Markup.button.callback(
           "🗑 Удалить задание",
-          `delete_task_${sIdx}_${tIdx}`
+          `tasks_remove_${sIdx}_${tIdx}`
         ),
       ]);
       buttons.push([
@@ -281,7 +301,7 @@ function subjectsHandler(bot) {
   });
 
   // Меню редактирования задачи
-  bot.action(/edit_task_menu_(\d+)_(\d+)/, async (ctx) => {
+  bot.action(/^edit_task_menu_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     await editOrSend(
@@ -623,7 +643,7 @@ function subjectsHandler(bot) {
     }
   });
 
-  bot.action(/skip_description_(\d+)/, async (ctx) => {
+  bot.action(/^skip_description_(\d+)$/, async (ctx) => {
     const taskState = taskInputState[ctx.from.id];
     if (
       !taskState ||
@@ -647,6 +667,12 @@ function subjectsHandler(bot) {
   });
 
   bot.on("document", async (ctx) => {
+    console.log(
+      "[DOCUMENT] from",
+      ctx.from && ctx.from.username,
+      "fileName=",
+      ctx.message.document && ctx.message.document.file_name
+    );
     const taskState = taskInputState[ctx.from.id];
     if (!taskState) return;
     if (
@@ -676,6 +702,12 @@ function subjectsHandler(bot) {
   });
 
   bot.on("photo", async (ctx) => {
+    console.log(
+      "[PHOTO] from",
+      ctx.from && ctx.from.username,
+      "photoCount=",
+      ctx.message.photo && ctx.message.photo.length
+    );
     const taskState = taskInputState[ctx.from.id];
     if (!taskState) return;
     if (
@@ -700,9 +732,15 @@ function subjectsHandler(bot) {
   });
 
   // Добавление задания
-  bot.action(/add_task_(\d+)/, async (ctx) => {
+  bot.action(/^add_task_(\d+)$/, async (ctx) => {
     if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
     const sIdx = Number(ctx.match[1]);
+    console.log(
+      "[ACTION] add_task by",
+      ctx.from && ctx.from.username,
+      "sIdx=",
+      sIdx
+    );
     taskInputState[ctx.from.id] = {
       step: "title",
       sIdx,
@@ -714,7 +752,7 @@ function subjectsHandler(bot) {
     await ctx.reply("Введите заголовок задания:");
   });
 
-  bot.action(/finish_attachments_(\d+)/, async (ctx) => {
+  bot.action(/^finish_attachments_(\d+)$/, async (ctx) => {
     const taskState = taskInputState[ctx.from.id];
     if (!taskState || taskState.sIdx !== Number(ctx.match[1]))
       return ctx.reply("Ошибка состояния.");
@@ -728,6 +766,10 @@ function subjectsHandler(bot) {
     data.subjects[taskState.sIdx].tasks.push(newTask);
     saveData(data);
     delete taskInputState[ctx.from.id];
+    console.log("[INFO] new task added", {
+      sIdx: taskState.sIdx,
+      title: newTask.title,
+    });
     await ctx.reply(
       "📌 Главное меню",
       Markup.inlineKeyboard([
@@ -739,28 +781,28 @@ function subjectsHandler(bot) {
   });
 
   // Редактирование задачи
-  bot.action(/edit_task_title_(\d+)_(\d+)/, async (ctx) => {
+  bot.action(/^edit_task_title_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     taskInputState[ctx.from.id] = { step: "edit_title", sIdx, tIdx };
     await ctx.reply("Введите новый заголовок:");
   });
 
-  bot.action(/edit_task_emoji_(\d+)_(\d+)/, async (ctx) => {
+  bot.action(/^edit_task_emoji_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     taskInputState[ctx.from.id] = { step: "edit_emoji", sIdx, tIdx };
     await ctx.reply("Введите новый emoji:");
   });
 
-  bot.action(/edit_task_description_(\d+)_(\d+)/, async (ctx) => {
+  bot.action(/^edit_task_description_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     taskInputState[ctx.from.id] = { step: "edit_description", sIdx, tIdx };
     await ctx.reply("Введите новое описание:");
   });
 
-  bot.action(/edit_task_attachments_(\d+)_(\d+)/, async (ctx) => {
+  bot.action(/^edit_task_attachments_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     taskInputState[ctx.from.id] = {
@@ -782,7 +824,7 @@ function subjectsHandler(bot) {
     );
   });
 
-  bot.action(/finish_edit_attachments_(\d+)_(\d+)/, async (ctx) => {
+  bot.action(/^finish_edit_attachments_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     const state = taskInputState[ctx.from.id];
@@ -820,98 +862,158 @@ function subjectsHandler(bot) {
     );
   });
 
-  // Удаление предмета
-  bot.action(/delete_subject_(\d+)/, async (ctx) => {
-    if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
-    const idx = Number(ctx.match[1]);
-    if (!data.subjects[idx]) return ctx.reply("Предмет не найден.");
-    const removedName = data.subjects[idx].name;
-    data.subjects.splice(idx, 1);
-    delete data.subjectEmojis[removedName]; // Удаляем emoji, если нужно
-    saveData(data);
-    let msg =
-      data.subjects.length === 0 ? "Нет предметов." : "Список предметов:\n";
-    if (data.subjects.length > 0) {
-      data.subjects.forEach((s, i) => {
-        const emoji = data.subjectEmojis[s.name] || "📚";
-        msg += `${emoji} ${s.name}\n`;
-      });
-    }
-    const subjectButtons = [];
-    for (let i = 0; i < data.subjects.length; i += 3) {
-      subjectButtons.push(
-        data.subjects
-          .slice(i, i + 3)
-          .map((s, j) =>
-            Markup.button.callback(
-              data.subjectEmojis[s.name] || "📚",
-              `subject_${i + j}`
-            )
-          )
+  // Удаление предмета (улучшенная версия)
+  bot.action(/^subjects_remove_(\d+)$/, async (ctx) => {
+    try {
+      if (!isAdmin(ctx))
+        return ctx.answerCbQuery("Нет прав.", { show_alert: true });
+      const idx = parseInt(ctx.match && ctx.match[1], 10);
+      console.log(
+        "[delete_subject] invoked by",
+        ctx.from && ctx.from.username,
+        "idx=",
+        idx,
+        "subjectsLen=",
+        data.subjects.length
       );
+
+      if (Number.isNaN(idx) || idx < 0 || idx >= data.subjects.length) {
+        await ctx.answerCbQuery("Предмет не найден.", { show_alert: false });
+        return;
+      }
+
+      const removed = data.subjects.splice(idx, 1)[0];
+      if (removed) {
+        if (data.subjectEmojis) delete data.subjectEmojis[removed.name];
+        saveData(data);
+        console.log(
+          `[LOG] ${ctx.from.username} удалил предмет: ${removed.name}`
+        );
+      }
+
+      await ctx.answerCbQuery("Предмет удалён");
+
+      const msg =
+        data.subjects.length === 0
+          ? "Нет предметов."
+          : "Список предметов:\n" +
+            data.subjects
+              .map((s) => `${data.subjectEmojis[s.name] || "📚"} ${s.name}`)
+              .join("\n");
+
+      const subjectButtons = [];
+      for (let i = 0; i < data.subjects.length; i += 3) {
+        subjectButtons.push(
+          data.subjects
+            .slice(i, i + 3)
+            .map((s, j) =>
+              Markup.button.callback(
+                data.subjectEmojis[s.name] || "📚",
+                `subject_${i + j}`
+              )
+            )
+        );
+      }
+      const buttons = [...subjectButtons];
+      if (isAdmin(ctx))
+        buttons.push([
+          Markup.button.callback("➕ Добавить предмет", "add_subject"),
+        ]);
+      buttons.push([Markup.button.callback("⬅ Назад", "main_menu")]);
+
+      await editOrSend(
+        ctx,
+        `Предмет ${removed?.name || "?"} удалён.\n\n${msg}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    } catch (err) {
+      console.error("[delete_subject error]", err);
+      try {
+        await ctx.answerCbQuery("Ошибка при удалении", { show_alert: true });
+      } catch (e) {}
     }
-    const buttons = [...subjectButtons];
-    if (isAdmin(ctx)) {
-      buttons.push([
-        Markup.button.callback("➕ Добавить предмет", "add_subject"),
-      ]);
-    }
-    buttons.push([Markup.button.callback("⬅ Назад", "main_menu")]);
-    await editOrSend(
-      ctx,
-      `Предмет ${removedName || "?"} удалён.\n\n${msg}`,
-      Markup.inlineKeyboard(buttons)
-    );
-    console.log(`[LOG] ${ctx.from.username} удалил предмет: ${removedName}`);
   });
 
-  // Удаление задания
-  bot.action(/delete_task_(\d+)_(\d+)/, async (ctx) => {
-    if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    if (!data.subjects[sIdx] || !data.subjects[sIdx].tasks[tIdx]) {
-      return ctx.reply("Задание не найдено.");
-    }
-    const taskTitle = data.subjects[sIdx].tasks[tIdx].title;
-    data.subjects[sIdx].tasks.splice(tIdx, 1);
-    saveData(data);
-    const subject = data.subjects[sIdx];
-    let msg = `Предмет: ${subject.name}\n`;
-    if (subject.tasks.length === 0) {
-      msg += "Нет заданий.\n";
-    } else {
-      msg += "Задания:\n";
-      subject.tasks.forEach((t, i) => {
-        msg += `${t.emoji || "📄"} ${t.title}\n`;
-      });
-    }
-    const taskButtons = [];
-    for (let j = 0; j < subject.tasks.length; j += 3) {
-      taskButtons.push(
-        subject.tasks
-          .slice(j, j + 3)
-          .map((t, k) =>
-            Markup.button.callback(t.emoji || "📄", `task_${sIdx}_${j + k}`)
-          )
+  // Удаление задания (улучшенная версия)
+  bot.action(/^tasks_remove_(\d+)_(\d+)$/, async (ctx) => {
+    try {
+      if (!isAdmin(ctx))
+        return ctx.answerCbQuery("Нет прав.", { show_alert: true });
+      const sIdx = parseInt(ctx.match[1], 10);
+      const tIdx = parseInt(ctx.match[2], 10);
+      console.log(
+        "[delete_task] invoked by",
+        ctx.from && ctx.from.username,
+        "sIdx=",
+        sIdx,
+        "tIdx=",
+        tIdx
       );
+
+      if (
+        Number.isNaN(sIdx) ||
+        Number.isNaN(tIdx) ||
+        sIdx < 0 ||
+        sIdx >= data.subjects.length ||
+        !Array.isArray(data.subjects[sIdx].tasks) ||
+        tIdx < 0 ||
+        tIdx >= data.subjects[sIdx].tasks.length
+      ) {
+        await ctx.answerCbQuery("Задание не найдено.", { show_alert: false });
+        return;
+      }
+
+      const taskTitle = data.subjects[sIdx].tasks.splice(tIdx, 1)[0]?.title;
+      saveData(data);
+      console.log(`[LOG] ${ctx.from.username} удалил задание: ${taskTitle}`);
+
+      await ctx.answerCbQuery("Задание удалено");
+
+      const subject = data.subjects[sIdx];
+      let msg = `Предмет: ${subject.name}\n`;
+      if (subject.tasks.length === 0) {
+        msg += "Нет заданий.\n";
+      } else {
+        msg +=
+          "Задания:\n" +
+          subject.tasks.map((t) => `${t.emoji || "📄"} ${t.title}`).join("\n");
+      }
+
+      const taskButtons = [];
+      for (let j = 0; j < subject.tasks.length; j += 3) {
+        taskButtons.push(
+          subject.tasks
+            .slice(j, j + 3)
+            .map((t, k) =>
+              Markup.button.callback(t.emoji || "📄", `task_${sIdx}_${j + k}`)
+            )
+        );
+      }
+      let buttons = [...taskButtons];
+      if (isAdmin(ctx)) {
+        buttons.push([
+          Markup.button.callback("➕ Добавить задание", `add_task_${sIdx}`),
+        ]);
+        buttons.push([
+          Markup.button.callback(
+            "🗑 Удалить предмет",
+            `subjects_remove_${sIdx}`
+          ),
+        ]);
+      }
+      buttons.push([Markup.button.callback("⬅ Назад", "subjects")]);
+
+      await editOrSend(
+        ctx,
+        `Задание "${taskTitle}" удалено.\n\n${msg}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    } catch (err) {
+      console.error("[delete_task error]", err);
+      try {
+        await ctx.answerCbQuery("Ошибка при удалении", { show_alert: true });
+      } catch (e) {}
     }
-    let buttons = [...taskButtons];
-    if (isAdmin(ctx)) {
-      buttons.push([
-        Markup.button.callback("➕ Добавить задание", `add_task_${sIdx}`),
-      ]);
-      buttons.push([
-        Markup.button.callback("🗑 Удалить предмет", `delete_subject_${sIdx}`),
-      ]);
-    }
-    buttons.push([Markup.button.callback("⬅ Назад", "subjects")]);
-    await editOrSend(
-      ctx,
-      `Задание "${taskTitle}" удалено.\n\n${msg}`,
-      Markup.inlineKeyboard(buttons)
-    );
-    console.log(`[LOG] ${ctx.from.username} удалил задание: ${taskTitle}`);
   });
 
   // Настройки
@@ -1063,7 +1165,7 @@ function subjectsHandler(bot) {
     await ctx.reply("Введите username нового SUPERUSER (с @):");
   });
 
-  // Сброс состояний при callback_query
+  // Сброс состояний при callback_query (оставляем, но он должен быть подключён после регистрации action-хендлеров)
   bot.on("callback_query", async (ctx, next) => {
     delete waitingForInput[ctx.from.id];
     delete taskInputState[ctx.from.id];

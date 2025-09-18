@@ -1,43 +1,25 @@
 {
   "subjects": [
     {
-      "name": "123",
+      "name": "фывфыв",
       "tasks": [
         {
-          "title": "вфыв",
-          "description": "",
+          "title": "аывавфыва",
+          "description": "аАлдЖПжвадпл",
           "attachments": [],
           "answers": [],
-          "emoji": "@dsad"
+          "emoji": "авы"
         }
       ]
-    },
-    {
-      "name": "das",
-      "tasks": []
-    },
-    {
-      "name": "123123",
-      "tasks": []
-    },
-    {
-      "name": "dasd",
-      "tasks": []
     }
   ],
   "subjectEmojis": {
-    "123": "в",
-    "123123": "ыв",
-    "das": "d",
-    "ФЫВ": "В",
-    "AAAAAAAAAAAA": "1",
-    "dsad": "1",
-    "asd": "1",
-    "dasd": "a"
+    "фывфыв": "1"
   },
   "users": {
     "ADMINS": [
-      "@pippsza"
+      "@pippsza",
+      "@dasd"
     ],
     "ANSWER_VIEWERS": [
       "@pippsza"
