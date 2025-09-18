@@ -45,18 +45,18 @@ function isAdmin(ctx) {
   return (
     ctx.from &&
     Array.isArray(data.users?.ADMINS) &&
-    Array.isArray(data.users?.SUPERUSERS) &&
     (data.users.ADMINS.includes(`@${ctx.from.username}`) ||
-      data.users.SUPERUSERS.includes(`@${ctx.from.username}`))
+      (Array.isArray(data.users?.SUPERUSERS) &&
+        data.users.SUPERUSERS.includes(`@${ctx.from.username}`)))
   );
 }
 function isAnswerViewer(ctx) {
   return (
     ctx.from &&
     Array.isArray(data.users?.ANSWER_VIEWERS) &&
-    Array.isArray(data.users?.SUPERUSERS) &&
     (data.users.ANSWER_VIEWERS.includes(`@${ctx.from.username}`) ||
-      data.users.SUPERUSERS.includes(`@${ctx.from.username}`))
+      (Array.isArray(data.users?.SUPERUSERS) &&
+        data.users.SUPERUSERS.includes(`@${ctx.from.username}`)))
   );
 }
 function isSuperuser(ctx) {
@@ -307,7 +307,13 @@ function subjectsHandler(bot) {
     if (ctx.message.text === "/start") {
       delete waitingForInput[ctx.from.id];
       delete taskInputState[ctx.from.id];
-      await mainMenu(ctx);
+      await ctx.reply(
+        "📌 Главное меню",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📚 Предметы", "subjects")],
+          [Markup.button.callback("⚙️ Настройки", "settings")],
+        ])
+      );
       return;
     }
 
@@ -346,8 +352,13 @@ function subjectsHandler(bot) {
       saveData(data);
       delete waitingForInput[ctx.from.id];
       delete waitingForInput[`${ctx.from.id}_subjectName`];
-      await ctx.reply(`Предмет "${emoji || "📚"} ${name}" добавлен!`);
-      await mainMenu(ctx);
+      await ctx.reply(
+        "📌 Главное меню",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📚 Предметы", "subjects")],
+          [Markup.button.callback("⚙️ Настройки", "settings")],
+        ])
+      );
       return;
     }
 
@@ -363,9 +374,13 @@ function subjectsHandler(bot) {
         JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
-      await ctx.reply(`Админ ${username} добавлен.`);
-      showAdminMenu(ctx);
-      console.log(`[LOG] ${ctx.from.username} добавил админа: ${username}`);
+      await ctx.reply(
+        "📌 Главное меню",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📚 Предметы", "subjects")],
+          [Markup.button.callback("⚙️ Настройки", "settings")],
+        ])
+      );
       return;
     }
     // --- Добавление ANSWER_VIEWER ---
@@ -380,10 +395,12 @@ function subjectsHandler(bot) {
         JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
-      await ctx.reply(`ANSWER_VIEWER ${username} добавлен.`);
-      await refreshAnswerViewers(ctx);
-      console.log(
-        `[LOG] ${ctx.from.username} добавил ANSWER_VIEWER: ${username}`
+      await ctx.reply(
+        "📌 Главное меню",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📚 Предметы", "subjects")],
+          [Markup.button.callback("⚙️ Настройки", "settings")],
+        ])
       );
       return;
     }
@@ -399,9 +416,13 @@ function subjectsHandler(bot) {
         JSON.stringify(data, null, 2)
       );
       delete taskInputState[ctx.from.id];
-      await ctx.reply(`SUPERUSER ${username} добавлен.`);
-      showSuperusersMenu(ctx);
-      console.log(`[LOG] ${ctx.from.username} добавил SUPERUSER: ${username}`);
+      await ctx.reply(
+        "📌 Главное меню",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📚 Предметы", "subjects")],
+          [Markup.button.callback("⚙️ Настройки", "settings")],
+        ])
+      );
       return;
     }
 
@@ -696,39 +717,14 @@ function subjectsHandler(bot) {
     saveData(data);
     const tIdx = data.subjects[taskState.sIdx].tasks.length - 1;
     delete taskInputState[ctx.from.id];
-    await ctx.reply("Задание добавлено!");
-    // После добавления задания сразу предлагаем редактировать
-    await editOrSend(
-      ctx,
-      `Задание добавлено!\nЧто хотите изменить?`,
+    await ctx.reply(
+      "📌 Главное меню",
       Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            "✏️ Заголовок",
-            `edit_task_title_${taskState.sIdx}_${tIdx}`
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "✏️ Emoji",
-            `edit_task_emoji_${taskState.sIdx}_${tIdx}`
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "✏️ Описание",
-            `edit_task_description_${taskState.sIdx}_${tIdx}`
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "✏️ Вложения",
-            `edit_task_attachments_${taskState.sIdx}_${tIdx}`
-          ),
-        ],
-        [Markup.button.callback("✅ Готово", `subject_${taskState.sIdx}`)],
+        [Markup.button.callback("📚 Предметы", "subjects")],
+        [Markup.button.callback("⚙️ Настройки", "settings")],
       ])
     );
+    return;
   });
 
   // --- Редактирование задачи ---

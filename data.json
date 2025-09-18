@@ -19,12 +19,32 @@
     {
       "name": "ФЫВ",
       "tasks": []
+    },
+    {
+      "name": "AAAAAAAAAAAA",
+      "tasks": []
+    },
+    {
+      "name": "dsad",
+      "tasks": []
+    },
+    {
+      "name": "asd",
+      "tasks": []
+    },
+    {
+      "name": "dasd",
+      "tasks": []
     }
   ],
   "subjectEmojis": {
     "123": "в",
     "das": "d",
-    "ФЫВ": "В"
+    "ФЫВ": "В",
+    "AAAAAAAAAAAA": "1",
+    "dsad": "1",
+    "asd": "1",
+    "dasd": "a"
   },
   "users": {
     "ADMINS": [
