@@ -47,15 +47,8 @@
     "dasd": "a"
   },
   "users": {
-    "ADMINS": [
-      "@pippsza"
-    ],
-    "ANSWER_VIEWERS": [
-      "@pippsza"
-    ],
-    "SUPERUSERS": [
-      "@astakhovBohdan",
-      "@pippsza"
-    ]
+    "ADMINS": ["@pippsza"],
+    "ANSWER_VIEWERS": ["@pippsza"],
+    "SUPERUSERS": ["@astakhovBohdan", "@pippsza"]
   }
 }

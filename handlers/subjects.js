@@ -369,10 +369,7 @@ function subjectsHandler(bot) {
       if (data.users.ADMINS.includes(username))
         return ctx.reply("Уже есть такой админ.");
       data.users.ADMINS.push(username);
-      require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../data.json"),
-        JSON.stringify(data, null, 2)
-      );
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply(
         "📌 Главное меню",
@@ -390,10 +387,7 @@ function subjectsHandler(bot) {
       if (data.users.ANSWER_VIEWERS.includes(username))
         return ctx.reply("Уже есть такой ANSWER_VIEWER.");
       data.users.ANSWER_VIEWERS.push(username);
-      require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../data.json"),
-        JSON.stringify(data, null, 2)
-      );
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply(
         "📌 Главное меню",
@@ -411,10 +405,7 @@ function subjectsHandler(bot) {
       if (data.users.SUPERUSERS.includes(username))
         return ctx.reply("Уже есть такой SUPERUSER.");
       data.users.SUPERUSERS.push(username);
-      require("fs").writeFileSync(
-        require("path").resolve(__dirname, "../data.json"),
-        JSON.stringify(data, null, 2)
-      );
+      saveData(data);
       delete taskInputState[ctx.from.id];
       await ctx.reply(
         "📌 Главное меню",
@@ -991,10 +982,7 @@ function subjectsHandler(bot) {
     if (!data.subjects || !data.subjects[idx])
       return ctx.reply("Предмет не найден.");
     const removed = data.subjects.splice(idx, 1);
-    fs.writeFileSync(
-      path.resolve(__dirname, "../data.json"),
-      JSON.stringify(data, null, 2)
-    );
+    saveData(data);
     await ctx.reply(`Предмет ${removed[0]?.name || "?"} удалён.`);
     await mainMenu(ctx);
     console.log(
@@ -1015,10 +1003,7 @@ function subjectsHandler(bot) {
       return ctx.reply("Задание не найдено.");
     }
     const removed = data.subjects[sIdx].tasks.splice(tIdx, 1);
-    fs.writeFileSync(
-      path.resolve(__dirname, "../data.json"),
-      JSON.stringify(data, null, 2)
-    );
+    saveData(data);
     await ctx.reply(`Задание ${removed[0]?.title || "?"} удалено.`);
     await mainMenu(ctx);
     console.log(
