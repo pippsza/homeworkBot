@@ -1,0 +1,39 @@
+{
+  "subjects": [
+    {
+      "name": "123",
+      "tasks": [
+        {
+          "title": "вфыв",
+          "description": "",
+          "attachments": [],
+          "answers": [],
+          "emoji": "@dsad"
+        }
+      ]
+    },
+    {
+      "name": "das",
+      "tasks": []
+    },
+    {
+      "name": "ФЫВ",
+      "tasks": []
+    }
+  ],
+  "subjectEmojis": {
+    "123": "в",
+    "das": "d",
+    "ФЫВ": "В"
+  },
+  "users": {
+    "ADMINS": [
+      "@pippsza",
+      "@teacher2"
+    ],
+    "ANSWER_VIEWERS": [
+      "@pippsza",
+      "@viewer2"
+    ]
+  }
+}
