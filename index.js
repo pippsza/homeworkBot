@@ -2,7 +2,6 @@ require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const express = require("express");
 const subjectsHandler = require("./handlers/subjects");
-const { ADMINS, ANSWER_VIEWERS } = require("./utils/storage");
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MODE = process.env.MODE || "polling";

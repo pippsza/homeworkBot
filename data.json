@@ -17,19 +17,7 @@
       "tasks": []
     },
     {
-      "name": "ФЫВ",
-      "tasks": []
-    },
-    {
-      "name": "AAAAAAAAAAAA",
-      "tasks": []
-    },
-    {
-      "name": "dsad",
-      "tasks": []
-    },
-    {
-      "name": "asd",
+      "name": "123123",
       "tasks": []
     },
     {
@@ -39,6 +27,7 @@
   ],
   "subjectEmojis": {
     "123": "в",
+    "123123": "ыв",
     "das": "d",
     "ФЫВ": "В",
     "AAAAAAAAAAAA": "1",
@@ -47,8 +36,15 @@
     "dasd": "a"
   },
   "users": {
-    "ADMINS": ["@pippsza"],
-    "ANSWER_VIEWERS": ["@pippsza"],
-    "SUPERUSERS": ["@astakhovBohdan", "@pippsza"]
+    "ADMINS": [
+      "@pippsza"
+    ],
+    "ANSWER_VIEWERS": [
+      "@pippsza"
+    ],
+    "SUPERUSERS": [
+      "@pippsza",
+      "@dasda"
+    ]
   }
 }
