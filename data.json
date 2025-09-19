@@ -1,39 +1,34 @@
 {
   "subjects": [
     {
-      "name": "фывфыв",
+      "name": "123",
+      "emoji": "a",
+      "lecturerName": "dasda",
+      "lecturerContact": "d",
+      "practitionerName": "asd",
+      "practitionerContact": "d",
       "tasks": [
         {
-          "title": "аывавфыва",
-          "description": "аАлдЖПжвадпл",
-          "attachments": [],
-          "answers": [],
-          "emoji": "авы"
-        },
-        {
-          "title": ":LA:AS:DLA:SDL",
-          "description": "пизда",
+          "title": "123123",
+          "description": "",
           "attachments": [
-            "AgACAgIAAyEFAAS4ZZ5aAAICn2jNcFeO6Stf4FU96_AI5EKR7VdyAAL1-zEbk0NwSloCh_rOJPKHAQADAgADeAADNgQ",
-            "AgACAgIAAyEFAAS4ZZ5aAAICn2jNcFeO6Stf4FU96_AI5EKR7VdyAAL1-zEbk0NwSloCh_rOJPKHAQADAgADeAADNgQ"
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAAS4ZZ5aAAIC0GjNg9zaVxeQDoY7ZN_QDJufQ5PwAALI_DEbk0NwSkxpcI4M-j37AQADAgADeQADNgQ"
+            }
           ],
           "answers": [],
-          "emoji": "!"
+          "emoji": "d"
         }
-      ],
+      ]
+    },
+    {
+      "name": "B",
       "emoji": "1",
       "lecturerName": "",
       "lecturerContact": "",
       "practitionerName": "",
-      "practitionerContact": ""
-    },
-    {
-      "name": "dsadsad",
-      "emoji": "g",
-      "lecturerName": ":LGKFDLGK:DLKG",
-      "lecturerContact": "ASDM",
-      "practitionerName": ";lsdfk;lsdfkl;sdkf",
-      "practitionerContact": "fff",
+      "practitionerContact": "",
       "tasks": []
     }
   ],

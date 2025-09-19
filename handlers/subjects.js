@@ -1,6 +1,7 @@
 const { Markup } = require("telegraf");
 const fs = require("fs");
 const path = require("path");
+const https = require("https");
 
 const DATA_PATH = path.join(__dirname, "../data.json");
 const ATTACHMENTS_DIR = path.join(__dirname, "../attachments");
@@ -28,6 +29,19 @@ function loadData() {
         if (!s.lecturerContact) s.lecturerContact = "";
         if (!s.practitionerName) s.practitionerName = "";
         if (!s.practitionerContact) s.practitionerContact = "";
+        s.tasks.forEach((t) => {
+          if (!Array.isArray(t.attachments)) t.attachments = [];
+          // If old structure (just strings), assume type based on common practice or set to 'document'
+          if (
+            t.attachments.length > 0 &&
+            typeof t.attachments[0] === "string"
+          ) {
+            t.attachments = t.attachments.map((file_id) => ({
+              type: "document",
+              file_id,
+            })); // or 'photo' if assuming photos
+          }
+        });
       });
       return json;
     } catch (e) {
@@ -53,10 +67,38 @@ function saveData(data) {
   }
 }
 
-function saveAttachment(fileId, buffer, ext = "") {
-  const filePath = path.join(ATTACHMENTS_DIR, `${fileId}${ext}`);
-  fs.writeFileSync(filePath, buffer);
-  return filePath;
+async function downloadFile(url) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (res) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Failed to download: ${res.statusCode}`));
+          return;
+        }
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => resolve(Buffer.concat(chunks)));
+        res.on("error", reject);
+      })
+      .on("error", reject);
+  });
+}
+
+async function saveAttachment(ctx, file_id, type) {
+  try {
+    const file = await ctx.telegram.getFile(file_id);
+    const url = await ctx.telegram.getFileLink(file_id);
+    const buffer = await downloadFile(url);
+    const ext =
+      path.extname(file.file_path) || (type === "photo" ? ".jpg" : "");
+    const filePath = path.join(ATTACHMENTS_DIR, `${file_id}${ext}`);
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[saveAttachment] Saved ${type} to ${filePath}`);
+    return filePath;
+  } catch (e) {
+    console.error("[saveAttachment error]", e);
+    return null;
+  }
 }
 
 const data = loadData();
@@ -318,6 +360,17 @@ function subjectsHandler(bot) {
     }
     buttons.push([Markup.button.callback("⬅ Назад", `subject_${sIdx}`)]);
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+
+    // Send attachments
+    if (task.attachments && task.attachments.length > 0) {
+      for (const att of task.attachments) {
+        if (att.type === "photo") {
+          await ctx.replyWithPhoto(att.file_id);
+        } else if (att.type === "document") {
+          await ctx.replyWithDocument(att.file_id);
+        }
+      }
+    }
   });
 
   // Меню редактирования задачи
@@ -437,11 +490,319 @@ function subjectsHandler(bot) {
 
     if (!state) return;
 
+    const text = ctx.message.text.trim();
+
+    // Edit subject fields (separate handling)
+    if (state.mode === "edit_subject") {
+      if (state.step === "name") {
+        if (!text) return ctx.reply("Название не может быть пустым.");
+        data.subjects[state.sIdx].name = text;
+        saveData(data);
+        delete inputState[ctx.from.id];
+        await ctx.reply("Название обновлено!");
+        // Show edit menu again
+        await editOrSend(
+          ctx,
+          `Что хотите изменить в предмете?`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✏️ Название",
+                `edit_subject_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Emoji",
+                `edit_subject_emoji_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО лектора",
+                `edit_subject_lecturer_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты лектора",
+                `edit_subject_lecturer_contact_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО практика",
+                `edit_subject_practitioner_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты практика",
+                `edit_subject_practitioner_contact_${state.sIdx}`
+              ),
+            ],
+            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+          ])
+        );
+        return;
+      }
+      if (state.step === "emoji") {
+        data.subjects[state.sIdx].emoji = text || "📚";
+        saveData(data);
+        delete inputState[ctx.from.id];
+        await ctx.reply("Emoji обновлён!");
+        await editOrSend(
+          ctx,
+          `Что хотите изменить в предмете?`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✏️ Название",
+                `edit_subject_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Emoji",
+                `edit_subject_emoji_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО лектора",
+                `edit_subject_lecturer_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты лектора",
+                `edit_subject_lecturer_contact_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО практика",
+                `edit_subject_practitioner_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты практика",
+                `edit_subject_practitioner_contact_${state.sIdx}`
+              ),
+            ],
+            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+          ])
+        );
+        return;
+      }
+      if (state.step === "lecturer_name") {
+        data.subjects[state.sIdx].lecturerName = text;
+        saveData(data);
+        delete inputState[ctx.from.id];
+        await ctx.reply("ФИО лектора обновлено!");
+        await editOrSend(
+          ctx,
+          `Что хотите изменить в предмете?`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✏️ Название",
+                `edit_subject_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Emoji",
+                `edit_subject_emoji_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО лектора",
+                `edit_subject_lecturer_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты лектора",
+                `edit_subject_lecturer_contact_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО практика",
+                `edit_subject_practitioner_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты практики",
+                `edit_subject_practitioner_contact_${state.sIdx}`
+              ),
+            ],
+            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+          ])
+        );
+        return;
+      }
+      if (state.step === "lecturer_contact") {
+        data.subjects[state.sIdx].lecturerContact = text;
+        saveData(data);
+        delete inputState[ctx.from.id];
+        await ctx.reply("Контакты лектора обновлены!");
+        await editOrSend(
+          ctx,
+          `Что хотите изменить в предмете?`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✏️ Название",
+                `edit_subject_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Emoji",
+                `edit_subject_emoji_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО лектора",
+                `edit_subject_lecturer_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты лектора",
+                `edit_subject_lecturer_contact_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО практики",
+                `edit_subject_practitioner_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты практики",
+                `edit_subject_practitioner_contact_${state.sIdx}`
+              ),
+            ],
+            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+          ])
+        );
+        return;
+      }
+      if (state.step === "practitioner_name") {
+        data.subjects[state.sIdx].practitionerName = text;
+        saveData(data);
+        delete inputState[ctx.from.id];
+        await ctx.reply("ФИО практика обновлено!");
+        await editOrSend(
+          ctx,
+          `Что хотите изменить в предмете?`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✏️ Название",
+                `edit_subject_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Emoji",
+                `edit_subject_emoji_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО лектора",
+                `edit_subject_lecturer_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты лектора",
+                `edit_subject_lecturer_contact_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО практика",
+                `edit_subject_practitioner_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты практики",
+                `edit_subject_practitioner_contact_${state.sIdx}`
+              ),
+            ],
+            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+          ])
+        );
+        return;
+      }
+      if (state.step === "practitioner_contact") {
+        data.subjects[state.sIdx].practitionerContact = text;
+        saveData(data);
+        delete inputState[ctx.from.id];
+        await ctx.reply("Контакты практики обновлены!");
+        await editOrSend(
+          ctx,
+          `Что хотите изменить в предмете?`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✏️ Название",
+                `edit_subject_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Emoji",
+                `edit_subject_emoji_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО лектора",
+                `edit_subject_lecturer_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты лектора",
+                `edit_subject_lecturer_contact_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ ФИО практики",
+                `edit_subject_practitioner_name_${state.sIdx}`
+              ),
+            ],
+            [
+              Markup.button.callback(
+                "✏️ Контакты практики",
+                `edit_subject_practitioner_contact_${state.sIdx}`
+              ),
+            ],
+            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+          ])
+        );
+        return;
+      }
+    }
+
     // Добавление/редактирование предмета
     if (state.mode === "add_subject" || state.mode === "edit_subject") {
       const isAdd = state.mode === "add_subject";
       if (state.step === "name") {
-        const name = ctx.message.text.trim();
+        const name = text;
         if (!name) return ctx.reply("Название не может быть пустым.");
         state.name = name;
         state.step = "emoji";
@@ -451,7 +812,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "emoji") {
-        state.emoji = ctx.message.text.trim() || "📚";
+        state.emoji = text || "📚";
         state.step = "lecturer_name";
         await ctx.reply(
           "Введите ФИО лектора (или пропустите):",
@@ -469,7 +830,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "lecturer_name") {
-        state.lecturerName = ctx.message.text.trim();
+        state.lecturerName = text;
         state.step = "lecturer_contact";
         await ctx.reply(
           "Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
@@ -487,7 +848,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "lecturer_contact") {
-        state.lecturerContact = ctx.message.text.trim();
+        state.lecturerContact = text;
         state.step = "practitioner_name";
         await ctx.reply(
           "Введите ФИО практика (или пропустите):",
@@ -505,7 +866,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "practitioner_name") {
-        state.practitionerName = ctx.message.text.trim();
+        state.practitionerName = text;
         state.step = "practitioner_contact";
         await ctx.reply(
           "Введите контакты практика (соц. сети, почта и т.д.) (или пропустите):",
@@ -523,7 +884,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "practitioner_contact") {
-        state.practitionerContact = ctx.message.text.trim();
+        state.practitionerContact = text;
         if (isAdd) {
           data.subjects.push({
             name: state.name,
@@ -560,7 +921,7 @@ function subjectsHandler(bot) {
 
     // Добавление админа
     if (state && state.step === "add_admin") {
-      const username = ctx.message.text.trim();
+      const username = text;
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
       if (data.users.ADMINS.includes(username))
         return ctx.reply("Уже есть такой админ.");
@@ -579,7 +940,7 @@ function subjectsHandler(bot) {
 
     // Добавление ANSWER_VIEWER
     if (state && state.step === "add_viewer") {
-      const username = ctx.message.text.trim();
+      const username = text;
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
       if (data.users.ANSWER_VIEWERS.includes(username))
         return ctx.reply("Уже есть такой ANSWER_VIEWER.");
@@ -598,7 +959,7 @@ function subjectsHandler(bot) {
 
     // Добавление SUPERUSER
     if (state && state.step === "add_superuser") {
-      const username = ctx.message.text.trim();
+      const username = text;
       if (!username.startsWith("@")) return ctx.reply("Введите username с @");
       if (data.users.SUPERUSERS.includes(username))
         return ctx.reply("Уже есть такой SUPERUSER.");
@@ -619,7 +980,7 @@ function subjectsHandler(bot) {
     if (state && (state.mode === "add_task" || state.mode === "edit_task")) {
       const isAdd = state.mode === "add_task";
       if (state.step === "title") {
-        const title = ctx.message.text.trim();
+        const title = text;
         if (!title) return ctx.reply("Заголовок не может быть пустым.");
         state.title = title;
         state.step = "emoji";
@@ -629,7 +990,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "emoji") {
-        state.emoji = ctx.message.text.trim() || "📄";
+        state.emoji = text || "📄";
         state.step = "description";
         await ctx.reply(
           "Введите описание (или пропустите):",
@@ -647,7 +1008,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "description") {
-        state.description = ctx.message.text.trim();
+        state.description = text;
         state.step = "attachments";
         await ctx.reply(
           'Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".',
@@ -666,9 +1027,7 @@ function subjectsHandler(bot) {
       }
       if (state.step === "answer") {
         if (state.mode === "add_answer") {
-          data.subjects[state.sIdx].tasks[state.tIdx].answers.push(
-            ctx.message.text
-          );
+          data.subjects[state.sIdx].tasks[state.tIdx].answers.push(text);
           saveData(data);
           await ctx.reply("Ответ добавлен!");
           delete inputState[ctx.from.id];
@@ -676,7 +1035,7 @@ function subjectsHandler(bot) {
         }
       }
       if (state.step === "edit_title") {
-        const title = ctx.message.text.trim();
+        const title = text;
         if (!title) return ctx.reply("Заголовок не может быть пустым.");
         data.subjects[state.sIdx].tasks[state.tIdx].title = title;
         saveData(data);
@@ -721,8 +1080,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "edit_emoji") {
-        data.subjects[state.sIdx].tasks[state.tIdx].emoji =
-          ctx.message.text.trim() || "📄";
+        data.subjects[state.sIdx].tasks[state.tIdx].emoji = text || "📄";
         saveData(data);
         delete inputState[ctx.from.id];
         await ctx.reply("Emoji обновлён!");
@@ -765,8 +1123,7 @@ function subjectsHandler(bot) {
         return;
       }
       if (state.step === "edit_description") {
-        data.subjects[state.sIdx].tasks[state.tIdx].description =
-          ctx.message.text.trim();
+        data.subjects[state.sIdx].tasks[state.tIdx].description = text;
         saveData(data);
         delete inputState[ctx.from.id];
         await ctx.reply("Описание обновлено!");
@@ -947,7 +1304,7 @@ function subjectsHandler(bot) {
       step: "practitioner_contact",
       sIdx,
     };
-    await ctx.reply("Введите новые контакты практика:");
+    await ctx.reply("Введите новые контакты практики:");
   });
 
   // Пропуски для редактирования предмета (но поскольку редактирование по полю, пропуски не нужны, просто ввод)
@@ -997,15 +1354,17 @@ function subjectsHandler(bot) {
     )
       return;
     if (state.step === "attachments" || state.step === "edit_attachments") {
-      state.attachments.push(ctx.message.document.file_id);
+      const file_id = ctx.message.document.file_id;
+      await saveAttachment(ctx, file_id, "document");
+      state.attachments.push({ type: "document", file_id: file_id });
       await ctx.reply(
         "Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'."
       );
     }
-    if (state && state.step === "answer") {
-      data.subjects[state.sIdx].tasks[state.tIdx].answers.push(
-        ctx.message.document.file_id
-      );
+    if (state && state.mode === "add_answer" && state.step === "answer") {
+      const file_id = ctx.message.document.file_id;
+      await saveAttachment(ctx, file_id, "document");
+      data.subjects[state.sIdx].tasks[state.tIdx].answers.push(file_id);
       saveData(data);
       await ctx.reply("Ответ (файл) добавлен!");
       delete inputState[ctx.from.id];
@@ -1032,7 +1391,9 @@ function subjectsHandler(bot) {
       const photo = ctx.message.photo;
       if (photo && photo.length) {
         const largest = photo[photo.length - 1];
-        state.attachments.push(largest.file_id);
+        const file_id = largest.file_id;
+        await saveAttachment(ctx, file_id, "photo");
+        state.attachments.push({ type: "photo", file_id: file_id });
         await ctx.reply(
           "Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
         );
