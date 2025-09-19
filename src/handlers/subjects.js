@@ -41,19 +41,6 @@ function loadData() {
               file_id,
             })); // or 'photo' if assuming photos
           }
-          if (!Array.isArray(t.answers)) t.answers = [];
-          // Migrate answers to objects
-          t.answers = t.answers.map((a) => {
-            if (typeof a === "object" && a.type) return a;
-            if (typeof a === "string") {
-              if (a.length > 50 && !a.includes(" ")) {
-                return { type: "document", content: a };
-              } else {
-                return { type: "text", content: a };
-              }
-            }
-            return a;
-          });
         });
       });
       return json;
@@ -155,17 +142,23 @@ function isPrivate(ctx) {
   return ctx.chat && ctx.chat.type === "private";
 }
 
-const replyKeyboard = Markup.keyboard([["/start"]]).resize();
+const replyKeyboard = Markup.keyboard([["Главное меню"]])
+  .resize()
+  .persistent();
 
 async function mainMenu(ctx) {
   const buttons = [
     [Markup.button.callback("📚 Предметы", "subjects")],
     [Markup.button.callback("⚙️ Настройки", "settings")],
   ];
-  return await ctx.reply("Главное меню", {
-    reply_markup: Markup.inlineKeyboard(buttons),
-    parse_mode: "HTML",
-  });
+  try {
+    return await ctx.reply("Главное меню", {
+      reply_markup: Markup.inlineKeyboard(buttons),
+      parse_mode: "HTML",
+    });
+  } catch (e) {
+    console.error("[mainMenu error]", e);
+  }
 }
 
 let interactiveMessageId = {};
@@ -200,20 +193,38 @@ async function editOrSend(ctx, text, keyboard) {
       return;
     }
     console.error("[editOrSend error]", e);
-    const sent = await ctx.reply(text, { ...keyboard, parse_mode: "HTML" });
-    interactiveMessageId[ctx.chat.id] = sent.message_id;
+    if (e.response && e.response.error_code === 429) {
+      const retryAfter = e.response.parameters.retry_after;
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      // Повторить запрос
+      await editOrSend(ctx, text, keyboard);
+    } else {
+      const sent = await ctx.reply(text, { ...keyboard, parse_mode: "HTML" });
+      interactiveMessageId[ctx.chat.id] = sent.message_id;
+    }
   }
 }
 
 function subjectsHandler(bot) {
-  bot.start((ctx) => {
-    return ctx.reply(
-      "📌 Главное меню",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("📚 Предметы", "subjects")],
-        [Markup.button.callback("⚙️ Настройки", "settings")],
-      ])
-    );
+  bot.start(async (ctx) => {
+    try {
+      await ctx.reply(
+        "📌 Главное меню",
+        Markup.inlineKeyboard([
+          Markup.button.callback("📚 Предметы", "subjects"),
+          Markup.button.callback("⚙️ Настройки", "settings"),
+        ])
+      );
+      await ctx.reply(
+        "Или используйте кнопки ниже:",
+        Markup.keyboard([
+          ["📚 Предметы", "⚙️ Настройки"], // первая строка кнопок
+          ["Информация"], // вторая строка кнопок
+        ]).resize()
+      ); // делает клавиатуру компактной
+    } catch (e) {
+      console.error("[start error]", e);
+    }
   });
 
   bot.action("main_menu", async (ctx) => {
@@ -221,7 +232,11 @@ function subjectsHandler(bot) {
       [Markup.button.callback("📚 Предметы", "subjects")],
       [Markup.button.callback("⚙️ Настройки", "settings")],
     ];
-    await editOrSend(ctx, "Главное меню", Markup.inlineKeyboard(buttons));
+    try {
+      await editOrSend(ctx, "Главное меню", Markup.inlineKeyboard(buttons));
+    } catch (e) {
+      console.error("[main_menu error]", e);
+    }
   });
 
   // Изменённый вывод списка предметов
@@ -240,7 +255,11 @@ function subjectsHandler(bot) {
         ]);
       }
       buttons.push([Markup.button.callback("⬅ Назад", "main_menu")]);
-      await editOrSend(ctx, "Нет предметов.", Markup.inlineKeyboard(buttons));
+      try {
+        await editOrSend(ctx, "Нет предметов.", Markup.inlineKeyboard(buttons));
+      } catch (e) {
+        console.error("[subjects error]", e);
+      }
       return;
     }
     let msg = "Список предметов:\n";
@@ -265,7 +284,11 @@ function subjectsHandler(bot) {
       ]);
     }
     buttons.push([Markup.button.callback("⬅ Назад", "main_menu")]);
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    try {
+      await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    } catch (e) {
+      console.error("[subjects error]", e);
+    }
   });
 
   bot.action(/^subject_(\d+)$/, async (ctx) => {
@@ -325,7 +348,11 @@ function subjectsHandler(bot) {
       ]);
     }
     buttons.push([Markup.button.callback("⬅ Назад", "subjects")]);
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    try {
+      await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    } catch (e) {
+      console.error("[subject error]", e);
+    }
   });
 
   bot.action(/^task_(\d+)_(\d+)$/, async (ctx) => {
@@ -340,13 +367,17 @@ function subjectsHandler(bot) {
     const subject = data.subjects[sIdx];
     const task = subject?.tasks[tIdx];
     if (!task)
-      return editOrSend(
-        ctx,
-        "Задание не найдено.",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("⬅ Назад", `subject_${sIdx}`)],
-        ])
-      );
+      try {
+        return await editOrSend(
+          ctx,
+          "Задание не найдено.",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("⬅ Назад", `subject_${sIdx}`)],
+          ])
+        );
+      } catch (e) {
+        console.error("[task error]", e);
+      }
     let msg = `*${task.title}*`;
     if (task.description) msg += `\n${task.description}`;
     let buttons = [];
@@ -379,119 +410,123 @@ function subjectsHandler(bot) {
       ]);
     }
     buttons.push([Markup.button.callback("⬅ Назад", `subject_${sIdx}`)]);
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    try {
+      await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    } catch (e) {
+      console.error("[task error]", e);
+    }
 
     // Send attachments
     if (task.attachments && task.attachments.length > 0) {
       for (const att of task.attachments) {
-        if (att.type === "photo") {
-          await ctx.replyWithPhoto(att.file_id);
-        } else if (att.type === "document") {
-          await ctx.replyWithDocument(att.file_id);
+        try {
+          if (att.type === "photo") {
+            await ctx.replyWithPhoto(att.file_id);
+          } else if (att.type === "document") {
+            await ctx.replyWithDocument(att.file_id);
+          }
+        } catch (e) {
+          console.error("[send attachment error]", e);
         }
       }
     }
-  });
-
-  // Показать ответы
-  bot.action(/^show_answers_(\d+)_(\d+)$/, async (ctx) => {
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    const task = data.subjects[sIdx]?.tasks[tIdx];
-    if (!task) return ctx.reply("Задание не найдено.");
-
-    await ctx.reply("Ответы:");
-    for (const ans of task.answers || []) {
-      if (ans.type === "text") {
-        await ctx.reply(ans.content);
-      } else if (ans.type === "photo") {
-        await ctx.replyWithPhoto(ans.content);
-      } else if (ans.type === "document") {
-        await ctx.replyWithDocument(ans.content);
-      }
-    }
-
-    const buttons = [
-      [Markup.button.callback("⬅ Назад", `task_${sIdx}_${tIdx}`)],
-    ];
-    await ctx.reply("Конец ответов.", Markup.inlineKeyboard(buttons));
   });
 
   // Меню редактирования задачи
   bot.action(/^edit_task_menu_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
-    await editOrSend(
-      ctx,
-      `Что хотите изменить в задании?`,
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            "✏️ Заголовок",
-            `edit_task_title_${sIdx}_${tIdx}`
-          ),
-        ],
-        [Markup.button.callback("✏️ Emoji", `edit_task_emoji_${sIdx}_${tIdx}`)],
-        [
-          Markup.button.callback(
-            "✏️ Описание",
-            `edit_task_description_${sIdx}_${tIdx}`
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "✏️ Вложения",
-            `edit_task_attachments_${sIdx}_${tIdx}`
-          ),
-        ],
-        [Markup.button.callback("✅ Готово", `task_${sIdx}_${tIdx}`)],
-      ])
-    );
+    try {
+      await editOrSend(
+        ctx,
+        `Что хотите изменить в задании?`,
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              "✏️ Заголовок",
+              `edit_task_title_${sIdx}_${tIdx}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "✏️ Emoji",
+              `edit_task_emoji_${sIdx}_${tIdx}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "✏️ Описание",
+              `edit_task_description_${sIdx}_${tIdx}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "✏️ Вложения",
+              `edit_task_attachments_${sIdx}_${tIdx}`
+            ),
+          ],
+          [Markup.button.callback("✅ Готово", `task_${sIdx}_${tIdx}`)],
+        ])
+      );
+    } catch (e) {
+      console.error("[edit_task_menu error]", e);
+    }
   });
 
   // Меню редактирования предмета
   bot.action(/^edit_subject_menu_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
-    await editOrSend(
-      ctx,
-      `Что хотите изменить в предмете?`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback("✏️ Название", `edit_subject_name_${sIdx}`)],
-        [Markup.button.callback("✏️ Emoji", `edit_subject_emoji_${sIdx}`)],
-        [
-          Markup.button.callback(
-            "✏️ ФИО лектора",
-            `edit_subject_lecturer_name_${sIdx}`
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "✏️ Контакты лектора",
-            `edit_subject_lecturer_contact_${sIdx}`
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "✏️ ФИО практика",
-            `edit_subject_practitioner_name_${sIdx}`
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "✏️ Контакты практики",
-            `edit_subject_practitioner_contact_${sIdx}`
-          ),
-        ],
-        [Markup.button.callback("✅ Готово", `subject_${sIdx}`)],
-      ])
-    );
+    try {
+      await editOrSend(
+        ctx,
+        `Что хотите изменить в предмете?`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("✏️ Название", `edit_subject_name_${sIdx}`)],
+          [Markup.button.callback("✏️ Emoji", `edit_subject_emoji_${sIdx}`)],
+          [
+            Markup.button.callback(
+              "✏️ ФИО лектора",
+              `edit_subject_lecturer_name_${sIdx}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "✏️ Контакты лектора",
+              `edit_subject_lecturer_contact_${sIdx}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "✏️ ФИО практики",
+              `edit_subject_practitioner_name_${sIdx}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "✏️ Контакты практики",
+              `edit_subject_practitioner_contact_${sIdx}`
+            ),
+          ],
+          [Markup.button.callback("✅ Готово", `subject_${sIdx}`)],
+        ])
+      );
+    } catch (e) {
+      console.error("[edit_subject_menu error]", e);
+    }
   });
 
   const inputState = {};
 
   // Добавление предмета
   bot.action("add_subject", async (ctx) => {
-    if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
+    if (!isAdmin(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[add_subject error]", e);
+      }
+      return;
+    }
     inputState[ctx.from.id] = {
       mode: "add_subject",
       step: "name",
@@ -502,25 +537,37 @@ function subjectsHandler(bot) {
       practitionerName: "",
       practitionerContact: "",
     };
-    await ctx.reply("Введите название нового предмета:");
+    try {
+      await ctx.reply("Введите название нового предмета:");
+    } catch (e) {
+      console.error("[add_subject error]", e);
+    }
   });
 
   bot.on("text", async (ctx) => {
     if (ctx.message.text === "/start") {
       delete inputState[ctx.from.id];
-      await ctx.reply(
-        "📌 Главное меню",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("📚 Предметы", "subjects")],
-          [Markup.button.callback("⚙️ Настройки", "settings")],
-        ])
-      );
+      try {
+        await ctx.reply(
+          "📌 Главное меню",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("📚 Предметы", "subjects")],
+            [Markup.button.callback("⚙️ Настройки", "settings")],
+          ])
+        );
+      } catch (e) {
+        console.error("[/start error]", e);
+      }
       return;
     }
 
-    if (ctx.message.text === "🏠 Главное меню") {
+    if (ctx.message.text === "Главное меню") {
       delete inputState[ctx.from.id];
-      await mainMenu(ctx);
+      try {
+        await mainMenu(ctx);
+      } catch (e) {
+        console.error("[main_menu keyboard error]", e);
+      }
       return;
     }
 
@@ -539,305 +586,336 @@ function subjectsHandler(bot) {
     // Edit subject fields (separate handling)
     if (state.mode === "edit_subject") {
       if (state.step === "name") {
-        if (!text) return ctx.reply("Название не может быть пустым.");
+        if (!text) {
+          try {
+            await ctx.reply("Название не может быть пустым.");
+          } catch (e) {
+            console.error("[edit_subject name error]", e);
+          }
+          return;
+        }
         data.subjects[state.sIdx].name = text;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Название обновлено!");
-        // Show edit menu again
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в предмете?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Название",
-                `edit_subject_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_subject_emoji_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО лектора",
-                `edit_subject_lecturer_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты лектора",
-                `edit_subject_lecturer_contact_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО практики",
-                `edit_subject_practitioner_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты практики",
-                `edit_subject_practitioner_contact_${state.sIdx}`
-              ),
-            ],
-            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
-          ])
-        );
+        try {
+          await ctx.reply("Название обновлено!");
+          // Show edit menu again
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в предмете?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Название",
+                  `edit_subject_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_subject_emoji_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО лектора",
+                  `edit_subject_lecturer_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты лектора",
+                  `edit_subject_lecturer_contact_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО практики",
+                  `edit_subject_practitioner_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты практики",
+                  `edit_subject_practitioner_contact_${state.sIdx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_subject name error]", e);
+        }
         return;
       }
       if (state.step === "emoji") {
         data.subjects[state.sIdx].emoji = text || "📚";
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Emoji обновлён!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в предмете?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Название",
-                `edit_subject_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_subject_emoji_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО лектора",
-                `edit_subject_lecturer_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты лектора",
-                `edit_subject_lecturer_contact_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО практики",
-                `edit_subject_practitioner_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты практики",
-                `edit_subject_practitioner_contact_${state.sIdx}`
-              ),
-            ],
-            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
-          ])
-        );
+        try {
+          await ctx.reply("Emoji обновлён!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в предмете?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Название",
+                  `edit_subject_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_subject_emoji_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО лектора",
+                  `edit_subject_lecturer_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты лектора",
+                  `edit_subject_lecturer_contact_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО практики",
+                  `edit_subject_practitioner_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты практики",
+                  `edit_subject_practitioner_contact_${state.sIdx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_subject emoji error]", e);
+        }
         return;
       }
       if (state.step === "lecturer_name") {
         data.subjects[state.sIdx].lecturerName = text;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("ФИО лектора обновлено!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в предмете?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Название",
-                `edit_subject_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_subject_emoji_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО лектора",
-                `edit_subject_lecturer_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты лектора",
-                `edit_subject_lecturer_contact_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО практики",
-                `edit_subject_practitioner_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты практики",
-                `edit_subject_practitioner_contact_${state.sIdx}`
-              ),
-            ],
-            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
-          ])
-        );
+        try {
+          await ctx.reply("ФИО лектора обновлено!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в предмете?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Название",
+                  `edit_subject_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_subject_emoji_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО лектора",
+                  `edit_subject_lecturer_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты лектора",
+                  `edit_subject_lecturer_contact_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО практики",
+                  `edit_subject_practitioner_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты практики",
+                  `edit_subject_practitioner_contact_${state.sIdx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_subject lecturer_name error]", e);
+        }
         return;
       }
       if (state.step === "lecturer_contact") {
         data.subjects[state.sIdx].lecturerContact = text;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Контакты лектора обновлены!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в предмете?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Название",
-                `edit_subject_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_subject_emoji_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО лектора",
-                `edit_subject_lecturer_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты лектора",
-                `edit_subject_lecturer_contact_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО практики",
-                `edit_subject_practitioner_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты практики",
-                `edit_subject_practitioner_contact_${state.sIdx}`
-              ),
-            ],
-            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
-          ])
-        );
+        try {
+          await ctx.reply("Контакты лектора обновлены!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в предмете?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Название",
+                  `edit_subject_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_subject_emoji_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО лектора",
+                  `edit_subject_lecturer_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты лектора",
+                  `edit_subject_lecturer_contact_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО практики",
+                  `edit_subject_practitioner_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты практики",
+                  `edit_subject_practitioner_contact_${state.sIdx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_subject lecturer_contact error]", e);
+        }
         return;
       }
       if (state.step === "practitioner_name") {
         data.subjects[state.sIdx].practitionerName = text;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("ФИО практики обновлено!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в предмете?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Название",
-                `edit_subject_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_subject_emoji_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО лектора",
-                `edit_subject_lecturer_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты лектора",
-                `edit_subject_lecturer_contact_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО практики",
-                `edit_subject_practitioner_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты практики",
-                `edit_subject_practitioner_contact_${state.sIdx}`
-              ),
-            ],
-            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
-          ])
-        );
+        try {
+          await ctx.reply("ФИО практики обновлено!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в предмете?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Название",
+                  `edit_subject_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_subject_emoji_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО лектора",
+                  `edit_subject_lecturer_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты лектора",
+                  `edit_subject_lecturer_contact_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО практики",
+                  `edit_subject_practitioner_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты практики",
+                  `edit_subject_practitioner_contact_${state.sIdx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_subject practitioner_name error]", e);
+        }
         return;
       }
       if (state.step === "practitioner_contact") {
         data.subjects[state.sIdx].practitionerContact = text;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Контакты практики обновлены!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в предмете?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Название",
-                `edit_subject_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_subject_emoji_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО лектора",
-                `edit_subject_lecturer_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты лектора",
-                `edit_subject_lecturer_contact_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ ФИО практики",
-                `edit_subject_practitioner_name_${state.sIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Контакты практики",
-                `edit_subject_practitioner_contact_${state.sIdx}`
-              ),
-            ],
-            [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
-          ])
-        );
+        try {
+          await ctx.reply("Контакты практики обновлены!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в предмете?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Название",
+                  `edit_subject_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_subject_emoji_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО лектора",
+                  `edit_subject_lecturer_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты лектора",
+                  `edit_subject_lecturer_contact_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ ФИО практики",
+                  `edit_subject_practitioner_name_${state.sIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Контакты практики",
+                  `edit_subject_practitioner_contact_${state.sIdx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `subject_${state.sIdx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_subject practitioner_contact error]", e);
+        }
         return;
       }
     }
@@ -847,84 +925,111 @@ function subjectsHandler(bot) {
       const isAdd = state.mode === "add_subject";
       if (state.step === "name") {
         const name = text;
-        if (!name) return ctx.reply("Название не может быть пустым.");
+        if (!name) {
+          try {
+            await ctx.reply("Название не может быть пустым.");
+          } catch (e) {
+            console.error("[add_subject name error]", e);
+          }
+          return;
+        }
         state.name = name;
         state.step = "emoji";
-        await ctx.reply(
-          "Введите смайлик для предмета (например, 📐) или пропустите:"
-        );
+        try {
+          await ctx.reply(
+            "Введите смайлик для предмета (например, 📐) или пропустите:"
+          );
+        } catch (e) {
+          console.error("[add_subject emoji prompt error]", e);
+        }
         return;
       }
       if (state.step === "emoji") {
         state.emoji = text || "📚";
         state.step = "lecturer_name";
-        await ctx.reply(
-          "Введите ФИО лектора (или пропустите):",
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "Пропустить",
-                isAdd
-                  ? "skip_lecturer_name"
-                  : `skip_lecturer_name_${state.sIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply(
+            "Введите ФИО лектора (или пропустите):",
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "Пропустить",
+                  isAdd
+                    ? "skip_lecturer_name"
+                    : `skip_lecturer_name_${state.sIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_subject lecturer_name prompt error]", e);
+        }
         return;
       }
       if (state.step === "lecturer_name") {
         state.lecturerName = text;
         state.step = "lecturer_contact";
-        await ctx.reply(
-          "Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "Пропустить",
-                isAdd
-                  ? "skip_lecturer_contact"
-                  : `skip_lecturer_contact_${state.sIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply(
+            "Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "Пропустить",
+                  isAdd
+                    ? "skip_lecturer_contact"
+                    : `skip_lecturer_contact_${state.sIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_subject lecturer_contact prompt error]", e);
+        }
         return;
       }
       if (state.step === "lecturer_contact") {
         state.lecturerContact = text;
         state.step = "practitioner_name";
-        await ctx.reply(
-          "Введите ФИО практики (или пропустите):",
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "Пропустить",
-                isAdd
-                  ? "skip_practitioner_name"
-                  : `skip_practitioner_name_${state.sIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply(
+            "Введите ФИО практики (или пропустите):",
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "Пропустить",
+                  isAdd
+                    ? "skip_practitioner_name"
+                    : `skip_practitioner_name_${state.sIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_subject practitioner_name prompt error]", e);
+        }
         return;
       }
       if (state.step === "practitioner_name") {
         state.practitionerName = text;
         state.step = "practitioner_contact";
-        await ctx.reply(
-          "Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "Пропустить",
-                isAdd
-                  ? "skip_practitioner_contact"
-                  : `skip_practitioner_contact_${state.sIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply(
+            "Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "Пропустить",
+                  isAdd
+                    ? "skip_practitioner_contact"
+                    : `skip_practitioner_contact_${state.sIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_subject practitioner_contact prompt error]", e);
+        }
         return;
       }
       if (state.step === "practitioner_contact") {
@@ -950,15 +1055,19 @@ function subjectsHandler(bot) {
         }
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Предмет сохранён!");
-        await editOrSend(
-          ctx,
-          "Главное меню",
-          Markup.inlineKeyboard([
-            [Markup.button.callback("📚 Предметы", "subjects")],
-            [Markup.button.callback("⚙️ Настройки", "settings")],
-          ])
-        );
+        try {
+          await ctx.reply("Предмет сохранён!");
+          await editOrSend(
+            ctx,
+            "Главное меню",
+            Markup.inlineKeyboard([
+              [Markup.button.callback("📚 Предметы", "subjects")],
+              [Markup.button.callback("⚙️ Настройки", "settings")],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_subject finish error]", e);
+        }
         return;
       }
     }
@@ -966,57 +1075,108 @@ function subjectsHandler(bot) {
     // Добавление админа
     if (state && state.step === "add_admin") {
       const username = text;
-      if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (data.users.ADMINS.includes(username))
-        return ctx.reply("Уже есть такой админ.");
+      if (!username.startsWith("@")) {
+        try {
+          await ctx.reply("Введите username с @");
+        } catch (e) {
+          console.error("[add_admin error]", e);
+        }
+        return;
+      }
+      if (data.users.ADMINS.includes(username)) {
+        try {
+          await ctx.reply("Уже есть такой админ.");
+        } catch (e) {
+          console.error("[add_admin error]", e);
+        }
+        return;
+      }
       data.users.ADMINS.push(username);
       saveData(data);
       delete inputState[ctx.from.id];
-      await ctx.reply(
-        "📌 Главное меню",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("📚 Предметы", "subjects")],
-          [Markup.button.callback("⚙️ Настройки", "settings")],
-        ])
-      );
+      try {
+        await ctx.reply(
+          "📌 Главное меню",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("📚 Предметы", "subjects")],
+            [Markup.button.callback("⚙️ Настройки", "settings")],
+          ])
+        );
+      } catch (e) {
+        console.error("[add_admin finish error]", e);
+      }
       return;
     }
 
     // Добавление ANSWER_VIEWER
     if (state && state.step === "add_viewer") {
       const username = text;
-      if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (data.users.ANSWER_VIEWERS.includes(username))
-        return ctx.reply("Уже есть такой ANSWER_VIEWER.");
+      if (!username.startsWith("@")) {
+        try {
+          await ctx.reply("Введите username с @");
+        } catch (e) {
+          console.error("[add_viewer error]", e);
+        }
+        return;
+      }
+      if (data.users.ANSWER_VIEWERS.includes(username)) {
+        try {
+          await ctx.reply("Уже есть такой ANSWER_VIEWER.");
+        } catch (e) {
+          console.error("[add_viewer error]", e);
+        }
+        return;
+      }
       data.users.ANSWER_VIEWERS.push(username);
       saveData(data);
       delete inputState[ctx.from.id];
-      await ctx.reply(
-        "📌 Главное меню",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("📚 Предметы", "subjects")],
-          [Markup.button.callback("⚙️ Настройки", "settings")],
-        ])
-      );
+      try {
+        await ctx.reply(
+          "📌 Главное меню",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("📚 Предметы", "subjects")],
+            [Markup.button.callback("⚙️ Настройки", "settings")],
+          ])
+        );
+      } catch (e) {
+        console.error("[add_viewer finish error]", e);
+      }
       return;
     }
 
     // Добавление SUPERUSER
     if (state && state.step === "add_superuser") {
       const username = text;
-      if (!username.startsWith("@")) return ctx.reply("Введите username с @");
-      if (data.users.SUPERUSERS.includes(username))
-        return ctx.reply("Уже есть такой SUPERUSER.");
+      if (!username.startsWith("@")) {
+        try {
+          await ctx.reply("Введите username с @");
+        } catch (e) {
+          console.error("[add_superuser error]", e);
+        }
+        return;
+      }
+      if (data.users.SUPERUSERS.includes(username)) {
+        try {
+          await ctx.reply("Уже есть такой SUPERUSER.");
+        } catch (e) {
+          console.error("[add_superuser error]", e);
+        }
+        return;
+      }
       data.users.SUPERUSERS.push(username);
       saveData(data);
       delete inputState[ctx.from.id];
-      await ctx.reply(
-        "📌 Главное меню",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("📚 Предметы", "subjects")],
-          [Markup.button.callback("⚙️ Настройки", "settings")],
-        ])
-      );
+      try {
+        await ctx.reply(
+          "📌 Главное меню",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("📚 Предметы", "subjects")],
+            [Markup.button.callback("⚙️ Настройки", "settings")],
+          ])
+        );
+      } catch (e) {
+        console.error("[add_superuser finish error]", e);
+      }
       return;
     }
 
@@ -1025,197 +1185,219 @@ function subjectsHandler(bot) {
       const isAdd = state.mode === "add_task";
       if (state.step === "title") {
         const title = text;
-        if (!title) return ctx.reply("Заголовок не может быть пустым.");
+        if (!title) {
+          try {
+            await ctx.reply("Заголовок не может быть пустым.");
+          } catch (e) {
+            console.error("[add_task title error]", e);
+          }
+          return;
+        }
         state.title = title;
         state.step = "emoji";
-        await ctx.reply(
-          "Введите смайлик для задания (например, 📄) или пропустите:"
-        );
+        try {
+          await ctx.reply(
+            "Введите смайлик для задания (например, 📄) или пропустите:"
+          );
+        } catch (e) {
+          console.error("[add_task emoji prompt error]", e);
+        }
         return;
       }
       if (state.step === "emoji") {
         state.emoji = text || "📄";
         state.step = "description";
-        await ctx.reply(
-          "Введите описание (или пропустите):",
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "Пропустить",
-                isAdd
-                  ? `skip_description_${state.sIdx}`
-                  : `skip_description_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply(
+            "Введите описание (или пропустите):",
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "Пропустить",
+                  isAdd
+                    ? `skip_description_${state.sIdx}`
+                    : `skip_description_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_task description prompt error]", e);
+        }
         return;
       }
       if (state.step === "description") {
         state.description = text;
         state.step = "attachments";
-        await ctx.reply(
-          'Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".',
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✅ Готово",
-                isAdd
-                  ? `finish_attachments_${state.sIdx}`
-                  : `finish_attachments_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-          ])
-        );
-        return;
-      }
-      if (state.step === "answer") {
-        if (state.mode === "add_answer") {
-          data.subjects[state.sIdx].tasks[state.tIdx].answers.push(text);
-          saveData(data);
-          await ctx.reply("Ответ добавлен!");
-          delete inputState[ctx.from.id];
-          return;
+        try {
+          await ctx.reply(
+            'Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".',
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  isAdd
+                    ? `finish_attachments_${state.sIdx}`
+                    : `finish_attachments_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_task attachments prompt error]", e);
         }
+        return;
       }
       if (state.step === "edit_title") {
         const title = text;
-        if (!title) return ctx.reply("Заголовок не может быть пустым.");
+        if (!title) {
+          try {
+            await ctx.reply("Заголовок не может быть пустым.");
+          } catch (e) {
+            console.error("[edit_task title error]", e);
+          }
+          return;
+        }
         data.subjects[state.sIdx].tasks[state.tIdx].title = title;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Заголовок обновлён!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в задании?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Заголовок",
-                `edit_task_title_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_task_emoji_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Описание",
-                `edit_task_description_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Вложения",
-                `edit_task_attachments_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✅ Готово",
-                `task_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply("Заголовок обновлён!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в задании?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Заголовок",
+                  `edit_task_title_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_task_emoji_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Описание",
+                  `edit_task_description_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Вложения",
+                  `edit_task_attachments_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  `task_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_task title finish error]", e);
+        }
         return;
       }
       if (state.step === "edit_emoji") {
         data.subjects[state.sIdx].tasks[state.tIdx].emoji = text || "📄";
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Emoji обновлён!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в задании?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Заголовок",
-                `edit_task_title_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_task_emoji_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Описание",
-                `edit_task_description_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Вложения",
-                `edit_task_attachments_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✅ Готово",
-                `task_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply("Emoji обновлён!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в задании?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Заголовок",
+                  `edit_task_title_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_task_emoji_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Описание",
+                  `edit_task_description_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Вложения",
+                  `edit_task_attachments_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  `task_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_task emoji finish error]", e);
+        }
         return;
       }
       if (state.step === "edit_description") {
         data.subjects[state.sIdx].tasks[state.tIdx].description = text;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("Описание обновлено!");
-        await editOrSend(
-          ctx,
-          `Что хотите изменить в задании?`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✏️ Заголовок",
-                `edit_task_title_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Emoji",
-                `edit_task_emoji_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Описание",
-                `edit_task_description_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✏️ Вложения",
-                `edit_task_attachments_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-            [
-              Markup.button.callback(
-                "✅ Готово",
-                `task_${state.sIdx}_${state.tIdx}`
-              ),
-            ],
-          ])
-        );
+        try {
+          await ctx.reply("Описание обновлено!");
+          await editOrSend(
+            ctx,
+            `Что хотите изменить в задании?`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✏️ Заголовок",
+                  `edit_task_title_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Emoji",
+                  `edit_task_emoji_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Описание",
+                  `edit_task_description_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✏️ Вложения",
+                  `edit_task_attachments_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  `task_${state.sIdx}_${state.tIdx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_task description finish error]", e);
+        }
         return;
       }
-    }
-
-    // Добавление ответа (многоэтапное)
-    if (state && state.mode === "add_answer" && state.step === "answer") {
-      state.answers.push({ type: "text", content: text });
-      await ctx.reply("Текст добавлен. Добавьте ещё или нажмите Готово.");
-      return;
     }
   });
 
@@ -1226,16 +1408,26 @@ function subjectsHandler(bot) {
       !state ||
       state.mode !== "add_subject" ||
       state.step !== "lecturer_name"
-    )
-      return ctx.reply("Ошибка состояния.");
+    ) {
+      try {
+        await ctx.reply("Ошибка состояния.");
+      } catch (e) {
+        console.error("[skip_lecturer_name error]", e);
+      }
+      return;
+    }
     state.lecturerName = "";
     state.step = "lecturer_contact";
-    await ctx.reply(
-      "Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("Пропустить", "skip_lecturer_contact")],
-      ])
-    );
+    try {
+      await ctx.reply(
+        "Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("Пропустить", "skip_lecturer_contact")],
+        ])
+      );
+    } catch (e) {
+      console.error("[skip_lecturer_name prompt error]", e);
+    }
   });
 
   bot.action("skip_lecturer_contact", async (ctx) => {
@@ -1244,16 +1436,26 @@ function subjectsHandler(bot) {
       !state ||
       state.mode !== "add_subject" ||
       state.step !== "lecturer_contact"
-    )
-      return ctx.reply("Ошибка состояния.");
+    ) {
+      try {
+        await ctx.reply("Ошибка состояния.");
+      } catch (e) {
+        console.error("[skip_lecturer_contact error]", e);
+      }
+      return;
+    }
     state.lecturerContact = "";
     state.step = "practitioner_name";
-    await ctx.reply(
-      "Введите ФИО практики (или пропустите):",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("Пропустить", "skip_practitioner_name")],
-      ])
-    );
+    try {
+      await ctx.reply(
+        "Введите ФИО практики (или пропустите):",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("Пропустить", "skip_practitioner_name")],
+        ])
+      );
+    } catch (e) {
+      console.error("[skip_lecturer_contact prompt error]", e);
+    }
   });
 
   bot.action("skip_practitioner_name", async (ctx) => {
@@ -1262,16 +1464,26 @@ function subjectsHandler(bot) {
       !state ||
       state.mode !== "add_subject" ||
       state.step !== "practitioner_name"
-    )
-      return ctx.reply("Ошибка состояния.");
+    ) {
+      try {
+        await ctx.reply("Ошибка состояния.");
+      } catch (e) {
+        console.error("[skip_practitioner_name error]", e);
+      }
+      return;
+    }
     state.practitionerName = "";
     state.step = "practitioner_contact";
-    await ctx.reply(
-      "Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("Пропустить", "skip_practitioner_contact")],
-      ])
-    );
+    try {
+      await ctx.reply(
+        "Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("Пропустить", "skip_practitioner_contact")],
+        ])
+      );
+    } catch (e) {
+      console.error("[skip_practitioner_name prompt error]", e);
+    }
   });
 
   bot.action("skip_practitioner_contact", async (ctx) => {
@@ -1280,8 +1492,14 @@ function subjectsHandler(bot) {
       !state ||
       state.mode !== "add_subject" ||
       state.step !== "practitioner_contact"
-    )
-      return ctx.reply("Ошибка состояния.");
+    ) {
+      try {
+        await ctx.reply("Ошибка состояния.");
+      } catch (e) {
+        console.error("[skip_practitioner_contact error]", e);
+      }
+      return;
+    }
     state.practitionerContact = "";
     data.subjects.push({
       name: state.name,
@@ -1294,28 +1512,40 @@ function subjectsHandler(bot) {
     });
     saveData(data);
     delete inputState[ctx.from.id];
-    await ctx.reply("Предмет добавлен!");
-    await editOrSend(
-      ctx,
-      "Главное меню",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("📚 Предметы", "subjects")],
-        [Markup.button.callback("⚙️ Настройки", "settings")],
-      ])
-    );
+    try {
+      await ctx.reply("Предмет добавлен!");
+      await editOrSend(
+        ctx,
+        "Главное меню",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📚 Предметы", "subjects")],
+          [Markup.button.callback("⚙️ Настройки", "settings")],
+        ])
+      );
+    } catch (e) {
+      console.error("[skip_practitioner_contact finish error]", e);
+    }
   });
 
   // Редактирование предмета
   bot.action(/^edit_subject_name_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_subject", step: "name", sIdx };
-    await ctx.reply("Введите новое название:");
+    try {
+      await ctx.reply("Введите новое название:");
+    } catch (e) {
+      console.error("[edit_subject_name prompt error]", e);
+    }
   });
 
   bot.action(/^edit_subject_emoji_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_subject", step: "emoji", sIdx };
-    await ctx.reply("Введите новый emoji:");
+    try {
+      await ctx.reply("Введите новый emoji:");
+    } catch (e) {
+      console.error("[edit_subject_emoji prompt error]", e);
+    }
   });
 
   bot.action(/^edit_subject_lecturer_name_(\d+)$/, async (ctx) => {
@@ -1325,7 +1555,11 @@ function subjectsHandler(bot) {
       step: "lecturer_name",
       sIdx,
     };
-    await ctx.reply("Введите новое ФИО лектора:");
+    try {
+      await ctx.reply("Введите новое ФИО лектора:");
+    } catch (e) {
+      console.error("[edit_subject_lecturer_name prompt error]", e);
+    }
   });
 
   bot.action(/^edit_subject_lecturer_contact_(\d+)$/, async (ctx) => {
@@ -1335,7 +1569,11 @@ function subjectsHandler(bot) {
       step: "lecturer_contact",
       sIdx,
     };
-    await ctx.reply("Введите новые контакты лектора:");
+    try {
+      await ctx.reply("Введите новые контакты лектора:");
+    } catch (e) {
+      console.error("[edit_subject_lecturer_contact prompt error]", e);
+    }
   });
 
   bot.action(/^edit_subject_practitioner_name_(\d+)$/, async (ctx) => {
@@ -1345,7 +1583,11 @@ function subjectsHandler(bot) {
       step: "practitioner_name",
       sIdx,
     };
-    await ctx.reply("Введите новое ФИО практики:");
+    try {
+      await ctx.reply("Введите новое ФИО практики:");
+    } catch (e) {
+      console.error("[edit_subject_practitioner_name prompt error]", e);
+    }
   });
 
   bot.action(/^edit_subject_practitioner_contact_(\d+)$/, async (ctx) => {
@@ -1355,7 +1597,11 @@ function subjectsHandler(bot) {
       step: "practitioner_contact",
       sIdx,
     };
-    await ctx.reply("Введите новые контакты практики:");
+    try {
+      await ctx.reply("Введите новые контакты практики:");
+    } catch (e) {
+      console.error("[edit_subject_practitioner_contact prompt error]", e);
+    }
   });
 
   // Пропуски для редактирования предмета (но поскольку редактирование по полю, пропуски не нужны, просто ввод)
@@ -1370,23 +1616,33 @@ function subjectsHandler(bot) {
       state.sIdx !== sIdx ||
       (tIdx !== undefined && state.tIdx !== tIdx) ||
       state.step !== "description"
-    )
-      return ctx.reply("Ошибка состояния.");
+    ) {
+      try {
+        await ctx.reply("Ошибка состояния.");
+      } catch (e) {
+        console.error("[skip_description error]", e);
+      }
+      return;
+    }
     state.description = "";
     state.step = "attachments";
-    await ctx.reply(
-      'Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".',
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            "✅ Готово",
-            tIdx
-              ? `finish_attachments_${sIdx}_${tIdx}`
-              : `finish_attachments_${sIdx}`
-          ),
-        ],
-      ])
-    );
+    try {
+      await ctx.reply(
+        'Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".',
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              "✅ Готово",
+              tIdx
+                ? `finish_attachments_${sIdx}_${tIdx}`
+                : `finish_attachments_${sIdx}`
+            ),
+          ],
+        ])
+      );
+    } catch (e) {
+      console.error("[skip_description prompt error]", e);
+    }
   });
 
   bot.on("document", async (ctx) => {
@@ -1404,24 +1660,28 @@ function subjectsHandler(bot) {
       ctx.update.message.from.id !== ctx.from.id
     )
       return;
-    if (state.step === "attachments" || state.step === "edit_attachments") {
-      const file_id = ctx.message.document.file_id;
-      const local_path = await saveAttachment(ctx, file_id, "document");
-      state.attachments.push({
-        type: "document",
-        file_id: file_id,
-        local_path,
-      });
-      await ctx.reply(
-        "Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'."
-      );
-    }
-    if (state && state.mode === "add_answer" && state.step === "answer") {
-      const file_id = ctx.message.document.file_id;
-      const local_path = await saveAttachment(ctx, file_id, "document");
-      state.answers.push({ type: "document", content: file_id, local_path });
-      await ctx.reply("Файл добавлен. Добавьте ещё или нажмите Готово.");
-      return;
+    try {
+      if (state.step === "attachments" || state.step === "edit_attachments") {
+        const file_id = ctx.message.document.file_id;
+        const local_path = await saveAttachment(ctx, file_id, "document");
+        state.attachments.push({
+          type: "document",
+          file_id: file_id,
+          local_path,
+        });
+        await ctx.reply(
+          "Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'."
+        );
+      }
+      if (state && state.mode === "add_answer" && state.step === "answer") {
+        const file_id = ctx.message.document.file_id;
+        const local_path = await saveAttachment(ctx, file_id, "document");
+        state.answers.push({ type: "document", content: file_id, local_path });
+        await ctx.reply("Файл добавлен. Добавьте ещё или нажмите Готово.");
+        return;
+      }
+    } catch (e) {
+      console.error("[document handler error]", e);
     }
   });
 
@@ -1440,33 +1700,48 @@ function subjectsHandler(bot) {
       ctx.update.message.from.id !== ctx.from.id
     )
       return;
-    if (state.step === "attachments" || state.step === "edit_attachments") {
-      const photo = ctx.message.photo;
-      if (photo && photo.length) {
-        const largest = photo[photo.length - 1];
-        const file_id = largest.file_id;
-        const local_path = await saveAttachment(ctx, file_id, "photo");
-        state.attachments.push({ type: "photo", file_id: file_id, local_path });
-        await ctx.reply(
-          "Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
-        );
+    try {
+      if (state.step === "attachments" || state.step === "edit_attachments") {
+        const photo = ctx.message.photo;
+        if (photo && photo.length) {
+          const largest = photo[photo.length - 1];
+          const file_id = largest.file_id;
+          const local_path = await saveAttachment(ctx, file_id, "photo");
+          state.attachments.push({
+            type: "photo",
+            file_id: file_id,
+            local_path,
+          });
+          await ctx.reply(
+            "Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
+          );
+        }
       }
-    }
-    if (state && state.mode === "add_answer" && state.step === "answer") {
-      const photo = ctx.message.photo;
-      if (photo && photo.length) {
-        const largest = photo[photo.length - 1];
-        const file_id = largest.file_id;
-        const local_path = await saveAttachment(ctx, file_id, "photo");
-        state.answers.push({ type: "photo", content: file_id, local_path });
-        await ctx.reply("Фото добавлено. Добавьте ещё или нажмите Готово.");
+      if (state && state.mode === "add_answer" && state.step === "answer") {
+        const photo = ctx.message.photo;
+        if (photo && photo.length) {
+          const largest = photo[photo.length - 1];
+          const file_id = largest.file_id;
+          const local_path = await saveAttachment(ctx, file_id, "photo");
+          state.answers.push({ type: "photo", content: file_id, local_path });
+          await ctx.reply("Фото добавлено. Добавьте ещё или нажмите Готово.");
+        }
       }
+    } catch (e) {
+      console.error("[photo handler error]", e);
     }
   });
 
   // Добавление задания
   bot.action(/^add_task_(\d+)$/, async (ctx) => {
-    if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
+    if (!isAdmin(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[add_task error]", e);
+      }
+      return;
+    }
     const sIdx = Number(ctx.match[1]);
     console.log(
       "[ACTION] add_task by",
@@ -1483,7 +1758,11 @@ function subjectsHandler(bot) {
       attachments: [],
       emoji: "",
     };
-    await ctx.reply("Введите заголовок задания:");
+    try {
+      await ctx.reply("Введите заголовок задания:");
+    } catch (e) {
+      console.error("[add_task prompt error]", e);
+    }
   });
 
   bot.action(/^finish_attachments_(\d+)(_(\d+))?$/, async (ctx) => {
@@ -1494,8 +1773,14 @@ function subjectsHandler(bot) {
       !state ||
       state.sIdx !== sIdx ||
       (tIdx !== undefined && state.tIdx !== tIdx)
-    )
-      return ctx.reply("Ошибка состояния.");
+    ) {
+      try {
+        await ctx.reply("Ошибка состояния.");
+      } catch (e) {
+        console.error("[finish_attachments error]", e);
+      }
+      return;
+    }
     if (state.mode === "add_task") {
       const newTask = {
         title: state.title,
@@ -1521,55 +1806,20 @@ function subjectsHandler(bot) {
       sIdx: state.sIdx,
       tIdx: state.tIdx,
     });
-    await ctx.reply("Задание сохранено!");
-    await editOrSend(
-      ctx,
-      "Главное меню",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("📚 Предметы", "subjects")],
-        [Markup.button.callback("⚙️ Настройки", "settings")],
-      ])
-    );
+    try {
+      await ctx.reply("Задание сохранено!");
+      await editOrSend(
+        ctx,
+        "Главное меню",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📚 Предметы", "subjects")],
+          [Markup.button.callback("⚙️ Настройки", "settings")],
+        ])
+      );
+    } catch (e) {
+      console.error("[finish_attachments finish error]", e);
+    }
     return;
-  });
-
-  // Добавление ответа (многоэтапное)
-  bot.action(/^add_answer_(\d+)_(\d+)$/, async (ctx) => {
-    if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    inputState[ctx.from.id] = {
-      mode: "add_answer",
-      step: "answer",
-      sIdx,
-      tIdx,
-      answers: [],
-    };
-    await ctx.reply(
-      "Отправьте ответы (текст, файлы, фото). Когда закончите, нажмите Готово.",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("✅ Готово", `finish_answer_${sIdx}_${tIdx}`)],
-      ])
-    );
-  });
-
-  bot.action(/^finish_answer_(\d+)_(\d+)$/, async (ctx) => {
-    const state = inputState[ctx.from.id];
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    if (
-      !state ||
-      state.mode !== "add_answer" ||
-      state.sIdx !== sIdx ||
-      state.tIdx !== tIdx
-    )
-      return ctx.reply("Ошибка состояния.");
-    data.subjects[sIdx].tasks[tIdx].answers.push(...state.answers);
-    saveData(data);
-    delete inputState[ctx.from.id];
-    await ctx.reply("Ответы добавлены!");
-    // Return to task view
-    await bot.action(`task_${sIdx}_${tIdx}`, ctx);
   });
 
   // Редактирование задачи
@@ -1582,7 +1832,11 @@ function subjectsHandler(bot) {
       sIdx,
       tIdx,
     };
-    await ctx.reply("Введите новый заголовок:");
+    try {
+      await ctx.reply("Введите новый заголовок:");
+    } catch (e) {
+      console.error("[edit_task_title prompt error]", e);
+    }
   });
 
   bot.action(/^edit_task_emoji_(\d+)_(\d+)$/, async (ctx) => {
@@ -1594,7 +1848,11 @@ function subjectsHandler(bot) {
       sIdx,
       tIdx,
     };
-    await ctx.reply("Введите новый emoji:");
+    try {
+      await ctx.reply("Введите новый emoji:");
+    } catch (e) {
+      console.error("[edit_task_emoji prompt error]", e);
+    }
   });
 
   bot.action(/^edit_task_description_(\d+)_(\d+)$/, async (ctx) => {
@@ -1606,7 +1864,11 @@ function subjectsHandler(bot) {
       sIdx,
       tIdx,
     };
-    await ctx.reply("Введите новое описание:");
+    try {
+      await ctx.reply("Введите новое описание:");
+    } catch (e) {
+      console.error("[edit_task_description prompt error]", e);
+    }
   });
 
   bot.action(/^edit_task_attachments_(\d+)_(\d+)$/, async (ctx) => {
@@ -1619,24 +1881,28 @@ function subjectsHandler(bot) {
       tIdx,
       attachments: [],
     };
-    await ctx.reply(
-      'Отправьте новые файлы/фото для задания. Когда закончите, нажмите "✅ Готово".',
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            "✅ Готово",
-            `finish_attachments_${sIdx}_${tIdx}`
-          ),
-        ],
-      ])
-    );
+    try {
+      await ctx.reply(
+        'Отправьте новые файлы/фото для задания. Когда закончите, нажмите "✅ Готово".',
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              "✅ Готово",
+              `finish_attachments_${sIdx}_${tIdx}`
+            ),
+          ],
+        ])
+      );
+    } catch (e) {
+      console.error("[edit_task_attachments prompt error]", e);
+    }
   });
 
   // Удаление предмета (улучшенная версия)
   bot.action(/^subjects_remove_(\d+)$/, async (ctx) => {
     try {
       if (!isAdmin(ctx))
-        return ctx.answerCbQuery("Нет прав.", { show_alert: true });
+        return await ctx.answerCbQuery("Нет прав.", { show_alert: true });
       const idx = parseInt(ctx.match && ctx.match[1], 10);
       console.log(
         "[delete_subject] invoked by",
@@ -1652,14 +1918,11 @@ function subjectsHandler(bot) {
         return;
       }
 
-      // Delete all attachments and answers in all tasks
+      // Delete all attachments in all tasks
       const subject = data.subjects[idx];
       for (const task of subject.tasks) {
         for (const att of task.attachments || []) {
           deleteAttachment(att.local_path);
-        }
-        for (const ans of task.answers || []) {
-          if (ans.local_path) deleteAttachment(ans.local_path);
         }
       }
 
@@ -1709,7 +1972,7 @@ function subjectsHandler(bot) {
   bot.action(/^tasks_remove_(\d+)_(\d+)$/, async (ctx) => {
     try {
       if (!isAdmin(ctx))
-        return ctx.answerCbQuery("Нет прав.", { show_alert: true });
+        return await ctx.answerCbQuery("Нет прав.", { show_alert: true });
       const sIdx = parseInt(ctx.match[1], 10);
       const tIdx = parseInt(ctx.match[2], 10);
       console.log(
@@ -1734,13 +1997,10 @@ function subjectsHandler(bot) {
         return;
       }
 
-      // Delete attachments and answers files
+      // Delete attachments files
       const task = data.subjects[sIdx].tasks[tIdx];
       for (const att of task.attachments || []) {
         deleteAttachment(att.local_path);
-      }
-      for (const ans of task.answers || []) {
-        if (ans.local_path) deleteAttachment(ans.local_path);
       }
 
       const taskTitle = data.subjects[sIdx].tasks.splice(tIdx, 1)[0]?.title;
@@ -1814,27 +2074,38 @@ function subjectsHandler(bot) {
 
   // Настройки
   bot.action("settings", async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
-    await editOrSend(
-      ctx,
-      "Настройки:",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("👤 Редактировать ADMINS", "edit_admins")],
-        [
-          Markup.button.callback(
-            "👁 Редактировать ANSWER_VIEWERS",
-            "edit_answer_viewers"
-          ),
-        ],
-        [
-          Markup.button.callback(
-            "⭐ Редактировать SUPERUSERS",
-            "edit_superusers"
-          ),
-        ],
-        [Markup.button.callback("⬅ Назад", "main_menu")],
-      ])
-    );
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[settings error]", e);
+      }
+      return;
+    }
+    try {
+      await editOrSend(
+        ctx,
+        "Настройки:",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("👤 Редактировать ADMINS", "edit_admins")],
+          [
+            Markup.button.callback(
+              "👁 Редактировать ANSWER_VIEWERS",
+              "edit_answer_viewers"
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "⭐ Редактировать SUPERUSERS",
+              "edit_superusers"
+            ),
+          ],
+          [Markup.button.callback("⬅ Назад", "main_menu")],
+        ])
+      );
+    } catch (e) {
+      console.error("[settings menu error]", e);
+    }
   });
 
   // Универсальный генератор меню для ролей
@@ -1869,9 +2140,20 @@ function subjectsHandler(bot) {
 
   // Функции обновления меню
   async function showAdminMenu(ctx) {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[showAdminMenu error]", e);
+      }
+      return;
+    }
     const { msg, keyboard } = roleMenu(data.users.ADMINS, "ADMINS", "admins");
-    await editOrSend(ctx, msg, keyboard);
+    try {
+      await editOrSend(ctx, msg, keyboard);
+    } catch (e) {
+      console.error("[showAdminMenu error]", e);
+    }
   }
 
   async function refreshAnswerViewers(ctx) {
@@ -1880,90 +2162,213 @@ function subjectsHandler(bot) {
       "ANSWER_VIEWERS",
       "viewers"
     );
-    await editOrSend(ctx, msg, keyboard);
+    try {
+      await editOrSend(ctx, msg, keyboard);
+    } catch (e) {
+      console.error("[refreshAnswerViewers error]", e);
+    }
   }
 
   async function showSuperusersMenu(ctx) {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[showSuperusersMenu error]", e);
+      }
+      return;
+    }
     const { msg, keyboard } = roleMenu(
       data.users.SUPERUSERS,
       "SUPERUSERS",
       "superusers"
     );
-    await editOrSend(ctx, msg, keyboard);
+    try {
+      await editOrSend(ctx, msg, keyboard);
+    } catch (e) {
+      console.error("[showSuperusersMenu error]", e);
+    }
   }
 
   // Меню для ADMINS
-  bot.action("edit_admins", showAdminMenu);
+  bot.action("edit_admins", async (ctx) => {
+    try {
+      await showAdminMenu(ctx);
+    } catch (e) {
+      console.error("[edit_admins error]", e);
+    }
+  });
 
   bot.action(/admins_remove_(\d+)/, async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[admins_remove error]", e);
+      }
+      return;
+    }
     const idx = Number(ctx.match[1]);
-    if (data.users.ADMINS.length <= 1)
-      return ctx.reply("Должен быть хотя бы один админ!");
+    if (data.users.ADMINS.length <= 1) {
+      try {
+        await ctx.reply("Должен быть хотя бы один админ!");
+      } catch (e) {
+        console.error("[admins_remove error]", e);
+      }
+      return;
+    }
     const removed = data.users.ADMINS.splice(idx, 1)[0];
     saveData(data);
-    await ctx.reply(`Админ ${removed} удалён.`);
-    await showAdminMenu(ctx);
+    try {
+      await ctx.reply(`Админ ${removed} удалён.`);
+      await showAdminMenu(ctx);
+    } catch (e) {
+      console.error("[admins_remove finish error]", e);
+    }
     console.log(`[LOG] ${ctx.from.username} удалил админа: ${removed}`);
   });
 
   bot.action("admins_add", async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[admins_add error]", e);
+      }
+      return;
+    }
     inputState[ctx.from.id] = { step: "add_admin" };
-    await ctx.reply("Введите username нового админа (с @):");
+    try {
+      await ctx.reply("Введите username нового админа (с @):");
+    } catch (e) {
+      console.error("[admins_add prompt error]", e);
+    }
   });
 
   // Меню для ANSWER_VIEWERS
   bot.action("edit_answer_viewers", async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[edit_answer_viewers error]", e);
+      }
+      return;
+    }
     if (ctx.chat && ctx.update.callback_query) {
       interactiveMessageId[ctx.chat.id] =
         ctx.update.callback_query.message.message_id;
     }
-    await refreshAnswerViewers(ctx);
+    try {
+      await refreshAnswerViewers(ctx);
+    } catch (e) {
+      console.error("[edit_answer_viewers error]", e);
+    }
   });
 
   bot.action(/viewers_remove_(\d+)/, async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[viewers_remove error]", e);
+      }
+      return;
+    }
     const idx = Number(ctx.match[1]);
     const removed = data.users.ANSWER_VIEWERS.splice(idx, 1)[0];
     saveData(data);
-    await ctx.reply(`ANSWER_VIEWER ${removed} удалён.`);
-    await refreshAnswerViewers(ctx);
+    try {
+      await ctx.reply(`ANSWER_VIEWER ${removed} удалён.`);
+      await refreshAnswerViewers(ctx);
+    } catch (e) {
+      console.error("[viewers_remove finish error]", e);
+    }
     console.log(`[LOG] ${ctx.from.username} удалил ANSWER_VIEWER: ${removed}`);
   });
 
   bot.action("viewers_add", async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[viewers_add error]", e);
+      }
+      return;
+    }
     inputState[ctx.from.id] = { step: "add_viewer" };
-    await ctx.reply("Введите username нового ANSWER_VIEWER (с @):");
+    try {
+      await ctx.reply("Введите username нового ANSWER_VIEWER (с @):");
+    } catch (e) {
+      console.error("[viewers_add prompt error]", e);
+    }
   });
 
   // Меню для SUPERUSERS
-  bot.action("edit_superusers", showSuperusersMenu);
+  bot.action("edit_superusers", async (ctx) => {
+    try {
+      await showSuperusersMenu(ctx);
+    } catch (e) {
+      console.error("[edit_superusers error]", e);
+    }
+  });
 
   bot.action(/superusers_remove_(\d+)/, async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[superusers_remove error]", e);
+      }
+      return;
+    }
     const idx = Number(ctx.match[1]);
-    if (data.users.SUPERUSERS.length <= 1)
-      return ctx.reply("Должен быть хотя бы один суперюзер!");
+    if (data.users.SUPERUSERS.length <= 1) {
+      try {
+        await ctx.reply("Должен быть хотя бы один суперюзер!");
+      } catch (e) {
+        console.error("[superusers_remove error]", e);
+      }
+      return;
+    }
     const removed = data.users.SUPERUSERS.splice(idx, 1)[0];
     saveData(data);
-    await ctx.reply(`SUPERUSER ${removed} удалён.`);
-    await showSuperusersMenu(ctx);
+    try {
+      await ctx.reply(`SUPERUSER ${removed} удалён.`);
+      await showSuperusersMenu(ctx);
+    } catch (e) {
+      console.error("[superusers_remove finish error]", e);
+    }
     console.log(`[LOG] ${ctx.from.username} удалил SUPERUSER: ${removed}`);
   });
 
   bot.action("superusers_add", async (ctx) => {
-    if (!isSuperuser(ctx)) return ctx.reply("Нет прав.");
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[superusers_add error]", e);
+      }
+      return;
+    }
     inputState[ctx.from.id] = { step: "add_superuser" };
-    await ctx.reply("Введите username нового SUPERUSER (с @):");
+    try {
+      await ctx.reply("Введите username нового SUPERUSER (с @):");
+    } catch (e) {
+      console.error("[superusers_add prompt error]", e);
+    }
   });
 
   // Добавление ответа (текст или файл)
   bot.action(/^add_answer_(\d+)_(\d+)$/, async (ctx) => {
-    if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
+    if (!isAdmin(ctx)) {
+      try {
+        await ctx.reply("Нет прав.");
+      } catch (e) {
+        console.error("[add_answer error]", e);
+      }
+      return;
+    }
     const sIdx = Number(ctx.match[1]);
     const tIdx = Number(ctx.match[2]);
     inputState[ctx.from.id] = {
@@ -1973,23 +2378,36 @@ function subjectsHandler(bot) {
       tIdx,
       answers: [],
     };
-    await ctx.reply(
-      "Отправьте ответы (текст, файлы, фото). Когда закончите, нажмите Готово.",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("✅ Готово", `finish_answer_${sIdx}_${tIdx}`)],
-      ])
-    );
+    try {
+      await ctx.reply(
+        "Отправьте ответы (текст, файлы, фото). Когда закончите, нажмите Готово.",
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              "✅ Готово",
+              `finish_answer_${sIdx}_${tIdx}`
+            ),
+          ],
+        ])
+      );
+    } catch (e) {
+      console.error("[add_answer prompt error]", e);
+    }
   });
 
   // Сброс состояний при callback_query (оставляем, но он должен быть подключён после регистрации action-хендлеров)
   bot.on("callback_query", async (ctx, next) => {
-    if (
-      !ctx.match ||
-      (!ctx.match[0].startsWith("edit_") && !ctx.match[0].startsWith("add_"))
-    ) {
-      delete inputState[ctx.from.id];
+    try {
+      if (
+        !ctx.match ||
+        (!ctx.match[0].startsWith("edit_") && !ctx.match[0].startsWith("add_"))
+      ) {
+        delete inputState[ctx.from.id];
+      }
+      await next();
+    } catch (e) {
+      console.error("[callback_query error]", e);
     }
-    return next();
   });
 }
 
