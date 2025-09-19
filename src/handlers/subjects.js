@@ -412,6 +412,14 @@ function subjectsHandler(bot) {
         ),
       ]);
     }
+    if (task.attachments && task.attachments.length > 0) {
+      buttons.push([
+        Markup.button.callback(
+          `📎 Вложения (${task.attachments.length})`,
+          `show_attachments_${sIdx}_${tIdx}`
+        ),
+      ]);
+    }
     if (isAdmin(ctx)) {
       buttons.push([
         Markup.button.callback(
@@ -438,8 +446,12 @@ function subjectsHandler(bot) {
     } catch (e) {
       console.error("[task error]", e);
     }
+  });
 
-    // Send attachments
+  bot.action(/^show_attachments_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    const task = data.subjects[sIdx].tasks[tIdx];
     if (task.attachments && task.attachments.length > 0) {
       for (const att of task.attachments) {
         try {
@@ -613,6 +625,14 @@ function subjectsHandler(bot) {
     let msg = `*ℹ️ ${info.title}*\n\n`;
     if (info.description) msg += `${info.description}\n\n---\n`;
     let buttons = [];
+    if (info.attachments && info.attachments.length > 0) {
+      buttons.push([
+        Markup.button.callback(
+          `📎 Вложения (${info.attachments.length})`,
+          `show_info_attachments_${idx}`
+        ),
+      ]);
+    }
     if (isAdmin(ctx)) {
       buttons.push([
         Markup.button.callback("✏️ Редактировать", `edit_info_menu_${idx}`),
@@ -627,8 +647,11 @@ function subjectsHandler(bot) {
     } catch (e) {
       console.error("[info error]", e);
     }
+  });
 
-    // Send attachments
+  bot.action(/^show_info_attachments_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    const info = data.infos[idx];
     if (info.attachments && info.attachments.length > 0) {
       for (const att of info.attachments) {
         try {

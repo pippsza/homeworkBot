@@ -2,11 +2,14 @@
   "users": {
     "ADMINS": [
       "@pippsza",
-      "@Evil_bastardd"
+      "@Evil_bastardd",
+      "@zemlyannnaya",
+      "@trachck"
     ],
     "ANSWER_VIEWERS": [
       "@pippsza",
-      "@Evil_bastardd"
+      "@Evil_bastardd",
+      "@trachck"
     ],
     "SUPERUSERS": [
       "@pippsza",
@@ -51,40 +54,31 @@
       ]
     },
     {
-      "name": "asd",
-      "emoji": "d",
-      "lecturerName": "asd",
-      "lecturerContact": "d",
-      "practitionerName": "d",
-      "practitionerContact": "d",
-      "tasks": [
-        {
-          "title": "фыв",
-          "description": "в",
-          "attachments": [
-            {
-              "type": "photo",
-              "file_id": "AgACAgIAAyEFAASNDuBPAAJeA2jNyXt8lFdQOfCRHBh22i9ijhrBAAJ9_jEbMhxwSgABnZygm4_itwEAAwIAA3gAAzYE",
-              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJeA2jNyXt8lFdQOfCRHBh22i9ijhrBAAJ9_jEbMhxwSgABnZygm4_itwEAAwIAA3gAAzYE.jpg"
-            }
-          ],
-          "answers": [],
-          "emoji": "в"
-        },
-        {
-          "title": "ыфв",
-          "description": "фыв",
-          "attachments": [
-            {
-              "type": "photo",
-              "file_id": "AgACAgIAAyEFAASNDuBPAAJd7mjNyTWiKfQdOJzOXh0frTvTdpY2AAJ8_jEbMhxwSosFcV73GHauAQADAgADeAADNgQ",
-              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJd7mjNyTWiKfQdOJzOXh0frTvTdpY2AAJ8_jEbMhxwSosFcV73GHauAQADAgADeAADNgQ.jpg"
-            }
-          ],
-          "answers": [],
-          "emoji": "в"
-        }
-      ]
+      "name": "Філософія",
+      "emoji": "🧠",
+      "lecturerName": "Ідіоттівна",
+      "lecturerContact": "",
+      "practitionerName": "",
+      "practitionerContact": "",
+      "tasks": []
+    },
+    {
+      "name": "Програмування",
+      "emoji": "🐍",
+      "lecturerName": "Ткачов Андрій Михайлович",
+      "lecturerContact": "Andrii.Tkachov@khpi.edu.ua\n+380 (57) 7076 924",
+      "practitionerName": "",
+      "practitionerContact": "",
+      "tasks": []
+    },
+    {
+      "name": "Англійська",
+      "emoji": "🇬🇧",
+      "lecturerName": "Марина Євгенівна Тихонова",
+      "lecturerContact": "Maryna.Tykhonova@khpi.edu.ua",
+      "practitionerName": "",
+      "practitionerContact": "",
+      "tasks": []
     }
   ],
   "infos": [
