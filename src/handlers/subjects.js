@@ -101,6 +101,13 @@ async function saveAttachment(ctx, file_id, type) {
   }
 }
 
+function deleteAttachment(local_path) {
+  if (local_path && fs.existsSync(local_path)) {
+    fs.unlinkSync(local_path);
+    console.log(`[deleteAttachment] Deleted file: ${local_path}`);
+  }
+}
+
 const data = loadData();
 
 function isAdmin(ctx) {
@@ -434,7 +441,7 @@ function subjectsHandler(bot) {
         ],
         [
           Markup.button.callback(
-            "✏️ Контакты практика",
+            "✏️ Контакты практики",
             `edit_subject_practitioner_contact_${sIdx}`
           ),
         ],
@@ -531,13 +538,13 @@ function subjectsHandler(bot) {
             ],
             [
               Markup.button.callback(
-                "✏️ ФИО практика",
+                "✏️ ФИО практики",
                 `edit_subject_practitioner_name_${state.sIdx}`
               ),
             ],
             [
               Markup.button.callback(
-                "✏️ Контакты практика",
+                "✏️ Контакты практики",
                 `edit_subject_practitioner_contact_${state.sIdx}`
               ),
             ],
@@ -581,13 +588,13 @@ function subjectsHandler(bot) {
             ],
             [
               Markup.button.callback(
-                "✏️ ФИО практика",
+                "✏️ ФИО практики",
                 `edit_subject_practitioner_name_${state.sIdx}`
               ),
             ],
             [
               Markup.button.callback(
-                "✏️ Контакты практика",
+                "✏️ Контакты практики",
                 `edit_subject_practitioner_contact_${state.sIdx}`
               ),
             ],
@@ -631,7 +638,7 @@ function subjectsHandler(bot) {
             ],
             [
               Markup.button.callback(
-                "✏️ ФИО практика",
+                "✏️ ФИО практики",
                 `edit_subject_practitioner_name_${state.sIdx}`
               ),
             ],
@@ -700,7 +707,7 @@ function subjectsHandler(bot) {
         data.subjects[state.sIdx].practitionerName = text;
         saveData(data);
         delete inputState[ctx.from.id];
-        await ctx.reply("ФИО практика обновлено!");
+        await ctx.reply("ФИО практики обновлено!");
         await editOrSend(
           ctx,
           `Что хотите изменить в предмете?`,
@@ -731,7 +738,7 @@ function subjectsHandler(bot) {
             ],
             [
               Markup.button.callback(
-                "✏️ ФИО практика",
+                "✏️ ФИО практики",
                 `edit_subject_practitioner_name_${state.sIdx}`
               ),
             ],
@@ -869,7 +876,7 @@ function subjectsHandler(bot) {
         state.practitionerName = text;
         state.step = "practitioner_contact";
         await ctx.reply(
-          "Введите контакты практика (соц. сети, почта и т.д.) (или пропустите):",
+          "Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
@@ -1198,7 +1205,7 @@ function subjectsHandler(bot) {
     state.lecturerContact = "";
     state.step = "practitioner_name";
     await ctx.reply(
-      "Введите ФИО практика (или пропустите):",
+      "Введите ФИО практики (или пропустите):",
       Markup.inlineKeyboard([
         [Markup.button.callback("Пропустить", "skip_practitioner_name")],
       ])
@@ -1216,7 +1223,7 @@ function subjectsHandler(bot) {
     state.practitionerName = "";
     state.step = "practitioner_contact";
     await ctx.reply(
-      "Введите контакты практика (соц. сети, почта и т.д.) (или пропустите):",
+      "Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
       Markup.inlineKeyboard([
         [Markup.button.callback("Пропустить", "skip_practitioner_contact")],
       ])
@@ -1294,7 +1301,7 @@ function subjectsHandler(bot) {
       step: "practitioner_name",
       sIdx,
     };
-    await ctx.reply("Введите новое ФИО практика:");
+    await ctx.reply("Введите новое ФИО практики:");
   });
 
   bot.action(/^edit_subject_practitioner_contact_(\d+)$/, async (ctx) => {
@@ -1355,15 +1362,19 @@ function subjectsHandler(bot) {
       return;
     if (state.step === "attachments" || state.step === "edit_attachments") {
       const file_id = ctx.message.document.file_id;
-      await saveAttachment(ctx, file_id, "document");
-      state.attachments.push({ type: "document", file_id: file_id });
+      const local_path = await saveAttachment(ctx, file_id, "document");
+      state.attachments.push({
+        type: "document",
+        file_id: file_id,
+        local_path,
+      });
       await ctx.reply(
         "Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'."
       );
     }
     if (state && state.mode === "add_answer" && state.step === "answer") {
       const file_id = ctx.message.document.file_id;
-      await saveAttachment(ctx, file_id, "document");
+      const local_path = await saveAttachment(ctx, file_id, "document");
       data.subjects[state.sIdx].tasks[state.tIdx].answers.push(file_id);
       saveData(data);
       await ctx.reply("Ответ (файл) добавлен!");
@@ -1392,8 +1403,8 @@ function subjectsHandler(bot) {
       if (photo && photo.length) {
         const largest = photo[photo.length - 1];
         const file_id = largest.file_id;
-        await saveAttachment(ctx, file_id, "photo");
-        state.attachments.push({ type: "photo", file_id: file_id });
+        const local_path = await saveAttachment(ctx, file_id, "photo");
+        state.attachments.push({ type: "photo", file_id: file_id, local_path });
         await ctx.reply(
           "Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
         );
@@ -1443,6 +1454,12 @@ function subjectsHandler(bot) {
       };
       data.subjects[state.sIdx].tasks.push(newTask);
     } else {
+      // Delete old attachments files
+      const old_attachments =
+        data.subjects[state.sIdx].tasks[state.tIdx].attachments || [];
+      for (const att of old_attachments) {
+        deleteAttachment(att.local_path);
+      }
       data.subjects[state.sIdx].tasks[state.tIdx].attachments =
         state.attachments;
     }
@@ -1544,6 +1561,14 @@ function subjectsHandler(bot) {
         return;
       }
 
+      // Delete all attachments in all tasks
+      const subject = data.subjects[idx];
+      for (const task of subject.tasks) {
+        for (const att of task.attachments || []) {
+          deleteAttachment(att.local_path);
+        }
+      }
+
       const removed = data.subjects.splice(idx, 1)[0];
       saveData(data);
       console.log(`[LOG] ${ctx.from.username} удалил предмет: ${removed.name}`);
@@ -1613,6 +1638,12 @@ function subjectsHandler(bot) {
       ) {
         await ctx.answerCbQuery("Задание не найдено.", { show_alert: false });
         return;
+      }
+
+      // Delete attachments files
+      const task = data.subjects[sIdx].tasks[tIdx];
+      for (const att of task.attachments || []) {
+        deleteAttachment(att.local_path);
       }
 
       const taskTitle = data.subjects[sIdx].tasks.splice(tIdx, 1)[0]?.title;
