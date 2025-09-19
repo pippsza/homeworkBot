@@ -2105,7 +2105,7 @@ function subjectsHandler(bot) {
     )
       return;
     try {
-      if (state.step === "attachments") {
+      if (state.step === "attachments" || state.step === "edit_attachments") {
         const file_id = ctx.message.document.file_id;
         const local_path = await saveAttachment(ctx, file_id, "document");
         state.attachments.push({
@@ -2145,7 +2145,7 @@ function subjectsHandler(bot) {
     )
       return;
     try {
-      if (state.step === "attachments") {
+      if (state.step === "attachments" || state.step === "edit_attachments") {
         const photo = ctx.message.photo;
         if (photo && photo.length) {
           const largest = photo[photo.length - 1];

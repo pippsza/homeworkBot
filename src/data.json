@@ -9,9 +9,96 @@
       "@Evil_bastardd"
     ],
     "SUPERUSERS": [
-      "@pippsza"
+      "@pippsza",
+      "@zemlyannnaya",
+      "@trachck",
+      "@Evil_bastardd"
     ]
   },
-  "subjects": [],
-  "infos": []
+  "subjects": [
+    {
+      "name": "Крипта",
+      "emoji": "💲",
+      "lecturerName": "",
+      "lecturerContact": "",
+      "practitionerName": "",
+      "practitionerContact": "",
+      "tasks": [
+        {
+          "title": "Лаба 2",
+          "description": "",
+          "attachments": [],
+          "answers": [],
+          "emoji": "📄"
+        }
+      ]
+    },
+    {
+      "name": "Соц инж",
+      "emoji": "⚙️",
+      "lecturerName": "",
+      "lecturerContact": "",
+      "practitionerName": "",
+      "practitionerContact": "",
+      "tasks": [
+        {
+          "title": "Лаба 3,4,5",
+          "description": "",
+          "attachments": [],
+          "answers": [],
+          "emoji": "📄"
+        }
+      ]
+    },
+    {
+      "name": "asd",
+      "emoji": "d",
+      "lecturerName": "asd",
+      "lecturerContact": "d",
+      "practitionerName": "d",
+      "practitionerContact": "d",
+      "tasks": [
+        {
+          "title": "фыв",
+          "description": "в",
+          "attachments": [
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJeA2jNyXt8lFdQOfCRHBh22i9ijhrBAAJ9_jEbMhxwSgABnZygm4_itwEAAwIAA3gAAzYE",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJeA2jNyXt8lFdQOfCRHBh22i9ijhrBAAJ9_jEbMhxwSgABnZygm4_itwEAAwIAA3gAAzYE.jpg"
+            }
+          ],
+          "answers": [],
+          "emoji": "в"
+        },
+        {
+          "title": "ыфв",
+          "description": "фыв",
+          "attachments": [
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJd7mjNyTWiKfQdOJzOXh0frTvTdpY2AAJ8_jEbMhxwSosFcV73GHauAQADAgADeAADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJd7mjNyTWiKfQdOJzOXh0frTvTdpY2AAJ8_jEbMhxwSosFcV73GHauAQADAgADeAADNgQ.jpg"
+            }
+          ],
+          "answers": [],
+          "emoji": "в"
+        }
+      ]
+    }
+  ],
+  "infos": [
+    {
+      "title": "фыв",
+      "description": "фывфыв",
+      "attachments": [
+        {
+          "type": "photo",
+          "file_id": "AgACAgIAAyEFAASNDuBPAAJdsGjNwmt4JuUrvTybDTOzWTI4WoAuAAJf_jEbMhxwSgbbL6VAdOdhAQADAgADeAADNgQ",
+          "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJdsGjNwmt4JuUrvTybDTOzWTI4WoAuAAJf_jEbMhxwSgbbL6VAdOdhAQADAgADeAADNgQ.jpg"
+        }
+      ],
+      "emoji": "в"
+    }
+  ]
 }
