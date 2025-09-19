@@ -41,6 +41,19 @@ function loadData() {
               file_id,
             })); // or 'photo' if assuming photos
           }
+          if (!Array.isArray(t.answers)) t.answers = [];
+          // Migrate answers to objects
+          t.answers = t.answers.map((a) => {
+            if (typeof a === "object" && a.type) return a;
+            if (typeof a === "string") {
+              if (a.length > 50 && !a.includes(" ")) {
+                return { type: "document", content: a };
+              } else {
+                return { type: "text", content: a };
+              }
+            }
+            return a;
+          });
         });
       });
       return json;
@@ -378,6 +391,30 @@ function subjectsHandler(bot) {
         }
       }
     }
+  });
+
+  // Показать ответы
+  bot.action(/^show_answers_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    const task = data.subjects[sIdx]?.tasks[tIdx];
+    if (!task) return ctx.reply("Задание не найдено.");
+
+    await ctx.reply("Ответы:");
+    for (const ans of task.answers || []) {
+      if (ans.type === "text") {
+        await ctx.reply(ans.content);
+      } else if (ans.type === "photo") {
+        await ctx.replyWithPhoto(ans.content);
+      } else if (ans.type === "document") {
+        await ctx.replyWithDocument(ans.content);
+      }
+    }
+
+    const buttons = [
+      [Markup.button.callback("⬅ Назад", `task_${sIdx}_${tIdx}`)],
+    ];
+    await ctx.reply("Конец ответов.", Markup.inlineKeyboard(buttons));
   });
 
   // Меню редактирования задачи
@@ -858,7 +895,7 @@ function subjectsHandler(bot) {
         state.lecturerContact = text;
         state.step = "practitioner_name";
         await ctx.reply(
-          "Введите ФИО практика (или пропустите):",
+          "Введите ФИО практики (или пропустите):",
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
@@ -1173,6 +1210,13 @@ function subjectsHandler(bot) {
         return;
       }
     }
+
+    // Добавление ответа (многоэтапное)
+    if (state && state.mode === "add_answer" && state.step === "answer") {
+      state.answers.push({ type: "text", content: text });
+      await ctx.reply("Текст добавлен. Добавьте ещё или нажмите Готово.");
+      return;
+    }
   });
 
   // Пропуски для добавления предмета
@@ -1375,10 +1419,8 @@ function subjectsHandler(bot) {
     if (state && state.mode === "add_answer" && state.step === "answer") {
       const file_id = ctx.message.document.file_id;
       const local_path = await saveAttachment(ctx, file_id, "document");
-      data.subjects[state.sIdx].tasks[state.tIdx].answers.push(file_id);
-      saveData(data);
-      await ctx.reply("Ответ (файл) добавлен!");
-      delete inputState[ctx.from.id];
+      state.answers.push({ type: "document", content: file_id, local_path });
+      await ctx.reply("Файл добавлен. Добавьте ещё или нажмите Готово.");
       return;
     }
   });
@@ -1408,6 +1450,16 @@ function subjectsHandler(bot) {
         await ctx.reply(
           "Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
         );
+      }
+    }
+    if (state && state.mode === "add_answer" && state.step === "answer") {
+      const photo = ctx.message.photo;
+      if (photo && photo.length) {
+        const largest = photo[photo.length - 1];
+        const file_id = largest.file_id;
+        const local_path = await saveAttachment(ctx, file_id, "photo");
+        state.answers.push({ type: "photo", content: file_id, local_path });
+        await ctx.reply("Фото добавлено. Добавьте ещё или нажмите Готово.");
       }
     }
   });
@@ -1479,6 +1531,45 @@ function subjectsHandler(bot) {
       ])
     );
     return;
+  });
+
+  // Добавление ответа (многоэтапное)
+  bot.action(/^add_answer_(\d+)_(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.reply("Нет прав.");
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    inputState[ctx.from.id] = {
+      mode: "add_answer",
+      step: "answer",
+      sIdx,
+      tIdx,
+      answers: [],
+    };
+    await ctx.reply(
+      "Отправьте ответы (текст, файлы, фото). Когда закончите, нажмите Готово.",
+      Markup.inlineKeyboard([
+        [Markup.button.callback("✅ Готово", `finish_answer_${sIdx}_${tIdx}`)],
+      ])
+    );
+  });
+
+  bot.action(/^finish_answer_(\d+)_(\d+)$/, async (ctx) => {
+    const state = inputState[ctx.from.id];
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    if (
+      !state ||
+      state.mode !== "add_answer" ||
+      state.sIdx !== sIdx ||
+      state.tIdx !== tIdx
+    )
+      return ctx.reply("Ошибка состояния.");
+    data.subjects[sIdx].tasks[tIdx].answers.push(...state.answers);
+    saveData(data);
+    delete inputState[ctx.from.id];
+    await ctx.reply("Ответы добавлены!");
+    // Return to task view
+    await bot.action(`task_${sIdx}_${tIdx}`, ctx);
   });
 
   // Редактирование задачи
@@ -1561,11 +1652,14 @@ function subjectsHandler(bot) {
         return;
       }
 
-      // Delete all attachments in all tasks
+      // Delete all attachments and answers in all tasks
       const subject = data.subjects[idx];
       for (const task of subject.tasks) {
         for (const att of task.attachments || []) {
           deleteAttachment(att.local_path);
+        }
+        for (const ans of task.answers || []) {
+          if (ans.local_path) deleteAttachment(ans.local_path);
         }
       }
 
@@ -1640,10 +1734,13 @@ function subjectsHandler(bot) {
         return;
       }
 
-      // Delete attachments files
+      // Delete attachments and answers files
       const task = data.subjects[sIdx].tasks[tIdx];
       for (const att of task.attachments || []) {
         deleteAttachment(att.local_path);
+      }
+      for (const ans of task.answers || []) {
+        if (ans.local_path) deleteAttachment(ans.local_path);
       }
 
       const taskTitle = data.subjects[sIdx].tasks.splice(tIdx, 1)[0]?.title;
@@ -1874,8 +1971,14 @@ function subjectsHandler(bot) {
       step: "answer",
       sIdx,
       tIdx,
+      answers: [],
     };
-    await ctx.reply("Введите текст ответа или отправьте файл:");
+    await ctx.reply(
+      "Отправьте ответы (текст, файлы, фото). Когда закончите, нажмите Готово.",
+      Markup.inlineKeyboard([
+        [Markup.button.callback("✅ Готово", `finish_answer_${sIdx}_${tIdx}`)],
+      ])
+    );
   });
 
   // Сброс состояний при callback_query (оставляем, но он должен быть подключён после регистрации action-хендлеров)
