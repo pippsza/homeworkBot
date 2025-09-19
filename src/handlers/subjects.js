@@ -17,6 +17,7 @@ function loadData() {
       const json = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
       if (!json.users) json.users = DEFAULT_USERS;
       if (!json.subjects) json.subjects = [];
+      if (!json.infos) json.infos = [];
       // Migrate emoji if old structure
       if (json.subjectEmojis) {
         json.subjects.forEach((s) => {
@@ -43,18 +44,34 @@ function loadData() {
           }
         });
       });
+      json.infos.forEach((info) => {
+        if (!info.emoji) info.emoji = "ℹ️";
+        if (!info.description) info.description = "";
+        if (!Array.isArray(info.attachments)) info.attachments = [];
+        if (
+          info.attachments.length > 0 &&
+          typeof info.attachments[0] === "string"
+        ) {
+          info.attachments = info.attachments.map((file_id) => ({
+            type: "document",
+            file_id,
+          }));
+        }
+      });
       return json;
     } catch (e) {
       console.error("[loadData] parse error, returning defaults", e);
       return {
         users: DEFAULT_USERS,
         subjects: [],
+        infos: [],
       };
     }
   }
   return {
     users: DEFAULT_USERS,
     subjects: [],
+    infos: [],
   };
 }
 
@@ -149,15 +166,13 @@ const replyKeyboard = Markup.keyboard([["🏠 Главное меню"]])
 async function mainMenu(ctx) {
   const buttons = [
     [Markup.button.callback("📚 Предметы", "subjects")],
+    [Markup.button.callback("ℹ️ Информация", "infos")],
     [Markup.button.callback("⚙️ Настройки", "settings")],
   ];
   try {
     return await ctx.reply("🏠 Главное меню\n\nВыберите опцию ниже:", {
       parse_mode: "HTML",
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback("📚 Предметы", "subjects")],
-        [Markup.button.callback("⚙️ Настройки", "settings")],
-      ]),
+      ...Markup.inlineKeyboard(buttons),
     });
   } catch (e) {
     console.error("[mainMenu error]", e);
@@ -224,6 +239,7 @@ function subjectsHandler(bot) {
   bot.action("main_menu", async (ctx) => {
     const buttons = [
       [Markup.button.callback("📚 Предметы", "subjects")],
+      [Markup.button.callback("ℹ️ Информация", "infos")],
       [Markup.button.callback("⚙️ Настройки", "settings")],
     ];
     try {
@@ -237,7 +253,7 @@ function subjectsHandler(bot) {
     }
   });
 
-  // Изменённый вывод списка предметов
+  // Вывод списка предметов
   bot.action("subjects", async (ctx) => {
     console.log(
       "[ACTION] subjects by",
@@ -522,6 +538,142 @@ function subjectsHandler(bot) {
     }
   });
 
+  // Новый раздел: Информация
+  bot.action("infos", async (ctx) => {
+    console.log(
+      "[ACTION] infos by",
+      ctx.from && ctx.from.username,
+      "infosLen=",
+      data.infos.length
+    );
+    if (data.infos.length === 0) {
+      const buttons = [];
+      if (isAdmin(ctx)) {
+        buttons.push([
+          Markup.button.callback("➕ Добавить информацию", "add_info"),
+        ]);
+      }
+      buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
+      try {
+        await editOrSend(
+          ctx,
+          "😔 Нет информации в списке.\n\n---",
+          Markup.inlineKeyboard(buttons)
+        );
+      } catch (e) {
+        console.error("[infos error]", e);
+      }
+      return;
+    }
+    let msg = "📋 Список информации:\n\n";
+    data.infos.forEach((info, i) => {
+      const emoji = info.emoji || "ℹ️";
+      msg += `${emoji} ${info.title}\n`;
+    });
+    msg += "\n---";
+    const infoButtons = [];
+    for (let i = 0; i < data.infos.length; i += 3) {
+      infoButtons.push(
+        data.infos
+          .slice(i, i + 3)
+          .map((info, j) =>
+            Markup.button.callback(info.emoji || "ℹ️", `info_${i + j}`)
+          )
+      );
+    }
+    const buttons = [...infoButtons];
+    if (isAdmin(ctx)) {
+      buttons.push([
+        Markup.button.callback("➕ Добавить информацию", "add_info"),
+      ]);
+    }
+    buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
+    try {
+      await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    } catch (e) {
+      console.error("[infos error]", e);
+    }
+  });
+
+  bot.action(/^info_(\d+)$/, async (ctx) => {
+    console.log(
+      "[ACTION] info by",
+      ctx.from && ctx.from.username,
+      "match=",
+      ctx.match
+    );
+    const idx = Number(ctx.match[1]);
+    const info = data.infos[idx];
+    if (!info)
+      return editOrSend(
+        ctx,
+        "❌ Информация не найдена.\n\n---",
+        Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад", "infos")]])
+      );
+    let msg = `*ℹ️ ${info.title}*\n\n`;
+    if (info.description) msg += `${info.description}\n\n---\n`;
+    let buttons = [];
+    if (isAdmin(ctx)) {
+      buttons.push([
+        Markup.button.callback("✏️ Редактировать", `edit_info_menu_${idx}`),
+      ]);
+      buttons.push([
+        Markup.button.callback("🗑️ Удалить", `infos_remove_${idx}`),
+      ]);
+    }
+    buttons.push([Markup.button.callback("⬅️ Назад", "infos")]);
+    try {
+      await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    } catch (e) {
+      console.error("[info error]", e);
+    }
+
+    // Send attachments
+    if (info.attachments && info.attachments.length > 0) {
+      for (const att of info.attachments) {
+        try {
+          if (att.type === "photo") {
+            await ctx.replyWithPhoto(att.file_id);
+          } else if (att.type === "document") {
+            await ctx.replyWithDocument(att.file_id);
+          }
+        } catch (e) {
+          console.error("[send attachment error]", e);
+        }
+      }
+    }
+  });
+
+  // Меню редактирования информации
+  bot.action(/^edit_info_menu_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    try {
+      await editOrSend(
+        ctx,
+        `✏️ Что хотите изменить в информации?\n\n---`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("📝 Заголовок", `edit_info_title_${idx}`)],
+          [Markup.button.callback("😀 Emoji", `edit_info_emoji_${idx}`)],
+          [
+            Markup.button.callback(
+              "📄 Описание",
+              `edit_info_description_${idx}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              "📎 Вложения",
+              `edit_info_attachments_${idx}`
+            ),
+          ],
+          [Markup.button.callback("✅ Готово", `info_${idx}`)],
+        ])
+      );
+    } catch (e) {
+      console.error("[edit_info_menu error]", e);
+    }
+  });
+
   const inputState = {};
 
   // Добавление предмета
@@ -548,6 +700,31 @@ function subjectsHandler(bot) {
       await ctx.reply("📘 Введите название нового предмета:");
     } catch (e) {
       console.error("[add_subject error]", e);
+    }
+  });
+
+  // Добавление информации
+  bot.action("add_info", async (ctx) => {
+    if (!isAdmin(ctx)) {
+      try {
+        await ctx.reply("❌ Нет прав.");
+      } catch (e) {
+        console.error("[add_info error]", e);
+      }
+      return;
+    }
+    inputState[ctx.from.id] = {
+      mode: "add_info",
+      step: "title",
+      title: "",
+      emoji: "",
+      description: "",
+      attachments: [],
+    };
+    try {
+      await ctx.reply("ℹ️ Введите заголовок информации:");
+    } catch (e) {
+      console.error("[add_info error]", e);
     }
   });
 
@@ -1066,6 +1243,211 @@ function subjectsHandler(bot) {
       }
     }
 
+    // Добавление/редактирование информации
+    if (state.mode === "add_info" || state.mode === "edit_info") {
+      const isAdd = state.mode === "add_info";
+      if (state.step === "title") {
+        const title = text;
+        if (!title) {
+          try {
+            await ctx.reply("❌ Заголовок не может быть пустым.");
+          } catch (e) {
+            console.error("[add_info title error]", e);
+          }
+          return;
+        }
+        state.title = title;
+        state.step = "emoji";
+        try {
+          await ctx.reply(
+            "😀 Введите смайлик для информации (например, ℹ️) или пропустите:"
+          );
+        } catch (e) {
+          console.error("[add_info emoji prompt error]", e);
+        }
+        return;
+      }
+      if (state.step === "emoji") {
+        state.emoji = text || "ℹ️";
+        state.step = "description";
+        try {
+          await ctx.reply(
+            "📄 Введите описание (или пропустите):",
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "Пропустить",
+                  isAdd
+                    ? "skip_info_description"
+                    : `skip_info_description_${state.idx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_info description prompt error]", e);
+        }
+        return;
+      }
+      if (state.step === "description") {
+        state.description = text;
+        state.step = "attachments";
+        try {
+          await ctx.reply(
+            '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  isAdd
+                    ? "finish_info_attachments"
+                    : `finish_info_attachments_${state.idx}`
+                ),
+              ],
+            ])
+          );
+        } catch (e) {
+          console.error("[add_info attachments prompt error]", e);
+        }
+        return;
+      }
+      if (state.step === "edit_title") {
+        const title = text;
+        if (!title) {
+          try {
+            await ctx.reply("❌ Заголовок не может быть пустым.");
+          } catch (e) {
+            console.error("[edit_info title error]", e);
+          }
+          return;
+        }
+        data.infos[state.idx].title = title;
+        saveData(data);
+        delete inputState[ctx.from.id];
+        try {
+          await ctx.reply("✅ Заголовок обновлён!\n\n---");
+          await editOrSend(
+            ctx,
+            `✏️ Что хотите изменить в информации?\n\n---`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "📝 Заголовок",
+                  `edit_info_title_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "😀 Emoji",
+                  `edit_info_emoji_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "📄 Описание",
+                  `edit_info_description_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "📎 Вложения",
+                  `edit_info_attachments_${state.idx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `info_${state.idx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_info title finish error]", e);
+        }
+        return;
+      }
+      if (state.step === "edit_emoji") {
+        data.infos[state.idx].emoji = text || "ℹ️";
+        saveData(data);
+        delete inputState[ctx.from.id];
+        try {
+          await ctx.reply("✅ Emoji обновлён!\n\n---");
+          await editOrSend(
+            ctx,
+            `✏️ Что хотите изменить в информации?\n\n---`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "📝 Заголовок",
+                  `edit_info_title_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "😀 Emoji",
+                  `edit_info_emoji_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "📄 Описание",
+                  `edit_info_description_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "📎 Вложения",
+                  `edit_info_attachments_${state.idx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `info_${state.idx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_info emoji finish error]", e);
+        }
+        return;
+      }
+      if (state.step === "edit_description") {
+        data.infos[state.idx].description = text;
+        saveData(data);
+        delete inputState[ctx.from.id];
+        try {
+          await ctx.reply("✅ Описание обновлено!\n\n---");
+          await editOrSend(
+            ctx,
+            `✏️ Что хотите изменить в информации?\n\n---`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "📝 Заголовок",
+                  `edit_info_title_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "😀 Emoji",
+                  `edit_info_emoji_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "📄 Описание",
+                  `edit_info_description_${state.idx}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  "📎 Вложения",
+                  `edit_info_attachments_${state.idx}`
+                ),
+              ],
+              [Markup.button.callback("✅ Готово", `info_${state.idx}`)],
+            ])
+          );
+        } catch (e) {
+          console.error("[edit_info description finish error]", e);
+        }
+        return;
+      }
+    }
+
     // Добавление админа
     if (state && state.step === "add_admin") {
       const username = text;
@@ -1496,6 +1878,41 @@ function subjectsHandler(bot) {
     }
   });
 
+  // Пропуски для добавления информации
+  bot.action(/^skip_info_description(_(\d+))?$/, async (ctx) => {
+    const state = inputState[ctx.from.id];
+    const idx = ctx.match[2] ? Number(ctx.match[2]) : undefined;
+    if (
+      !state ||
+      (idx !== undefined && state.idx !== idx) ||
+      state.step !== "description"
+    ) {
+      try {
+        await ctx.reply("❌ Ошибка состояния.");
+      } catch (e) {
+        console.error("[skip_info_description error]", e);
+      }
+      return;
+    }
+    state.description = "";
+    state.step = "attachments";
+    try {
+      await ctx.reply(
+        '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              "✅ Готово",
+              idx ? `finish_info_attachments_${idx}` : "finish_info_attachments"
+            ),
+          ],
+        ])
+      );
+    } catch (e) {
+      console.error("[skip_info_description prompt error]", e);
+    }
+  });
+
   // Редактирование предмета
   bot.action(/^edit_subject_name_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
@@ -1573,6 +1990,66 @@ function subjectsHandler(bot) {
     }
   });
 
+  // Редактирование информации
+  bot.action(/^edit_info_title_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    inputState[ctx.from.id] = { mode: "edit_info", step: "edit_title", idx };
+    try {
+      await ctx.reply("📝 Введите новый заголовок:");
+    } catch (e) {
+      console.error("[edit_info_title prompt error]", e);
+    }
+  });
+
+  bot.action(/^edit_info_emoji_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    inputState[ctx.from.id] = { mode: "edit_info", step: "edit_emoji", idx };
+    try {
+      await ctx.reply("😀 Введите новый emoji:");
+    } catch (e) {
+      console.error("[edit_info_emoji prompt error]", e);
+    }
+  });
+
+  bot.action(/^edit_info_description_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    inputState[ctx.from.id] = {
+      mode: "edit_info",
+      step: "edit_description",
+      idx,
+    };
+    try {
+      await ctx.reply("📄 Введите новое описание:");
+    } catch (e) {
+      console.error("[edit_info_description prompt error]", e);
+    }
+  });
+
+  bot.action(/^edit_info_attachments_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    inputState[ctx.from.id] = {
+      mode: "edit_info",
+      step: "attachments",
+      idx,
+      attachments: [],
+    };
+    try {
+      await ctx.reply(
+        '📎 Отправьте новые файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              "✅ Готово",
+              `finish_info_attachments_${idx}`
+            ),
+          ],
+        ])
+      );
+    } catch (e) {
+      console.error("[edit_info_attachments prompt error]", e);
+    }
+  });
+
   // Для задач - пропуски
   bot.action(/^skip_description_(\d+)(_(\d+))?$/, async (ctx) => {
     const state = inputState[ctx.from.id];
@@ -1628,7 +2105,7 @@ function subjectsHandler(bot) {
     )
       return;
     try {
-      if (state.step === "attachments" || state.step === "edit_attachments") {
+      if (state.step === "attachments") {
         const file_id = ctx.message.document.file_id;
         const local_path = await saveAttachment(ctx, file_id, "document");
         state.attachments.push({
@@ -1668,7 +2145,7 @@ function subjectsHandler(bot) {
     )
       return;
     try {
-      if (state.step === "attachments" || state.step === "edit_attachments") {
+      if (state.step === "attachments") {
         const photo = ctx.message.photo;
         if (photo && photo.length) {
           const largest = photo[photo.length - 1];
@@ -1780,6 +2257,46 @@ function subjectsHandler(bot) {
       await mainMenu(ctx);
     } catch (e) {
       console.error("[finish_attachments finish error]", e);
+    }
+    return;
+  });
+
+  // Завершение вложений для информации
+  bot.action(/^finish_info_attachments(_(\d+))?$/, async (ctx) => {
+    const state = inputState[ctx.from.id];
+    const idx = ctx.match[2] ? Number(ctx.match[2]) : undefined;
+    if (!state || (idx !== undefined && state.idx !== idx)) {
+      try {
+        await ctx.reply("❌ Ошибка состояния.");
+      } catch (e) {
+        console.error("[finish_info_attachments error]", e);
+      }
+      return;
+    }
+    if (state.mode === "add_info") {
+      const newInfo = {
+        title: state.title,
+        description: state.description,
+        attachments: state.attachments,
+        emoji: state.emoji || "ℹ️",
+      };
+      data.infos.push(newInfo);
+    } else {
+      // Delete old attachments files
+      const old_attachments = data.infos[state.idx].attachments || [];
+      for (const att of old_attachments) {
+        deleteAttachment(att.local_path);
+      }
+      data.infos[state.idx].attachments = state.attachments;
+    }
+    saveData(data);
+    delete inputState[ctx.from.id];
+    console.log("[INFO] info attachments finished", { idx: state.idx });
+    try {
+      await ctx.reply("✅ Информация сохранена!\n\n---");
+      await mainMenu(ctx);
+    } catch (e) {
+      console.error("[finish_info_attachments finish error]", e);
     }
     return;
   });
@@ -2035,6 +2552,81 @@ function subjectsHandler(bot) {
       );
     } catch (err) {
       console.error("[delete_task error]", err);
+      try {
+        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
+      } catch (e) {}
+    }
+  });
+
+  // Удаление информации
+  bot.action(/^infos_remove_(\d+)$/, async (ctx) => {
+    try {
+      if (!isAdmin(ctx))
+        return await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      const idx = parseInt(ctx.match[1], 10);
+      console.log(
+        "[delete_info] invoked by",
+        ctx.from && ctx.from.username,
+        "idx=",
+        idx,
+        "infosLen=",
+        data.infos.length
+      );
+
+      if (Number.isNaN(idx) || idx < 0 || idx >= data.infos.length) {
+        await ctx.answerCbQuery("❌ Информация не найдена.", {
+          show_alert: false,
+        });
+        return;
+      }
+
+      // Delete attachments files
+      const info = data.infos[idx];
+      for (const att of info.attachments || []) {
+        deleteAttachment(att.local_path);
+      }
+
+      const removed = data.infos.splice(idx, 1)[0];
+      saveData(data);
+      console.log(
+        `[LOG] ${ctx.from.username} удалил информацию: ${removed.title}`
+      );
+
+      await ctx.answerCbQuery("✅ Информация удалена");
+
+      const msg =
+        data.infos.length === 0
+          ? "😔 Нет информации."
+          : "📋 Список информации:\n\n" +
+            data.infos
+              .map((info) => `${info.emoji || "ℹ️"} ${info.title}`)
+              .join("\n") +
+            "\n\n---";
+
+      const infoButtons = [];
+      for (let i = 0; i < data.infos.length; i += 3) {
+        infoButtons.push(
+          data.infos
+            .slice(i, i + 3)
+            .map((info, j) =>
+              Markup.button.callback(info.emoji || "ℹ️", `info_${i + j}`)
+            )
+        );
+      }
+      const buttons = [...infoButtons];
+      if (isAdmin(ctx))
+        buttons.push([
+          Markup.button.callback("➕ Добавить информацию", "add_info"),
+        ]);
+      buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
+
+      await editOrSend(
+        ctx,
+        `🗑️ Информация "${removed?.title || "?"}" удалена.\n\n${msg}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    } catch (err) {
+      console.error("[delete_info error]", err);
       try {
         await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
       } catch (e) {}

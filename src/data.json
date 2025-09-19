@@ -1,47 +1,17 @@
 {
   "users": {
     "ADMINS": [
-      "@pippsza"
+      "@pippsza",
+      "@Evil_bastardd"
     ],
     "ANSWER_VIEWERS": [
-      "@pippsza"
+      "@pippsza",
+      "@Evil_bastardd"
     ],
     "SUPERUSERS": [
       "@pippsza"
     ]
   },
-  "subjects": [
-    {
-      "name": "asd",
-      "emoji": "^)",
-      "lecturerName": "d",
-      "lecturerContact": "d",
-      "practitionerName": "d",
-      "practitionerContact": "asd",
-      "tasks": [
-        {
-          "title": "sdadasd",
-          "description": "",
-          "attachments": [
-            {
-              "type": "photo",
-              "file_id": "AgACAgIAAyEFAAS4ZZ5aAAIDe2jNlWwmLzXoru_KxMFcl6jywiy4AAKL_TEbk0NwSqKSRinm0SF0AQADAgADeAADNgQ",
-              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAAS4ZZ5aAAIDe2jNlWwmLzXoru_KxMFcl6jywiy4AAKL_TEbk0NwSqKSRinm0SF0AQADAgADeAADNgQ.jpg"
-            }
-          ],
-          "answers": [],
-          "emoji": "q"
-        }
-      ]
-    },
-    {
-      "name": "saS",
-      "emoji": "SA",
-      "lecturerName": "S",
-      "lecturerContact": "S",
-      "practitionerName": "S",
-      "practitionerContact": "S",
-      "tasks": []
-    }
-  ]
+  "subjects": [],
+  "infos": []
 }
