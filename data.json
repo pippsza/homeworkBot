@@ -9,23 +9,45 @@
           "attachments": [],
           "answers": [],
           "emoji": "авы"
+        },
+        {
+          "title": ":LA:AS:DLA:SDL",
+          "description": "пизда",
+          "attachments": [
+            "AgACAgIAAyEFAAS4ZZ5aAAICn2jNcFeO6Stf4FU96_AI5EKR7VdyAAL1-zEbk0NwSloCh_rOJPKHAQADAgADeAADNgQ",
+            "AgACAgIAAyEFAAS4ZZ5aAAICn2jNcFeO6Stf4FU96_AI5EKR7VdyAAL1-zEbk0NwSloCh_rOJPKHAQADAgADeAADNgQ"
+          ],
+          "answers": [],
+          "emoji": "!"
         }
-      ]
+      ],
+      "emoji": "1",
+      "lecturerName": "",
+      "lecturerContact": "",
+      "practitionerName": "",
+      "practitionerContact": ""
+    },
+    {
+      "name": "dsadsad",
+      "emoji": "g",
+      "lecturerName": ":LGKFDLGK:DLKG",
+      "lecturerContact": "ASDM",
+      "practitionerName": ";lsdfk;lsdfkl;sdkf",
+      "practitionerContact": "fff",
+      "tasks": []
     }
   ],
-  "subjectEmojis": {
-    "фывфыв": "1"
-  },
   "users": {
     "ADMINS": [
       "@pippsza",
-      "@dasd"
+      "@Evil_bastardd"
     ],
     "ANSWER_VIEWERS": [
       "@pippsza"
     ],
     "SUPERUSERS": [
-      "@pippsza"
+      "@pippsza",
+      "@dfasdad"
     ]
   }
 }
