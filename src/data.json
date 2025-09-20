@@ -109,6 +109,15 @@
       "practitionerName": "Ольга Григорівна Король",
       "practitionerContact": "Olha.Korol@khpi.edu.ua",
       "tasks": []
+    },
+    {
+      "name": "авыа",
+      "emoji": "а",
+      "lecturerName": "а",
+      "lecturerContact": "а",
+      "practitionerName": "а",
+      "practitionerContact": "а",
+      "tasks": []
     }
   ],
   "infos": [
@@ -124,5 +133,13 @@
       ],
       "emoji": "в"
     }
-  ]
+  ],
+  "chatMessages": {
+    "-1003093667418": [
+      1263
+    ],
+    "-1002366562383": [
+      24427
+    ]
+  }
 }

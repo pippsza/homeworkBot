@@ -18,6 +18,7 @@ function loadData() {
       if (!json.users) json.users = DEFAULT_USERS;
       if (!json.subjects) json.subjects = [];
       if (!json.infos) json.infos = [];
+      if (!json.chatMessages) json.chatMessages = {};
       // Migrate emoji if old structure
       if (json.subjectEmojis) {
         json.subjects.forEach((s) => {
@@ -65,6 +66,7 @@ function loadData() {
         users: DEFAULT_USERS,
         subjects: [],
         infos: [],
+        chatMessages: {},
       };
     }
   }
@@ -72,6 +74,7 @@ function loadData() {
     users: DEFAULT_USERS,
     subjects: [],
     infos: [],
+    chatMessages: {},
   };
 }
 
@@ -179,11 +182,18 @@ async function mainMenu(ctx) {
     [Markup.button.callback("ℹ️ Информация", "infos")],
     [Markup.button.callback("⚙️ Настройки", "settings")],
   ];
+  if (isAdmin(ctx)) {
+    buttons.push([
+      Markup.button.callback("🛠 Админ инструменты", "admin_tools"),
+    ]);
+  }
   try {
-    return await ctx.reply("🏠 Главное меню\n\nВыберите опцию ниже:", {
-      parse_mode: "HTML",
-      ...Markup.inlineKeyboard(buttons),
-    });
+    return await trackSend(ctx, () =>
+      ctx.reply("🏠 Главное меню\n\nВыберите опцию ниже:", {
+        parse_mode: "HTML",
+        ...Markup.inlineKeyboard(buttons),
+      })
+    );
   } catch (e) {
     console.error("[mainMenu error]", e);
   }
@@ -208,7 +218,9 @@ async function editOrSend(ctx, text, keyboard) {
         reply_markup: keyboard?.reply_markup,
       });
     } else {
-      const sent = await ctx.reply(text, { ...keyboard, parse_mode: "HTML" });
+      const sent = await trackSend(ctx, () =>
+        ctx.reply(text, { ...keyboard, parse_mode: "HTML" })
+      );
       interactiveMessageId[ctx.chat.id] = sent.message_id;
     }
   } catch (e) {
@@ -227,19 +239,32 @@ async function editOrSend(ctx, text, keyboard) {
       // Повторить запрос
       await editOrSend(ctx, text, keyboard);
     } else {
-      const sent = await ctx.reply(text, { ...keyboard, parse_mode: "HTML" });
+      const sent = await trackSend(ctx, () =>
+        ctx.reply(text, { ...keyboard, parse_mode: "HTML" })
+      );
       interactiveMessageId[ctx.chat.id] = sent.message_id;
     }
   }
+}
+
+async function trackSend(ctx, sendFunc) {
+  const sent = await sendFunc();
+  const chatId = ctx.chat.id;
+  if (!data.chatMessages[chatId]) data.chatMessages[chatId] = [];
+  data.chatMessages[chatId].push(sent.message_id);
+  saveData(data);
+  return sent;
 }
 
 function subjectsHandler(bot) {
   bot.start(async (ctx) => {
     try {
       await mainMenu(ctx);
-      await ctx.reply(
-        "Или используйте кнопку ниже для возврата в меню:",
-        replyKeyboard
+      await trackSend(ctx, () =>
+        ctx.reply(
+          "Или используйте кнопку ниже для возврата в меню:",
+          replyKeyboard
+        )
       );
     } catch (e) {
       console.error("[start error]", e);
@@ -377,7 +402,10 @@ function subjectsHandler(bot) {
         Markup.button.callback("✏️ Редактировать", `edit_subject_menu_${idx}`),
       ]);
       buttons.push([
-        Markup.button.callback("🗑️ Удалить предмет", `subjects_remove_confirm_${idx}`),
+        Markup.button.callback(
+          "🗑️ Удалить предмет",
+          `subjects_remove_confirm_${idx}`
+        ),
       ]);
     }
     buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
@@ -395,7 +423,12 @@ function subjectsHandler(bot) {
         ctx,
         `⚠️ Вы уверены, что хотите удалить предмет?\n\nЭто действие необратимо!\n\n---`,
         Markup.inlineKeyboard([
-          [Markup.button.callback("✅ Да, удалить", `subjects_remove_yes_${idx}`)],
+          [
+            Markup.button.callback(
+              "✅ Да, удалить",
+              `subjects_remove_yes_${idx}`
+            ),
+          ],
           [Markup.button.callback("❌ Нет, отменить", `subject_${idx}`)],
         ])
       );
@@ -554,7 +587,12 @@ function subjectsHandler(bot) {
         ctx,
         `⚠️ Вы уверены, что хотите удалить задание?\n\nЭто действие необратимо!\n\n---`,
         Markup.inlineKeyboard([
-          [Markup.button.callback("✅ Да, удалить", `tasks_remove_yes_${sIdx}_${tIdx}`)],
+          [
+            Markup.button.callback(
+              "✅ Да, удалить",
+              `tasks_remove_yes_${sIdx}_${tIdx}`
+            ),
+          ],
           [Markup.button.callback("❌ Нет, отменить", `task_${sIdx}_${tIdx}`)],
         ])
       );
@@ -678,9 +716,9 @@ function subjectsHandler(bot) {
       for (const att of task.attachments) {
         try {
           if (att.type === "photo") {
-            await ctx.replyWithPhoto(att.file_id);
+            await trackSend(ctx, () => ctx.replyWithPhoto(att.file_id));
           } else if (att.type === "document") {
-            await ctx.replyWithDocument(att.file_id);
+            await trackSend(ctx, () => ctx.replyWithDocument(att.file_id));
           }
         } catch (e) {
           console.error("[send attachment error]", e);
@@ -968,9 +1006,9 @@ function subjectsHandler(bot) {
       for (const att of info.attachments) {
         try {
           if (att.type === "photo") {
-            await ctx.replyWithPhoto(att.file_id);
+            await trackSend(ctx, () => ctx.replyWithPhoto(att.file_id));
           } else if (att.type === "document") {
-            await ctx.replyWithDocument(att.file_id);
+            await trackSend(ctx, () => ctx.replyWithDocument(att.file_id));
           }
         } catch (e) {
           console.error("[send attachment error]", e);
@@ -1015,7 +1053,7 @@ function subjectsHandler(bot) {
   bot.action("add_subject", async (ctx) => {
     if (!isAdmin(ctx)) {
       try {
-        await ctx.reply("❌ Нет прав.");
+        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
       } catch (e) {
         console.error("[add_subject error]", e);
       }
@@ -1032,7 +1070,9 @@ function subjectsHandler(bot) {
       practitionerContact: "",
     };
     try {
-      await ctx.reply("📘 Введите название нового предмета:");
+      await trackSend(ctx, () =>
+        ctx.reply("📘 Введите название нового предмета:")
+      );
     } catch (e) {
       console.error("[add_subject error]", e);
     }
@@ -1042,7 +1082,7 @@ function subjectsHandler(bot) {
   bot.action("add_info", async (ctx) => {
     if (!isAdmin(ctx)) {
       try {
-        await ctx.reply("❌ Нет прав.");
+        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
       } catch (e) {
         console.error("[add_info error]", e);
       }
@@ -1057,7 +1097,7 @@ function subjectsHandler(bot) {
       attachments: [],
     };
     try {
-      await ctx.reply("ℹ️ Введите заголовок информации:");
+      await trackSend(ctx, () => ctx.reply("ℹ️ Введите заголовок информации:"));
     } catch (e) {
       console.error("[add_info error]", e);
     }
@@ -1101,7 +1141,9 @@ function subjectsHandler(bot) {
       if (state.step === "name") {
         if (!text) {
           try {
-            await ctx.reply("❌ Название не может быть пустым.");
+            await trackSend(ctx, () =>
+              ctx.reply("❌ Название не может быть пустым.")
+            );
           } catch (e) {
             console.error("[edit_subject name error]", e);
           }
@@ -1111,7 +1153,7 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Название обновлено!");
+          await trackSend(ctx, () => ctx.reply("✅ Название обновлено!"));
           // Show edit menu again
           await editOrSend(
             ctx,
@@ -1166,7 +1208,7 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Emoji обновлён!");
+          await trackSend(ctx, () => ctx.reply("✅ Emoji обновлён!"));
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1220,7 +1262,7 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ ФИО лектора обновлено!");
+          await trackSend(ctx, () => ctx.reply("✅ ФИО лектора обновлено!"));
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1274,7 +1316,9 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Контакты лектора обновлены!");
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Контакты лектора обновлены!")
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1328,7 +1372,7 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ ФИО практики обновлено!");
+          await trackSend(ctx, () => ctx.reply("✅ ФИО практики обновлено!"));
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1382,7 +1426,9 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Контакты практики обновлены!");
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Контакты практики обновлены!")
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1440,7 +1486,9 @@ function subjectsHandler(bot) {
         const name = text;
         if (!name) {
           try {
-            await ctx.reply("❌ Название не может быть пустым.");
+            await trackSend(ctx, () =>
+              ctx.reply("❌ Название не может быть пустым.")
+            );
           } catch (e) {
             console.error("[add_subject name error]", e);
           }
@@ -1449,8 +1497,10 @@ function subjectsHandler(bot) {
         state.name = name;
         state.step = "emoji";
         try {
-          await ctx.reply(
-            "😀 Введите смайлик для предмета (например, 📐) или пропустите:"
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "😀 Введите смайлик для предмета (например, 📐) или пропустите:"
+            )
           );
         } catch (e) {
           console.error("[add_subject emoji prompt error]", e);
@@ -1461,18 +1511,20 @@ function subjectsHandler(bot) {
         state.emoji = text || "📚";
         state.step = "lecturer_name";
         try {
-          await ctx.reply(
-            "👨‍🏫 Введите ФИО лектора (или пропустите):",
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "Пропустить",
-                  isAdd
-                    ? "skip_lecturer_name"
-                    : `skip_lecturer_name_${state.sIdx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "👨‍🏫 Введите ФИО лектора (или пропустите):",
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "Пропустить",
+                    isAdd
+                      ? "skip_lecturer_name"
+                      : `skip_lecturer_name_${state.sIdx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_subject lecturer_name prompt error]", e);
@@ -1483,18 +1535,20 @@ function subjectsHandler(bot) {
         state.lecturerName = text;
         state.step = "lecturer_contact";
         try {
-          await ctx.reply(
-            "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "Пропустить",
-                  isAdd
-                    ? "skip_lecturer_contact"
-                    : `skip_lecturer_contact_${state.sIdx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "Пропустить",
+                    isAdd
+                      ? "skip_lecturer_contact"
+                      : `skip_lecturer_contact_${state.sIdx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_subject lecturer_contact prompt error]", e);
@@ -1505,18 +1559,20 @@ function subjectsHandler(bot) {
         state.lecturerContact = text;
         state.step = "practitioner_name";
         try {
-          await ctx.reply(
-            "👩‍🏫 Введите ФИО практики (или пропустите):",
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "Пропустить",
-                  isAdd
-                    ? "skip_practitioner_name"
-                    : `skip_practitioner_name_${state.sIdx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "👩‍🏫 Введите ФИО практики (или пропустите):",
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "Пропустить",
+                    isAdd
+                      ? "skip_practitioner_name"
+                      : `skip_practitioner_name_${state.sIdx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_subject practitioner_name prompt error]", e);
@@ -1527,18 +1583,20 @@ function subjectsHandler(bot) {
         state.practitionerName = text;
         state.step = "practitioner_contact";
         try {
-          await ctx.reply(
-            "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "Пропустить",
-                  isAdd
-                    ? "skip_practitioner_contact"
-                    : `skip_practitioner_contact_${state.sIdx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "Пропустить",
+                    isAdd
+                      ? "skip_practitioner_contact"
+                      : `skip_practitioner_contact_${state.sIdx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_subject practitioner_contact prompt error]", e);
@@ -1569,7 +1627,7 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Предмет сохранён!\n\n---");
+          await trackSend(ctx, () => ctx.reply("✅ Предмет сохранён!\n\n---"));
           await mainMenu(ctx);
         } catch (e) {
           console.error("[add_subject finish error]", e);
@@ -1585,7 +1643,9 @@ function subjectsHandler(bot) {
         const title = text;
         if (!title) {
           try {
-            await ctx.reply("❌ Заголовок не может быть пустым.");
+            await trackSend(ctx, () =>
+              ctx.reply("❌ Заголовок не может быть пустым.")
+            );
           } catch (e) {
             console.error("[add_info title error]", e);
           }
@@ -1594,8 +1654,10 @@ function subjectsHandler(bot) {
         state.title = title;
         state.step = "emoji";
         try {
-          await ctx.reply(
-            "😀 Введите смайлик для информации (например, ℹ️) или пропустите:"
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "😀 Введите смайлик для информации (например, ℹ️) или пропустите:"
+            )
           );
         } catch (e) {
           console.error("[add_info emoji prompt error]", e);
@@ -1606,18 +1668,20 @@ function subjectsHandler(bot) {
         state.emoji = text || "ℹ️";
         state.step = "description";
         try {
-          await ctx.reply(
-            "📄 Введите описание (или пропустите):",
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "Пропустить",
-                  isAdd
-                    ? "skip_info_description"
-                    : `skip_info_description_${state.idx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "📄 Введите описание (или пропустите):",
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "Пропустить",
+                    isAdd
+                      ? "skip_info_description"
+                      : `skip_info_description_${state.idx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_info description prompt error]", e);
@@ -1628,18 +1692,20 @@ function subjectsHandler(bot) {
         state.description = text;
         state.step = "attachments";
         try {
-          await ctx.reply(
-            '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "✅ Готово",
-                  isAdd
-                    ? "finish_info_attachments"
-                    : `finish_info_attachments_${state.idx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "✅ Готово",
+                    isAdd
+                      ? "finish_info_attachments"
+                      : `finish_info_attachments_${state.idx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_info attachments prompt error]", e);
@@ -1650,7 +1716,9 @@ function subjectsHandler(bot) {
         const title = text;
         if (!title) {
           try {
-            await ctx.reply("❌ Заголовок не может быть пустым.");
+            await trackSend(ctx, () =>
+              ctx.reply("❌ Заголовок не может быть пустым.")
+            );
           } catch (e) {
             console.error("[edit_info title error]", e);
           }
@@ -1660,7 +1728,9 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Заголовок обновлён!\n\n---");
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Заголовок обновлён!\n\n---")
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в информации?\n\n---`,
@@ -1702,7 +1772,7 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Emoji обновлён!\n\n---");
+          await trackSend(ctx, () => ctx.reply("✅ Emoji обновлён!\n\n---"));
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в информации?\n\n---`,
@@ -1744,7 +1814,9 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Описание обновлено!\n\n---");
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Описание обновлено!\n\n---")
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в информации?\n\n---`,
@@ -1788,7 +1860,7 @@ function subjectsHandler(bot) {
       const username = text;
       if (!username.startsWith("@")) {
         try {
-          await ctx.reply("❌ Введите username с @");
+          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
         } catch (e) {
           console.error("[add_admin error]", e);
         }
@@ -1796,7 +1868,7 @@ function subjectsHandler(bot) {
       }
       if (data.users.ADMINS.includes(username)) {
         try {
-          await ctx.reply("❌ Уже есть такой админ.");
+          await trackSend(ctx, () => ctx.reply("❌ Уже есть такой админ."));
         } catch (e) {
           console.error("[add_admin error]", e);
         }
@@ -1818,7 +1890,7 @@ function subjectsHandler(bot) {
       const username = text;
       if (!username.startsWith("@")) {
         try {
-          await ctx.reply("❌ Введите username с @");
+          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
         } catch (e) {
           console.error("[add_viewer error]", e);
         }
@@ -1826,7 +1898,9 @@ function subjectsHandler(bot) {
       }
       if (data.users.ANSWER_VIEWERS.includes(username)) {
         try {
-          await ctx.reply("❌ Уже есть такой ANSWER_VIEWER.");
+          await trackSend(ctx, () =>
+            ctx.reply("❌ Уже есть такой ANSWER_VIEWER.")
+          );
         } catch (e) {
           console.error("[add_viewer error]", e);
         }
@@ -1848,7 +1922,7 @@ function subjectsHandler(bot) {
       const username = text;
       if (!username.startsWith("@")) {
         try {
-          await ctx.reply("❌ Введите username с @");
+          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
         } catch (e) {
           console.error("[add_superuser error]", e);
         }
@@ -1856,7 +1930,7 @@ function subjectsHandler(bot) {
       }
       if (data.users.SUPERUSERS.includes(username)) {
         try {
-          await ctx.reply("❌ Уже есть такой SUPERUSER.");
+          await trackSend(ctx, () => ctx.reply("❌ Уже есть такой SUPERUSER."));
         } catch (e) {
           console.error("[add_superuser error]", e);
         }
@@ -1880,7 +1954,9 @@ function subjectsHandler(bot) {
         const title = text;
         if (!title) {
           try {
-            await ctx.reply("❌ Заголовок не может быть пустым.");
+            await trackSend(ctx, () =>
+              ctx.reply("❌ Заголовок не может быть пустым.")
+            );
           } catch (e) {
             console.error("[add_task title error]", e);
           }
@@ -1889,8 +1965,10 @@ function subjectsHandler(bot) {
         state.title = title;
         state.step = "emoji";
         try {
-          await ctx.reply(
-            "😀 Введите смайлик для задания (например, 📄) или пропустите:"
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "😀 Введите смайлик для задания (например, 📄) или пропустите:"
+            )
           );
         } catch (e) {
           console.error("[add_task emoji prompt error]", e);
@@ -1901,18 +1979,20 @@ function subjectsHandler(bot) {
         state.emoji = text || "📄";
         state.step = "description";
         try {
-          await ctx.reply(
-            "📄 Введите описание (или пропустите):",
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "Пропустить",
-                  isAdd
-                    ? `skip_description_${state.sIdx}`
-                    : `skip_description_${state.sIdx}_${state.tIdx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "📄 Введите описание (или пропустите):",
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "Пропустить",
+                    isAdd
+                      ? `skip_description_${state.sIdx}`
+                      : `skip_description_${state.sIdx}_${state.tIdx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_task description prompt error]", e);
@@ -1923,18 +2003,20 @@ function subjectsHandler(bot) {
         state.description = text;
         state.step = "attachments";
         try {
-          await ctx.reply(
-            '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  "✅ Готово",
-                  isAdd
-                    ? `finish_attachments_${state.sIdx}`
-                    : `finish_attachments_${state.sIdx}_${state.tIdx}`
-                ),
-              ],
-            ])
+          await trackSend(ctx, () =>
+            ctx.reply(
+              '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(
+                    "✅ Готово",
+                    isAdd
+                      ? `finish_attachments_${state.sIdx}`
+                      : `finish_attachments_${state.sIdx}_${state.tIdx}`
+                  ),
+                ],
+              ])
+            )
           );
         } catch (e) {
           console.error("[add_task attachments prompt error]", e);
@@ -1945,7 +2027,9 @@ function subjectsHandler(bot) {
         const title = text;
         if (!title) {
           try {
-            await ctx.reply("❌ Заголовок не может быть пустым.");
+            await trackSend(ctx, () =>
+              ctx.reply("❌ Заголовок не может быть пустым.")
+            );
           } catch (e) {
             console.error("[edit_task title error]", e);
           }
@@ -1955,7 +2039,9 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Заголовок обновлён!\n\n---");
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Заголовок обновлён!\n\n---")
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в задании?\n\n---`,
@@ -2002,7 +2088,7 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Emoji обновлён!\n\n---");
+          await trackSend(ctx, () => ctx.reply("✅ Emoji обновлён!\n\n---"));
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в задании?\n\n---`,
@@ -2049,7 +2135,9 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await ctx.reply("✅ Описание обновлено!\n\n---");
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Описание обновлено!\n\n---")
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в задании?\n\n---`,
@@ -2098,8 +2186,8 @@ function subjectsHandler(bot) {
       if (text) {
         state.answers.push({ type: "text", content: text });
         try {
-          await ctx.reply(
-            "✅ Текст добавлен. Добавьте ещё или нажмите Готово."
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Текст добавлен. Добавьте ещё или нажмите Готово.")
           );
         } catch (e) {
           console.error("[add_answer text error]", e);
@@ -2118,7 +2206,7 @@ function subjectsHandler(bot) {
       state.step !== "lecturer_name"
     ) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[skip_lecturer_name error]", e);
       }
@@ -2127,11 +2215,13 @@ function subjectsHandler(bot) {
     state.lecturerName = "";
     state.step = "lecturer_contact";
     try {
-      await ctx.reply(
-        "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("Пропустить", "skip_lecturer_contact")],
-        ])
+      await trackSend(ctx, () =>
+        ctx.reply(
+          "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("Пропустить", "skip_lecturer_contact")],
+          ])
+        )
       );
     } catch (e) {
       console.error("[skip_lecturer_name prompt error]", e);
@@ -2146,7 +2236,7 @@ function subjectsHandler(bot) {
       state.step !== "lecturer_contact"
     ) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[skip_lecturer_contact error]", e);
       }
@@ -2155,11 +2245,13 @@ function subjectsHandler(bot) {
     state.lecturerContact = "";
     state.step = "practitioner_name";
     try {
-      await ctx.reply(
-        "👩‍🏫 Введите ФИО практики (или пропустите):",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("Пропустить", "skip_practitioner_name")],
-        ])
+      await trackSend(ctx, () =>
+        ctx.reply(
+          "👩‍🏫 Введите ФИО практики (или пропустите):",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("Пропустить", "skip_practitioner_name")],
+          ])
+        )
       );
     } catch (e) {
       console.error("[skip_lecturer_contact prompt error]", e);
@@ -2174,7 +2266,7 @@ function subjectsHandler(bot) {
       state.step !== "practitioner_name"
     ) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[skip_practitioner_name error]", e);
       }
@@ -2183,11 +2275,13 @@ function subjectsHandler(bot) {
     state.practitionerName = "";
     state.step = "practitioner_contact";
     try {
-      await ctx.reply(
-        "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("Пропустить", "skip_practitioner_contact")],
-        ])
+      await trackSend(ctx, () =>
+        ctx.reply(
+          "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("Пропустить", "skip_practitioner_contact")],
+          ])
+        )
       );
     } catch (e) {
       console.error("[skip_practitioner_name prompt error]", e);
@@ -2202,7 +2296,7 @@ function subjectsHandler(bot) {
       state.step !== "practitioner_contact"
     ) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[skip_practitioner_contact error]", e);
       }
@@ -2221,7 +2315,7 @@ function subjectsHandler(bot) {
     saveData(data);
     delete inputState[ctx.from.id];
     try {
-      await ctx.reply("✅ Предмет добавлен!\n\n---");
+      await trackSend(ctx, () => ctx.reply("✅ Предмет добавлен!\n\n---"));
       await mainMenu(ctx);
     } catch (e) {
       console.error("[skip_practitioner_contact finish error]", e);
@@ -2238,7 +2332,7 @@ function subjectsHandler(bot) {
       state.step !== "description"
     ) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[skip_info_description error]", e);
       }
@@ -2247,16 +2341,20 @@ function subjectsHandler(bot) {
     state.description = "";
     state.step = "attachments";
     try {
-      await ctx.reply(
-        '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-        Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              "✅ Готово",
-              idx ? `finish_info_attachments_${idx}` : "finish_info_attachments"
-            ),
-          ],
-        ])
+      await trackSend(ctx, () =>
+        ctx.reply(
+          '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✅ Готово",
+                idx
+                  ? `finish_info_attachments_${idx}`
+                  : "finish_info_attachments"
+              ),
+            ],
+          ])
+        )
       );
     } catch (e) {
       console.error("[skip_info_description prompt error]", e);
@@ -2268,7 +2366,7 @@ function subjectsHandler(bot) {
     const sIdx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_subject", step: "name", sIdx };
     try {
-      await ctx.reply("📘 Введите новое название:");
+      await trackSend(ctx, () => ctx.reply("📘 Введите новое название:"));
     } catch (e) {
       console.error("[edit_subject_name prompt error]", e);
     }
@@ -2278,7 +2376,7 @@ function subjectsHandler(bot) {
     const sIdx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_subject", step: "emoji", sIdx };
     try {
-      await ctx.reply("😀 Введите новый emoji:");
+      await trackSend(ctx, () => ctx.reply("😀 Введите новый emoji:"));
     } catch (e) {
       console.error("[edit_subject_emoji prompt error]", e);
     }
@@ -2292,7 +2390,7 @@ function subjectsHandler(bot) {
       sIdx,
     };
     try {
-      await ctx.reply("👨‍🏫 Введите новое ФИО лектора:");
+      await trackSend(ctx, () => ctx.reply("👨‍🏫 Введите новое ФИО лектора:"));
     } catch (e) {
       console.error("[edit_subject_lecturer_name prompt error]", e);
     }
@@ -2306,7 +2404,9 @@ function subjectsHandler(bot) {
       sIdx,
     };
     try {
-      await ctx.reply("📞 Введите новые контакты лектора:");
+      await trackSend(ctx, () =>
+        ctx.reply("📞 Введите новые контакты лектора:")
+      );
     } catch (e) {
       console.error("[edit_subject_lecturer_contact prompt error]", e);
     }
@@ -2320,7 +2420,7 @@ function subjectsHandler(bot) {
       sIdx,
     };
     try {
-      await ctx.reply("👩‍🏫 Введите новое ФИО практики:");
+      await trackSend(ctx, () => ctx.reply("👩‍🏫 Введите новое ФИО практики:"));
     } catch (e) {
       console.error("[edit_subject_practitioner_name prompt error]", e);
     }
@@ -2334,7 +2434,9 @@ function subjectsHandler(bot) {
       sIdx,
     };
     try {
-      await ctx.reply("📞 Введите новые контакты практики:");
+      await trackSend(ctx, () =>
+        ctx.reply("📞 Введите новые контакты практики:")
+      );
     } catch (e) {
       console.error("[edit_subject_practitioner_contact prompt error]", e);
     }
@@ -2345,7 +2447,7 @@ function subjectsHandler(bot) {
     const idx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_info", step: "edit_title", idx };
     try {
-      await ctx.reply("📝 Введите новый заголовок:");
+      await trackSend(ctx, () => ctx.reply("📝 Введите новый заголовок:"));
     } catch (e) {
       console.error("[edit_info_title prompt error]", e);
     }
@@ -2355,7 +2457,7 @@ function subjectsHandler(bot) {
     const idx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_info", step: "edit_emoji", idx };
     try {
-      await ctx.reply("😀 Введите новый emoji:");
+      await trackSend(ctx, () => ctx.reply("😀 Введите новый emoji:"));
     } catch (e) {
       console.error("[edit_info_emoji prompt error]", e);
     }
@@ -2369,7 +2471,7 @@ function subjectsHandler(bot) {
       idx,
     };
     try {
-      await ctx.reply("📄 Введите новое описание:");
+      await trackSend(ctx, () => ctx.reply("📄 Введите новое описание:"));
     } catch (e) {
       console.error("[edit_info_description prompt error]", e);
     }
@@ -2384,16 +2486,18 @@ function subjectsHandler(bot) {
       attachments: [],
     };
     try {
-      await ctx.reply(
-        '📎 Отправьте новые файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-        Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              "✅ Готово",
-              `finish_info_attachments_${idx}`
-            ),
-          ],
-        ])
+      await trackSend(ctx, () =>
+        ctx.reply(
+          '📎 Отправьте новые файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✅ Готово",
+                `finish_info_attachments_${idx}`
+              ),
+            ],
+          ])
+        )
       );
     } catch (e) {
       console.error("[edit_info_attachments prompt error]", e);
@@ -2412,7 +2516,7 @@ function subjectsHandler(bot) {
       state.step !== "description"
     ) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[skip_description error]", e);
       }
@@ -2421,18 +2525,20 @@ function subjectsHandler(bot) {
     state.description = "";
     state.step = "attachments";
     try {
-      await ctx.reply(
-        '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-        Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              "✅ Готово",
-              tIdx
-                ? `finish_attachments_${sIdx}_${tIdx}`
-                : `finish_attachments_${sIdx}`
-            ),
-          ],
-        ])
+      await trackSend(ctx, () =>
+        ctx.reply(
+          '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "✅ Готово",
+                tIdx
+                  ? `finish_attachments_${sIdx}_${tIdx}`
+                  : `finish_attachments_${sIdx}`
+              ),
+            ],
+          ])
+        )
       );
     } catch (e) {
       console.error("[skip_description prompt error]", e);
@@ -2463,15 +2569,19 @@ function subjectsHandler(bot) {
           file_id: file_id,
           local_path,
         });
-        await ctx.reply(
-          "✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'."
+        await trackSend(ctx, () =>
+          ctx.reply(
+            "✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'."
+          )
         );
       }
       if (state && state.mode === "add_answer" && state.step === "answer") {
         const file_id = ctx.message.document.file_id;
         const local_path = await saveAttachment(ctx, file_id, "document");
         state.answers.push({ type: "document", content: file_id, local_path });
-        await ctx.reply("✅ Файл добавлен. Добавьте ещё или нажмите Готово.");
+        await trackSend(ctx, () =>
+          ctx.reply("✅ Файл добавлен. Добавьте ещё или нажмите Готово.")
+        );
         return;
       }
     } catch (e) {
@@ -2506,8 +2616,10 @@ function subjectsHandler(bot) {
             file_id: file_id,
             local_path,
           });
-          await ctx.reply(
-            "✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
+          await trackSend(ctx, () =>
+            ctx.reply(
+              "✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
+            )
           );
         }
       }
@@ -2518,8 +2630,8 @@ function subjectsHandler(bot) {
           const file_id = largest.file_id;
           const local_path = await saveAttachment(ctx, file_id, "photo");
           state.answers.push({ type: "photo", content: file_id, local_path });
-          await ctx.reply(
-            "✅ Фото добавлено. Добавьте ещё или нажмите Готово."
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Фото добавлено. Добавьте ещё или нажмите Готово.")
           );
         }
       }
@@ -2532,7 +2644,7 @@ function subjectsHandler(bot) {
   bot.action(/^add_task_(\d+)$/, async (ctx) => {
     if (!isAdmin(ctx)) {
       try {
-        await ctx.reply("❌ Нет прав.");
+        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
       } catch (e) {
         console.error("[add_task error]", e);
       }
@@ -2555,7 +2667,7 @@ function subjectsHandler(bot) {
       emoji: "",
     };
     try {
-      await ctx.reply("📝 Введите заголовок задания:");
+      await trackSend(ctx, () => ctx.reply("📝 Введите заголовок задания:"));
     } catch (e) {
       console.error("[add_task prompt error]", e);
     }
@@ -2571,7 +2683,7 @@ function subjectsHandler(bot) {
       (tIdx !== undefined && state.tIdx !== tIdx)
     ) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[finish_attachments error]", e);
       }
@@ -2603,7 +2715,7 @@ function subjectsHandler(bot) {
       tIdx: state.tIdx,
     });
     try {
-      await ctx.reply("✅ Задание сохранено!\n\n---");
+      await trackSend(ctx, () => ctx.reply("✅ Задание сохранено!\n\n---"));
       await mainMenu(ctx);
     } catch (e) {
       console.error("[finish_attachments finish error]", e);
@@ -2617,7 +2729,7 @@ function subjectsHandler(bot) {
     const idx = ctx.match[2] ? Number(ctx.match[2]) : undefined;
     if (!state || (idx !== undefined && state.idx !== idx)) {
       try {
-        await ctx.reply("❌ Ошибка состояния.");
+        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
       } catch (e) {
         console.error("[finish_info_attachments error]", e);
       }
@@ -2643,7 +2755,7 @@ function subjectsHandler(bot) {
     delete inputState[ctx.from.id];
     console.log("[INFO] info attachments finished", { idx: state.idx });
     try {
-      await ctx.reply("✅ Информация сохранена!\n\n---");
+      await trackSend(ctx, () => ctx.reply("✅ Информация сохранена!\n\n---"));
       await mainMenu(ctx);
     } catch (e) {
       console.error("[finish_info_attachments finish error]", e);
@@ -2651,450 +2763,50 @@ function subjectsHandler(bot) {
     return;
   });
 
-  // Настройки
-  bot.action("settings", async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[settings error]", e);
-      }
-      return;
-    }
-    try {
-      await editOrSend(
-        ctx,
-        "⚙️ Настройки:\n\n---",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("👤 Редактировать ADMINS", "edit_admins")],
-          [
-            Markup.button.callback(
-              "👁️ Редактировать ANSWER_VIEWERS",
-              "edit_answer_viewers"
-            ),
-          ],
-          [
-            Markup.button.callback(
-              "⭐ Редактировать SUPERUSERS",
-              "edit_superusers"
-            ),
-          ],
-          [
-            Markup.button.callback(
-              "🗑️ Удалить все данные",
-              "reset_all_confirm"
-            ),
-          ],
-          [Markup.button.callback("⬅️ Назад", "main_menu")],
-        ])
-      );
-    } catch (e) {
-      console.error("[settings menu error]", e);
-    }
-  });
-
-  // Подтверждение удаления всех данных
-  bot.action("reset_all_confirm", async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
-      } catch (e) {
-        console.error("[reset_all_confirm error]", e);
-      }
-      return;
-    }
-    try {
-      await editOrSend(
-        ctx,
-        "⚠️ Вы уверены, что хотите удалить все данные (предметы, задания, информацию, пользователей кроме дефолтных)?\n\nЭто действие необратимо!\n\n---",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("✅ Да, удалить", "reset_all_yes")],
-          [Markup.button.callback("❌ Нет, отменить", "settings")],
-        ])
-      );
-    } catch (e) {
-      console.error("[reset_all_confirm error]", e);
-    }
-  });
-
-  // Выполнение удаления всех данных
-  bot.action("reset_all_yes", async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
-      } catch (e) {
-        console.error("[reset_all_yes error]", e);
-      }
-      return;
-    }
-    try {
-      // Удалить все attachments
-      deleteAllAttachments();
-
-      // Сброс данных
-      data.subjects = [];
-      data.infos = [];
-      data.users = DEFAULT_USERS;
-
-      saveData(data);
-      console.log(`[LOG] ${ctx.from.username} сбросил все данные`);
-
-      await ctx.answerCbQuery("✅ Все данные удалены и сброшены к дефолту.");
-
-      await editOrSend(
-        ctx,
-        "🗑️ Все данные удалены и сброшены к дефолту.\n\n---",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("⬅️ Назад", "main_menu")],
-        ])
-      );
-    } catch (err) {
-      console.error("[reset_all_yes error]", err);
-      try {
-        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
-      } catch (e) {}
-    }
-  });
-
-  // Универсальный генератор меню для ролей
-  function roleMenu(roleArr, roleName, callbackPrefix) {
-    let msg = `📋 Текущие ${roleName}:\n\n`;
-    if (roleArr.length === 0) {
-      msg += "😔 Нет пользователей.\n\n---";
-    } else {
-      roleArr.forEach((user, i) => {
-        msg += `👤 ${user}\n`;
-      });
-      msg += "\n---";
-    }
-    const buttons = [];
-    for (let i = 0; i < roleArr.length; i += 3) {
-      buttons.push(
-        roleArr
-          .slice(i, i + 3)
-          .map((user, j) =>
-            Markup.button.callback(
-              `🗑️ ${user}`,
-              `${callbackPrefix}_remove_${i + j}`
-            )
-          )
-      );
-    }
-    buttons.push([
-      Markup.button.callback("➕ Добавить", `${callbackPrefix}_add`),
-    ]);
-    buttons.push([Markup.button.callback("⬅️ Назад", "settings")]);
-    return { msg, keyboard: Markup.inlineKeyboard(buttons) };
-  }
-
-  // Функции обновления меню
-  async function showAdminMenu(ctx) {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[showAdminMenu error]", e);
-      }
-      return;
-    }
-    const { msg, keyboard } = roleMenu(data.users.ADMINS, "ADMINS", "admins");
-    try {
-      await editOrSend(ctx, msg, keyboard);
-    } catch (e) {
-      console.error("[showAdminMenu error]", e);
-    }
-  }
-
-  async function refreshAnswerViewers(ctx) {
-    const { msg, keyboard } = roleMenu(
-      data.users.ANSWER_VIEWERS,
-      "ANSWER_VIEWERS",
-      "viewers"
-    );
-    try {
-      await editOrSend(ctx, msg, keyboard);
-    } catch (e) {
-      console.error("[refreshAnswerViewers error]", e);
-    }
-  }
-
-  async function showSuperusersMenu(ctx) {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[showSuperusersMenu error]", e);
-      }
-      return;
-    }
-    const { msg, keyboard } = roleMenu(
-      data.users.SUPERUSERS,
-      "SUPERUSERS",
-      "superusers"
-    );
-    try {
-      await editOrSend(ctx, msg, keyboard);
-    } catch (e) {
-      console.error("[showSuperusersMenu error]", e);
-    }
-  }
-
-  // Меню для ADMINS
-  bot.action("edit_admins", async (ctx) => {
-    try {
-      await showAdminMenu(ctx);
-    } catch (e) {
-      console.error("[edit_admins error]", e);
-    }
-  });
-
-  bot.action(/admins_remove_(\d+)/, async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[admins_remove error]", e);
-      }
-      return;
-    }
-    const idx = Number(ctx.match[1]);
-    if (data.users.ADMINS.length <= 1) {
-      try {
-        await ctx.reply("❌ Должен быть хотя бы один админ!");
-      } catch (e) {
-        console.error("[admins_remove error]", e);
-      }
-      return;
-    }
-    const removed = data.users.ADMINS.splice(idx, 1)[0];
-    saveData(data);
-    try {
-      await ctx.reply(`🗑️ Админ ${removed} удалён.\n\n---`);
-      await showAdminMenu(ctx);
-    } catch (e) {
-      console.error("[admins_remove finish error]", e);
-    }
-    console.log(`[LOG] ${ctx.from.username} удалил админа: ${removed}`);
-  });
-
-  bot.action("admins_add", async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[admins_add error]", e);
-      }
-      return;
-    }
-    inputState[ctx.from.id] = { step: "add_admin" };
-    try {
-      await ctx.reply("👤 Введите username нового админа (с @):");
-    } catch (e) {
-      console.error("[admins_add prompt error]", e);
-    }
-  });
-
-  // Меню для ANSWER_VIEWERS
-  bot.action("edit_answer_viewers", async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[edit_answer_viewers error]", e);
-      }
-      return;
-    }
-    if (ctx.chat && ctx.update.callback_query) {
-      interactiveMessageId[ctx.chat.id] =
-        ctx.update.callback_query.message.message_id;
-    }
-    try {
-      await refreshAnswerViewers(ctx);
-    } catch (e) {
-      console.error("[edit_answer_viewers error]", e);
-    }
-  });
-
-  bot.action(/viewers_remove_(\d+)/, async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[viewers_remove error]", e);
-      }
-      return;
-    }
-    const idx = Number(ctx.match[1]);
-    const removed = data.users.ANSWER_VIEWERS.splice(idx, 1)[0];
-    saveData(data);
-    try {
-      await ctx.reply(`🗑️ ANSWER_VIEWER ${removed} удалён.\n\n---`);
-      await refreshAnswerViewers(ctx);
-    } catch (e) {
-      console.error("[viewers_remove finish error]", e);
-    }
-    console.log(`[LOG] ${ctx.from.username} удалил ANSWER_VIEWER: ${removed}`);
-  });
-
-  bot.action("viewers_add", async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[viewers_add error]", e);
-      }
-      return;
-    }
-    inputState[ctx.from.id] = { step: "add_viewer" };
-    try {
-      await ctx.reply("👁️ Введите username нового ANSWER_VIEWER (с @):");
-    } catch (e) {
-      console.error("[viewers_add prompt error]", e);
-    }
-  });
-
-  // Меню для SUPERUSERS
-  bot.action("edit_superusers", async (ctx) => {
-    try {
-      await showSuperusersMenu(ctx);
-    } catch (e) {
-      console.error("[edit_superusers error]", e);
-    }
-  });
-
-  bot.action(/superusers_remove_(\d+)/, async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[superusers_remove error]", e);
-      }
-      return;
-    }
-    const idx = Number(ctx.match[1]);
-    if (data.users.SUPERUSERS.length <= 1) {
-      try {
-        await ctx.reply("❌ Должен быть хотя бы один суперюзер!");
-      } catch (e) {
-        console.error("[superusers_remove error]", e);
-      }
-      return;
-    }
-    const removed = data.users.SUPERUSERS.splice(idx, 1)[0];
-    saveData(data);
-    try {
-      await ctx.reply(`🗑️ SUPERUSER ${removed} удалён.\n\n---`);
-      await showSuperusersMenu(ctx);
-    } catch (e) {
-      console.error("[superusers_remove finish error]", e);
-    }
-    console.log(`[LOG] ${ctx.from.username} удалил SUPERUSER: ${removed}`);
-  });
-
-  bot.action("superusers_add", async (ctx) => {
-    if (!isSuperuser(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[superusers_add error]", e);
-      }
-      return;
-    }
-    inputState[ctx.from.id] = { step: "add_superuser" };
-    try {
-      await ctx.reply("⭐ Введите username нового SUPERUSER (с @):");
-    } catch (e) {
-      console.error("[superusers_add prompt error]", e);
-    }
-  });
-
-  // Добавление ответа (текст или файл)
-  bot.action(/^add_answer_(\d+)_(\d+)$/, async (ctx) => {
+  // Admin Tools
+  bot.action("admin_tools", async (ctx) => {
     if (!isAdmin(ctx)) {
-      try {
-        await ctx.reply("❌ Нет прав.");
-      } catch (e) {
-        console.error("[add_answer error]", e);
-      }
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
       return;
     }
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    inputState[ctx.from.id] = {
-      mode: "add_answer",
-      step: "answer",
-      sIdx,
-      tIdx,
-      answers: [],
-    };
-    try {
-      await ctx.reply(
-        "📖 Отправьте ответы (текст, файлы, фото). Когда закончите, нажмите Готово.\n\n---",
-        Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              "✅ Готово",
-              `finish_answer_${sIdx}_${tIdx}`
-            ),
-          ],
-        ])
-      );
-    } catch (e) {
-      console.error("[add_answer prompt error]", e);
+    await editOrSend(
+      ctx,
+      "🛠 Админ инструменты\n\n---",
+      Markup.inlineKeyboard([
+        [Markup.button.callback("Перекличка", "roll_call")],
+        [Markup.button.callback("Очистка", "cleanup")],
+        [Markup.button.callback("⬅️ Назад", "main_menu")],
+      ])
+    );
+  });
+
+  bot.action("roll_call", async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    const allUsers = [
+      ...new Set([
+        ...data.users.ADMINS,
+        ...data.users.ANSWER_VIEWERS,
+        ...data.users.SUPERUSERS,
+      ]),
+    ];
+    const msg = allUsers.join("\n");
+    for (let i = 0; i < 3; i++) {
+      await trackSend(ctx, () => ctx.reply(msg));
     }
   });
 
-  bot.action(/^finish_answer_(\d+)_(\d+)$/, async (ctx) => {
-    const state = inputState[ctx.from.id];
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    if (!state || state.sIdx !== sIdx || state.tIdx !== tIdx) {
-      try {
-        await ctx.reply("❌ Ошибка состояния.");
-      } catch (e) {
-        console.error("[finish_answer error]", e);
-      }
-      return;
+  bot.action("cleanup", async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    const chatId = ctx.chat.id;
+    const messageIds = data.chatMessages[chatId] || [];
+    for (const id of messageIds) {
+      await ctx.telegram
+        .deleteMessage(chatId, id)
+        .catch((e) => console.error(`Delete error for ${id}`, e));
     }
-    const task = data.subjects[sIdx].tasks[tIdx];
-    if (!task.answers) task.answers = [];
-    task.answers.push(...state.answers);
+    data.chatMessages[chatId] = [];
     saveData(data);
-    delete inputState[ctx.from.id];
-    try {
-      await ctx.reply("✅ Ответы добавлены!\n\n---");
-      await mainMenu(ctx);
-    } catch (e) {
-      console.error("[finish_answer finish error]", e);
-    }
-  });
-
-  // Показать ответы
-  bot.action(/^show_answers_(\d+)_(\d+)$/, async (ctx) => {
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    const task = data.subjects[sIdx].tasks[tIdx];
-    if (!isAnswerViewer(ctx) || !task.answers || task.answers.length === 0) {
-      try {
-        await ctx.reply("❌ Нет прав или ответов.");
-      } catch (e) {
-        console.error("[show_answers error]", e);
-      }
-      return;
-    }
-    for (const ans of task.answers) {
-      try {
-        if (ans.type === "text") {
-          await ctx.reply(ans.content);
-        } else if (ans.type === "photo") {
-          await ctx.replyWithPhoto(ans.content);
-        } else if (ans.type === "document") {
-          await ctx.replyWithDocument(ans.content);
-        }
-      } catch (e) {
-        console.error("[show_answers send error]", e);
-      }
-    }
+    await trackSend(ctx, () => ctx.reply("Очистка завершена."));
   });
 
   // Сброс состояний при callback_query (оставляем, но он должен быть подключён после регистрации action-хендлеров)
