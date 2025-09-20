@@ -2,9 +2,8 @@
   "users": {
     "ADMINS": [
       "@pippsza",
-      "@Evil_bastardd",
-      "@zemlyannnaya",
-      "@trachck"
+      "@trachck",
+      "@Evil_bastardd"
     ],
     "ANSWER_VIEWERS": [
       "@pippsza",
@@ -22,10 +21,10 @@
     {
       "name": "Крипта",
       "emoji": "💲",
-      "lecturerName": "",
-      "lecturerContact": "",
-      "practitionerName": "",
-      "practitionerContact": "",
+      "lecturerName": "Сергій Петрович Євсеєв",
+      "lecturerContact": "Serhii_Yevseiev@khpi.edu.ua",
+      "practitionerName": "Ольга Григорівна Король",
+      "practitionerContact": "Olha.Korol@khpi.edu.ua",
       "tasks": [
         {
           "title": "Лаба 2",
@@ -33,6 +32,19 @@
           "attachments": [],
           "answers": [],
           "emoji": "📄"
+        },
+        {
+          "title": "Обчислити поля галуа 2³",
+          "description": "",
+          "attachments": [],
+          "answers": [
+            {
+              "type": "document",
+              "content": "BQACAgIAAyEFAASNDuBPAAJfNGjObvPMiweN-5QvThDSw-YQyp4YAALWhAACXCp4SohfdpOByTk1NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJfNGjObvPMiweN-5QvThDSw-YQyp4YAALWhAACXCp4SohfdpOByTk1NgQ.xlsx"
+            }
+          ],
+          "emoji": "🔏"
         }
       ]
     },
@@ -78,6 +90,24 @@
       "lecturerContact": "Maryna.Tykhonova@khpi.edu.ua",
       "practitionerName": "",
       "practitionerContact": "",
+      "tasks": []
+    },
+    {
+      "name": "БЗВП",
+      "emoji": "🪖",
+      "lecturerName": "Ростислав Елійович Черепаха\nОлег Іванович Клименко\nТарас Вікторович Бойчук\nАнастасія Львівна Сочнєва",
+      "lecturerContact": "Rostyslav.Cherepakha@mit.khpi.edu.ua\nOleh.Klymenko@mit.khpi.edu.ua\nTaras.Boichuk@mit.khpi.edu.ua\nAnastasiia.Sochnieva@khpi.edu.ua",
+      "practitionerName": "",
+      "practitionerContact": "",
+      "tasks": []
+    },
+    {
+      "name": "Мережі",
+      "emoji": "🌐",
+      "lecturerName": "Сергій Петрович Євсеєв",
+      "lecturerContact": "Serhii_Yevseiev@khpi.edu.ua",
+      "practitionerName": "Ольга Григорівна Король",
+      "practitionerContact": "Olha.Korol@khpi.edu.ua",
       "tasks": []
     }
   ],

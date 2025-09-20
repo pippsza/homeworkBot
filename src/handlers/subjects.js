@@ -125,6 +125,16 @@ function deleteAttachment(local_path) {
   }
 }
 
+function deleteAllAttachments() {
+  if (fs.existsSync(ATTACHMENTS_DIR)) {
+    fs.readdirSync(ATTACHMENTS_DIR).forEach((file) => {
+      const filePath = path.join(ATTACHMENTS_DIR, file);
+      fs.unlinkSync(filePath);
+      console.log(`[deleteAllAttachments] Deleted file: ${filePath}`);
+    });
+  }
+}
+
 const data = loadData();
 
 function isAdmin(ctx) {
@@ -367,7 +377,7 @@ function subjectsHandler(bot) {
         Markup.button.callback("✏️ Редактировать", `edit_subject_menu_${idx}`),
       ]);
       buttons.push([
-        Markup.button.callback("🗑️ Удалить предмет", `subjects_remove_${idx}`),
+        Markup.button.callback("🗑️ Удалить предмет", `subjects_remove_confirm_${idx}`),
       ]);
     }
     buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
@@ -375,6 +385,94 @@ function subjectsHandler(bot) {
       await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
     } catch (e) {
       console.error("[subject error]", e);
+    }
+  });
+
+  bot.action(/^subjects_remove_confirm_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    try {
+      await editOrSend(
+        ctx,
+        `⚠️ Вы уверены, что хотите удалить предмет?\n\nЭто действие необратимо!\n\n---`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("✅ Да, удалить", `subjects_remove_yes_${idx}`)],
+          [Markup.button.callback("❌ Нет, отменить", `subject_${idx}`)],
+        ])
+      );
+    } catch (e) {
+      console.error("[subjects_remove_confirm error]", e);
+    }
+  });
+
+  bot.action(/^subjects_remove_yes_(\d+)$/, async (ctx) => {
+    try {
+      if (!isAdmin(ctx))
+        return await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      const idx = Number(ctx.match[1]);
+      console.log(
+        "[delete_subject] invoked by",
+        ctx.from && ctx.from.username,
+        "idx=",
+        idx,
+        "subjectsLen=",
+        data.subjects.length
+      );
+
+      if (Number.isNaN(idx) || idx < 0 || idx >= data.subjects.length) {
+        await ctx.answerCbQuery("❌ Предмет не найден.", { show_alert: false });
+        return;
+      }
+
+      // Delete all attachments in all tasks
+      const subject = data.subjects[idx];
+      for (const task of subject.tasks) {
+        for (const att of task.attachments || []) {
+          deleteAttachment(att.local_path);
+        }
+      }
+
+      const removed = data.subjects.splice(idx, 1)[0];
+      saveData(data);
+      console.log(`[LOG] ${ctx.from.username} удалил предмет: ${removed.name}`);
+
+      await ctx.answerCbQuery("✅ Предмет удалён");
+
+      const msg =
+        data.subjects.length === 0
+          ? "😔 Нет предметов."
+          : "📋 Список предметов:\n\n" +
+            data.subjects
+              .map((s) => `${s.emoji || "📚"} ${s.name}`)
+              .join("\n") +
+            "\n\n---";
+
+      const subjectButtons = [];
+      for (let i = 0; i < data.subjects.length; i += 3) {
+        subjectButtons.push(
+          data.subjects
+            .slice(i, i + 3)
+            .map((s, j) =>
+              Markup.button.callback(s.emoji || "📚", `subject_${i + j}`)
+            )
+        );
+      }
+      const buttons = [...subjectButtons];
+      if (isAdmin(ctx))
+        buttons.push([
+          Markup.button.callback("➕ Добавить предмет", "add_subject"),
+        ]);
+      buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
+
+      await editOrSend(
+        ctx,
+        `🗑️ Предмет ${removed?.name || "?"} удалён.\n\n${msg}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    } catch (err) {
+      console.error("[delete_subject error]", err);
+      try {
+        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
+      } catch (e) {}
     }
   });
 
@@ -430,7 +528,7 @@ function subjectsHandler(bot) {
       buttons.push([
         Markup.button.callback(
           "🗑️ Удалить задание",
-          `tasks_remove_${sIdx}_${tIdx}`
+          `tasks_remove_confirm_${sIdx}_${tIdx}`
         ),
       ]);
       buttons.push([
@@ -445,6 +543,130 @@ function subjectsHandler(bot) {
       await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
     } catch (e) {
       console.error("[task error]", e);
+    }
+  });
+
+  bot.action(/^tasks_remove_confirm_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    try {
+      await editOrSend(
+        ctx,
+        `⚠️ Вы уверены, что хотите удалить задание?\n\nЭто действие необратимо!\n\n---`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("✅ Да, удалить", `tasks_remove_yes_${sIdx}_${tIdx}`)],
+          [Markup.button.callback("❌ Нет, отменить", `task_${sIdx}_${tIdx}`)],
+        ])
+      );
+    } catch (e) {
+      console.error("[tasks_remove_confirm error]", e);
+    }
+  });
+
+  bot.action(/^tasks_remove_yes_(\d+)_(\d+)$/, async (ctx) => {
+    try {
+      if (!isAdmin(ctx))
+        return await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      const sIdx = Number(ctx.match[1]);
+      const tIdx = Number(ctx.match[2]);
+      console.log(
+        "[delete_task] invoked by",
+        ctx.from && ctx.from.username,
+        "sIdx=",
+        sIdx,
+        "tIdx=",
+        tIdx
+      );
+
+      if (
+        Number.isNaN(sIdx) ||
+        Number.isNaN(tIdx) ||
+        sIdx < 0 ||
+        sIdx >= data.subjects.length ||
+        !Array.isArray(data.subjects[sIdx].tasks) ||
+        tIdx < 0 ||
+        tIdx >= data.subjects[sIdx].tasks.length
+      ) {
+        await ctx.answerCbQuery("❌ Задание не найдено.", {
+          show_alert: false,
+        });
+        return;
+      }
+
+      // Delete attachments files
+      const task = data.subjects[sIdx].tasks[tIdx];
+      for (const att of task.attachments || []) {
+        deleteAttachment(att.local_path);
+      }
+
+      const taskTitle = data.subjects[sIdx].tasks.splice(tIdx, 1)[0]?.title;
+      saveData(data);
+      console.log(`[LOG] ${ctx.from.username} удалил задание: ${taskTitle}`);
+
+      await ctx.answerCbQuery("✅ Задание удалено");
+
+      const subject = data.subjects[sIdx];
+      let msg = `📘 Предмет: ${subject.name}\n\n`;
+      if (subject.lecturerName) {
+        msg += `👨‍🏫 Лектор: ${subject.lecturerName}${
+          subject.lecturerContact ? ` (${subject.lecturerContact})` : ""
+        }\n`;
+      }
+      if (subject.practitionerName) {
+        msg += `👩‍🏫 Практик: ${subject.practitionerName}${
+          subject.practitionerContact ? ` (${subject.practitionerContact})` : ""
+        }\n`;
+      }
+      msg += "\n---\n";
+      if (subject.tasks.length === 0) {
+        msg += "😔 Нет заданий.\n";
+      } else {
+        msg +=
+          "📝 Задания:\n" +
+          subject.tasks.map((t) => `${t.emoji || "📄"} ${t.title}`).join("\n") +
+          "\n\n---";
+      }
+
+      const taskButtons = [];
+      for (let j = 0; j < subject.tasks.length; j += 3) {
+        taskButtons.push(
+          subject.tasks
+            .slice(j, j + 3)
+            .map((t, k) =>
+              Markup.button.callback(t.emoji || "📄", `task_${sIdx}_${j + k}`)
+            )
+        );
+      }
+      let buttons = [...taskButtons];
+      if (isAdmin(ctx)) {
+        buttons.push([
+          Markup.button.callback("➕ Добавить задание", `add_task_${sIdx}`),
+        ]);
+        buttons.push([
+          Markup.button.callback(
+            "✏️ Редактировать",
+            `edit_subject_menu_${sIdx}`
+          ),
+        ]);
+        buttons.push([
+          Markup.button.callback(
+            "🗑️ Удалить предмет",
+            `subjects_remove_confirm_${sIdx}`
+          ),
+        ]);
+      }
+      buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
+
+      await editOrSend(
+        ctx,
+        `🗑️ Задание "${taskTitle}" удалено.\n\n${msg}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    } catch (err) {
+      console.error("[delete_task error]", err);
+      try {
+        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
+      } catch (e) {}
     }
   });
 
@@ -638,7 +860,7 @@ function subjectsHandler(bot) {
         Markup.button.callback("✏️ Редактировать", `edit_info_menu_${idx}`),
       ]);
       buttons.push([
-        Markup.button.callback("🗑️ Удалить", `infos_remove_${idx}`),
+        Markup.button.callback("🗑️ Удалить", `infos_remove_confirm_${idx}`),
       ]);
     }
     buttons.push([Markup.button.callback("⬅️ Назад", "infos")]);
@@ -646,6 +868,96 @@ function subjectsHandler(bot) {
       await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
     } catch (e) {
       console.error("[info error]", e);
+    }
+  });
+
+  bot.action(/^infos_remove_confirm_(\d+)$/, async (ctx) => {
+    const idx = Number(ctx.match[1]);
+    try {
+      await editOrSend(
+        ctx,
+        `⚠️ Вы уверены, что хотите удалить информацию?\n\nЭто действие необратимо!\n\n---`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("✅ Да, удалить", `infos_remove_yes_${idx}`)],
+          [Markup.button.callback("❌ Нет, отменить", `info_${idx}`)],
+        ])
+      );
+    } catch (e) {
+      console.error("[infos_remove_confirm error]", e);
+    }
+  });
+
+  bot.action(/^infos_remove_yes_(\d+)$/, async (ctx) => {
+    try {
+      if (!isAdmin(ctx))
+        return await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      const idx = Number(ctx.match[1]);
+      console.log(
+        "[delete_info] invoked by",
+        ctx.from && ctx.from.username,
+        "idx=",
+        idx,
+        "infosLen=",
+        data.infos.length
+      );
+
+      if (Number.isNaN(idx) || idx < 0 || idx >= data.infos.length) {
+        await ctx.answerCbQuery("❌ Информация не найдена.", {
+          show_alert: false,
+        });
+        return;
+      }
+
+      // Delete attachments files
+      const info = data.infos[idx];
+      for (const att of info.attachments || []) {
+        deleteAttachment(att.local_path);
+      }
+
+      const removed = data.infos.splice(idx, 1)[0];
+      saveData(data);
+      console.log(
+        `[LOG] ${ctx.from.username} удалил информацию: ${removed.title}`
+      );
+
+      await ctx.answerCbQuery("✅ Информация удалена");
+
+      const msg =
+        data.infos.length === 0
+          ? "😔 Нет информации."
+          : "📋 Список информации:\n\n" +
+            data.infos
+              .map((info) => `${info.emoji || "ℹ️"} ${info.title}`)
+              .join("\n") +
+            "\n\n---";
+
+      const infoButtons = [];
+      for (let i = 0; i < data.infos.length; i += 3) {
+        infoButtons.push(
+          data.infos
+            .slice(i, i + 3)
+            .map((info, j) =>
+              Markup.button.callback(info.emoji || "ℹ️", `info_${i + j}`)
+            )
+        );
+      }
+      const buttons = [...infoButtons];
+      if (isAdmin(ctx))
+        buttons.push([
+          Markup.button.callback("➕ Добавить информацию", "add_info"),
+        ]);
+      buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
+
+      await editOrSend(
+        ctx,
+        `🗑️ Информация "${removed?.title || "?"}" удалена.\n\n${msg}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    } catch (err) {
+      console.error("[delete_info error]", err);
+      try {
+        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
+      } catch (e) {}
     }
   });
 
@@ -1780,6 +2092,21 @@ function subjectsHandler(bot) {
         return;
       }
     }
+
+    // Добавление ответа (если текст)
+    if (state && state.mode === "add_answer" && state.step === "answer") {
+      if (text) {
+        state.answers.push({ type: "text", content: text });
+        try {
+          await ctx.reply(
+            "✅ Текст добавлен. Добавьте ещё или нажмите Готово."
+          );
+        } catch (e) {
+          console.error("[add_answer text error]", e);
+        }
+        return;
+      }
+    }
   });
 
   // Пропуски для добавления предмета
@@ -2324,338 +2651,6 @@ function subjectsHandler(bot) {
     return;
   });
 
-  // Редактирование задачи
-  bot.action(/^edit_task_title_(\d+)_(\d+)$/, async (ctx) => {
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    inputState[ctx.from.id] = {
-      mode: "edit_task",
-      step: "edit_title",
-      sIdx,
-      tIdx,
-    };
-    try {
-      await ctx.reply("📝 Введите новый заголовок:");
-    } catch (e) {
-      console.error("[edit_task_title prompt error]", e);
-    }
-  });
-
-  bot.action(/^edit_task_emoji_(\d+)_(\d+)$/, async (ctx) => {
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    inputState[ctx.from.id] = {
-      mode: "edit_task",
-      step: "edit_emoji",
-      sIdx,
-      tIdx,
-    };
-    try {
-      await ctx.reply("😀 Введите новый emoji:");
-    } catch (e) {
-      console.error("[edit_task_emoji prompt error]", e);
-    }
-  });
-
-  bot.action(/^edit_task_description_(\d+)_(\d+)$/, async (ctx) => {
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    inputState[ctx.from.id] = {
-      mode: "edit_task",
-      step: "edit_description",
-      sIdx,
-      tIdx,
-    };
-    try {
-      await ctx.reply("📄 Введите новое описание:");
-    } catch (e) {
-      console.error("[edit_task_description prompt error]", e);
-    }
-  });
-
-  bot.action(/^edit_task_attachments_(\d+)_(\d+)$/, async (ctx) => {
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
-    inputState[ctx.from.id] = {
-      mode: "edit_task",
-      step: "edit_attachments",
-      sIdx,
-      tIdx,
-      attachments: [],
-    };
-    try {
-      await ctx.reply(
-        '📎 Отправьте новые файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-        Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              "✅ Готово",
-              `finish_attachments_${sIdx}_${tIdx}`
-            ),
-          ],
-        ])
-      );
-    } catch (e) {
-      console.error("[edit_task_attachments prompt error]", e);
-    }
-  });
-
-  // Удаление предмета (улучшенная версия)
-  bot.action(/^subjects_remove_(\d+)$/, async (ctx) => {
-    try {
-      if (!isAdmin(ctx))
-        return await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
-      const idx = parseInt(ctx.match && ctx.match[1], 10);
-      console.log(
-        "[delete_subject] invoked by",
-        ctx.from && ctx.from.username,
-        "idx=",
-        idx,
-        "subjectsLen=",
-        data.subjects.length
-      );
-
-      if (Number.isNaN(idx) || idx < 0 || idx >= data.subjects.length) {
-        await ctx.answerCbQuery("❌ Предмет не найден.", { show_alert: false });
-        return;
-      }
-
-      // Delete all attachments in all tasks
-      const subject = data.subjects[idx];
-      for (const task of subject.tasks) {
-        for (const att of task.attachments || []) {
-          deleteAttachment(att.local_path);
-        }
-      }
-
-      const removed = data.subjects.splice(idx, 1)[0];
-      saveData(data);
-      console.log(`[LOG] ${ctx.from.username} удалил предмет: ${removed.name}`);
-
-      await ctx.answerCbQuery("✅ Предмет удалён");
-
-      const msg =
-        data.subjects.length === 0
-          ? "😔 Нет предметов."
-          : "📋 Список предметов:\n\n" +
-            data.subjects
-              .map((s) => `${s.emoji || "📚"} ${s.name}`)
-              .join("\n") +
-            "\n\n---";
-
-      const subjectButtons = [];
-      for (let i = 0; i < data.subjects.length; i += 3) {
-        subjectButtons.push(
-          data.subjects
-            .slice(i, i + 3)
-            .map((s, j) =>
-              Markup.button.callback(s.emoji || "📚", `subject_${i + j}`)
-            )
-        );
-      }
-      const buttons = [...subjectButtons];
-      if (isAdmin(ctx))
-        buttons.push([
-          Markup.button.callback("➕ Добавить предмет", "add_subject"),
-        ]);
-      buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
-
-      await editOrSend(
-        ctx,
-        `🗑️ Предмет ${removed?.name || "?"} удалён.\n\n${msg}`,
-        Markup.inlineKeyboard(buttons)
-      );
-    } catch (err) {
-      console.error("[delete_subject error]", err);
-      try {
-        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
-      } catch (e) {}
-    }
-  });
-
-  // Удаление задания (улучшенная версия)
-  bot.action(/^tasks_remove_(\d+)_(\d+)$/, async (ctx) => {
-    try {
-      if (!isAdmin(ctx))
-        return await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
-      const sIdx = parseInt(ctx.match[1], 10);
-      const tIdx = parseInt(ctx.match[2], 10);
-      console.log(
-        "[delete_task] invoked by",
-        ctx.from && ctx.from.username,
-        "sIdx=",
-        sIdx,
-        "tIdx=",
-        tIdx
-      );
-
-      if (
-        Number.isNaN(sIdx) ||
-        Number.isNaN(tIdx) ||
-        sIdx < 0 ||
-        sIdx >= data.subjects.length ||
-        !Array.isArray(data.subjects[sIdx].tasks) ||
-        tIdx < 0 ||
-        tIdx >= data.subjects[sIdx].tasks.length
-      ) {
-        await ctx.answerCbQuery("❌ Задание не найдено.", {
-          show_alert: false,
-        });
-        return;
-      }
-
-      // Delete attachments files
-      const task = data.subjects[sIdx].tasks[tIdx];
-      for (const att of task.attachments || []) {
-        deleteAttachment(att.local_path);
-      }
-
-      const taskTitle = data.subjects[sIdx].tasks.splice(tIdx, 1)[0]?.title;
-      saveData(data);
-      console.log(`[LOG] ${ctx.from.username} удалил задание: ${taskTitle}`);
-
-      await ctx.answerCbQuery("✅ Задание удалено");
-
-      const subject = data.subjects[sIdx];
-      let msg = `📘 Предмет: ${subject.name}\n\n`;
-      if (subject.lecturerName) {
-        msg += `👨‍🏫 Лектор: ${subject.lecturerName}${
-          subject.lecturerContact ? ` (${subject.lecturerContact})` : ""
-        }\n`;
-      }
-      if (subject.practitionerName) {
-        msg += `👩‍🏫 Практик: ${subject.practitionerName}${
-          subject.practitionerContact ? ` (${subject.practitionerContact})` : ""
-        }\n`;
-      }
-      msg += "\n---\n";
-      if (subject.tasks.length === 0) {
-        msg += "😔 Нет заданий.\n";
-      } else {
-        msg +=
-          "📝 Задания:\n" +
-          subject.tasks.map((t) => `${t.emoji || "📄"} ${t.title}`).join("\n") +
-          "\n\n---";
-      }
-
-      const taskButtons = [];
-      for (let j = 0; j < subject.tasks.length; j += 3) {
-        taskButtons.push(
-          subject.tasks
-            .slice(j, j + 3)
-            .map((t, k) =>
-              Markup.button.callback(t.emoji || "📄", `task_${sIdx}_${j + k}`)
-            )
-        );
-      }
-      let buttons = [...taskButtons];
-      if (isAdmin(ctx)) {
-        buttons.push([
-          Markup.button.callback("➕ Добавить задание", `add_task_${sIdx}`),
-        ]);
-        buttons.push([
-          Markup.button.callback(
-            "✏️ Редактировать",
-            `edit_subject_menu_${sIdx}`
-          ),
-        ]);
-        buttons.push([
-          Markup.button.callback(
-            "🗑️ Удалить предмет",
-            `subjects_remove_${sIdx}`
-          ),
-        ]);
-      }
-      buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
-
-      await editOrSend(
-        ctx,
-        `🗑️ Задание "${taskTitle}" удалено.\n\n${msg}`,
-        Markup.inlineKeyboard(buttons)
-      );
-    } catch (err) {
-      console.error("[delete_task error]", err);
-      try {
-        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
-      } catch (e) {}
-    }
-  });
-
-  // Удаление информации
-  bot.action(/^infos_remove_(\d+)$/, async (ctx) => {
-    try {
-      if (!isAdmin(ctx))
-        return await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
-      const idx = parseInt(ctx.match[1], 10);
-      console.log(
-        "[delete_info] invoked by",
-        ctx.from && ctx.from.username,
-        "idx=",
-        idx,
-        "infosLen=",
-        data.infos.length
-      );
-
-      if (Number.isNaN(idx) || idx < 0 || idx >= data.infos.length) {
-        await ctx.answerCbQuery("❌ Информация не найдена.", {
-          show_alert: false,
-        });
-        return;
-      }
-
-      // Delete attachments files
-      const info = data.infos[idx];
-      for (const att of info.attachments || []) {
-        deleteAttachment(att.local_path);
-      }
-
-      const removed = data.infos.splice(idx, 1)[0];
-      saveData(data);
-      console.log(
-        `[LOG] ${ctx.from.username} удалил информацию: ${removed.title}`
-      );
-
-      await ctx.answerCbQuery("✅ Информация удалена");
-
-      const msg =
-        data.infos.length === 0
-          ? "😔 Нет информации."
-          : "📋 Список информации:\n\n" +
-            data.infos
-              .map((info) => `${info.emoji || "ℹ️"} ${info.title}`)
-              .join("\n") +
-            "\n\n---";
-
-      const infoButtons = [];
-      for (let i = 0; i < data.infos.length; i += 3) {
-        infoButtons.push(
-          data.infos
-            .slice(i, i + 3)
-            .map((info, j) =>
-              Markup.button.callback(info.emoji || "ℹ️", `info_${i + j}`)
-            )
-        );
-      }
-      const buttons = [...infoButtons];
-      if (isAdmin(ctx))
-        buttons.push([
-          Markup.button.callback("➕ Добавить информацию", "add_info"),
-        ]);
-      buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
-
-      await editOrSend(
-        ctx,
-        `🗑️ Информация "${removed?.title || "?"}" удалена.\n\n${msg}`,
-        Markup.inlineKeyboard(buttons)
-      );
-    } catch (err) {
-      console.error("[delete_info error]", err);
-      try {
-        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
-      } catch (e) {}
-    }
-  });
-
   // Настройки
   bot.action("settings", async (ctx) => {
     if (!isSuperuser(ctx)) {
@@ -2684,11 +2679,80 @@ function subjectsHandler(bot) {
               "edit_superusers"
             ),
           ],
+          [
+            Markup.button.callback(
+              "🗑️ Удалить все данные",
+              "reset_all_confirm"
+            ),
+          ],
           [Markup.button.callback("⬅️ Назад", "main_menu")],
         ])
       );
     } catch (e) {
       console.error("[settings menu error]", e);
+    }
+  });
+
+  // Подтверждение удаления всех данных
+  bot.action("reset_all_confirm", async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      } catch (e) {
+        console.error("[reset_all_confirm error]", e);
+      }
+      return;
+    }
+    try {
+      await editOrSend(
+        ctx,
+        "⚠️ Вы уверены, что хотите удалить все данные (предметы, задания, информацию, пользователей кроме дефолтных)?\n\nЭто действие необратимо!\n\n---",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("✅ Да, удалить", "reset_all_yes")],
+          [Markup.button.callback("❌ Нет, отменить", "settings")],
+        ])
+      );
+    } catch (e) {
+      console.error("[reset_all_confirm error]", e);
+    }
+  });
+
+  // Выполнение удаления всех данных
+  bot.action("reset_all_yes", async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      try {
+        await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      } catch (e) {
+        console.error("[reset_all_yes error]", e);
+      }
+      return;
+    }
+    try {
+      // Удалить все attachments
+      deleteAllAttachments();
+
+      // Сброс данных
+      data.subjects = [];
+      data.infos = [];
+      data.users = DEFAULT_USERS;
+
+      saveData(data);
+      console.log(`[LOG] ${ctx.from.username} сбросил все данные`);
+
+      await ctx.answerCbQuery("✅ Все данные удалены и сброшены к дефолту.");
+
+      await editOrSend(
+        ctx,
+        "🗑️ Все данные удалены и сброшены к дефолту.\n\n---",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("⬅️ Назад", "main_menu")],
+        ])
+      );
+    } catch (err) {
+      console.error("[reset_all_yes error]", err);
+      try {
+        await ctx.answerCbQuery("❌ Ошибка при удалении", { show_alert: true });
+      } catch (e) {}
     }
   });
 
@@ -2977,6 +3041,59 @@ function subjectsHandler(bot) {
       );
     } catch (e) {
       console.error("[add_answer prompt error]", e);
+    }
+  });
+
+  bot.action(/^finish_answer_(\d+)_(\d+)$/, async (ctx) => {
+    const state = inputState[ctx.from.id];
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    if (!state || state.sIdx !== sIdx || state.tIdx !== tIdx) {
+      try {
+        await ctx.reply("❌ Ошибка состояния.");
+      } catch (e) {
+        console.error("[finish_answer error]", e);
+      }
+      return;
+    }
+    const task = data.subjects[sIdx].tasks[tIdx];
+    if (!task.answers) task.answers = [];
+    task.answers.push(...state.answers);
+    saveData(data);
+    delete inputState[ctx.from.id];
+    try {
+      await ctx.reply("✅ Ответы добавлены!\n\n---");
+      await mainMenu(ctx);
+    } catch (e) {
+      console.error("[finish_answer finish error]", e);
+    }
+  });
+
+  // Показать ответы
+  bot.action(/^show_answers_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    const task = data.subjects[sIdx].tasks[tIdx];
+    if (!isAnswerViewer(ctx) || !task.answers || task.answers.length === 0) {
+      try {
+        await ctx.reply("❌ Нет прав или ответов.");
+      } catch (e) {
+        console.error("[show_answers error]", e);
+      }
+      return;
+    }
+    for (const ans of task.answers) {
+      try {
+        if (ans.type === "text") {
+          await ctx.reply(ans.content);
+        } else if (ans.type === "photo") {
+          await ctx.replyWithPhoto(ans.content);
+        } else if (ans.type === "document") {
+          await ctx.replyWithDocument(ans.content);
+        }
+      } catch (e) {
+        console.error("[show_answers send error]", e);
+      }
     }
   });
 
