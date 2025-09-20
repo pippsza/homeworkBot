@@ -1201,6 +1201,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_subject name error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "emoji") {
@@ -1255,6 +1258,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_subject emoji error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "lecturer_name") {
@@ -1309,6 +1315,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_subject lecturer_name error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "lecturer_contact") {
@@ -1365,6 +1374,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_subject lecturer_contact error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "practitioner_name") {
@@ -1419,6 +1431,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_subject practitioner_name error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "practitioner_contact") {
@@ -1475,6 +1490,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_subject practitioner_contact error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
     }
@@ -1505,6 +1523,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_subject emoji prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "emoji") {
@@ -1529,6 +1550,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_subject lecturer_name prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "lecturer_name") {
@@ -1553,6 +1577,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_subject lecturer_contact prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "lecturer_contact") {
@@ -1577,6 +1604,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_subject practitioner_name prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "practitioner_name") {
@@ -1601,6 +1631,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_subject practitioner_contact prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "practitioner_contact") {
@@ -1632,6 +1665,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_subject finish error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
     }
@@ -1662,6 +1698,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_info emoji prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "emoji") {
@@ -1686,6 +1725,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_info description prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "description") {
@@ -1710,6 +1752,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_info attachments prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "edit_title") {
@@ -1765,6 +1810,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_info title finish error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "edit_emoji") {
@@ -1807,6 +1855,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_info emoji finish error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "edit_description") {
@@ -1851,6 +1902,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_info description finish error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
     }
@@ -1864,6 +1918,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_admin error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (data.users.ADMINS.includes(username)) {
@@ -1872,6 +1929,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_admin error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       data.users.ADMINS.push(username);
@@ -1882,6 +1942,9 @@ function subjectsHandler(bot) {
       } catch (e) {
         console.error("[add_admin finish error]", e);
       }
+      await ctx
+        .deleteMessage(ctx.message.message_id)
+        .catch((e) => console.error("Delete user msg error", e));
       return;
     }
 
@@ -1894,6 +1957,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_viewer error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (data.users.ANSWER_VIEWERS.includes(username)) {
@@ -1904,6 +1970,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_viewer error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       data.users.ANSWER_VIEWERS.push(username);
@@ -1914,6 +1983,9 @@ function subjectsHandler(bot) {
       } catch (e) {
         console.error("[add_viewer finish error]", e);
       }
+      await ctx
+        .deleteMessage(ctx.message.message_id)
+        .catch((e) => console.error("Delete user msg error", e));
       return;
     }
 
@@ -1926,6 +1998,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_superuser error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (data.users.SUPERUSERS.includes(username)) {
@@ -1934,6 +2009,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_superuser error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       data.users.SUPERUSERS.push(username);
@@ -1944,6 +2022,9 @@ function subjectsHandler(bot) {
       } catch (e) {
         console.error("[add_superuser finish error]", e);
       }
+      await ctx
+        .deleteMessage(ctx.message.message_id)
+        .catch((e) => console.error("Delete user msg error", e));
       return;
     }
 
@@ -1960,6 +2041,9 @@ function subjectsHandler(bot) {
           } catch (e) {
             console.error("[add_task title error]", e);
           }
+          await ctx
+            .deleteMessage(ctx.message.message_id)
+            .catch((e) => console.error("Delete user msg error", e));
           return;
         }
         state.title = title;
@@ -1973,6 +2057,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_task emoji prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "emoji") {
@@ -1997,6 +2084,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_task description prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "description") {
@@ -2021,6 +2111,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_task attachments prompt error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "edit_title") {
@@ -2033,6 +2126,9 @@ function subjectsHandler(bot) {
           } catch (e) {
             console.error("[edit_task title error]", e);
           }
+          await ctx
+            .deleteMessage(ctx.message.message_id)
+            .catch((e) => console.error("Delete user msg error", e));
           return;
         }
         data.subjects[state.sIdx].tasks[state.tIdx].title = title;
@@ -2081,6 +2177,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_task title finish error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "edit_emoji") {
@@ -2128,6 +2227,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_task emoji finish error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
       if (state.step === "edit_description") {
@@ -2177,6 +2279,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[edit_task description finish error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
     }
@@ -2192,6 +2297,9 @@ function subjectsHandler(bot) {
         } catch (e) {
           console.error("[add_answer text error]", e);
         }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
         return;
       }
     }
@@ -2582,10 +2690,13 @@ function subjectsHandler(bot) {
         await trackSend(ctx, () =>
           ctx.reply("✅ Файл добавлен. Добавьте ещё или нажмите Готово.")
         );
-        return;
       }
     } catch (e) {
       console.error("[document handler error]", e);
+    } finally {
+      await ctx
+        .deleteMessage(ctx.message.message_id)
+        .catch((e) => console.error("Delete user msg error", e));
     }
   });
 
@@ -2637,6 +2748,10 @@ function subjectsHandler(bot) {
       }
     } catch (e) {
       console.error("[photo handler error]", e);
+    } finally {
+      await ctx
+        .deleteMessage(ctx.message.message_id)
+        .catch((e) => console.error("Delete user msg error", e));
     }
   });
 

@@ -118,6 +118,15 @@
       "practitionerName": "а",
       "practitionerContact": "а",
       "tasks": []
+    },
+    {
+      "name": "dsad",
+      "emoji": "d",
+      "lecturerName": "d",
+      "lecturerContact": "d",
+      "practitionerName": "d",
+      "practitionerContact": "d",
+      "tasks": []
     }
   ],
   "infos": [
@@ -135,11 +144,14 @@
     }
   ],
   "chatMessages": {
+    "1000357772": [
+      152
+    ],
     "-1003093667418": [
-      1263
+      1302
     ],
     "-1002366562383": [
-      24427
+      24492
     ]
   }
 }
