@@ -33,6 +33,7 @@ function loadData() {
         if (!s.practitionerContact) s.practitionerContact = "";
         s.tasks.forEach((t) => {
           if (!Array.isArray(t.attachments)) t.attachments = [];
+          if (!Array.isArray(t.answers)) t.answers = [];
           // If old structure (just strings), assume type based on common practice or set to 'document'
           if (
             t.attachments.length > 0 &&
@@ -180,12 +181,14 @@ async function mainMenu(ctx) {
   const buttons = [
     [Markup.button.callback("📚 Предметы", "subjects")],
     [Markup.button.callback("ℹ️ Информация", "infos")],
-    [Markup.button.callback("⚙️ Настройки", "settings")],
   ];
   if (isAdmin(ctx)) {
     buttons.push([
-      Markup.button.callback("🛠 Админ инструменты", "admin_tools"),
+      Markup.button.callback("⚙️ Настройки", "settings"),
+      Markup.button.callback("🛠 Инструменты", "tools"),
     ]);
+  } else {
+    buttons.push([Markup.button.callback("⚙️ Настройки", "settings")]);
   }
   try {
     return await trackSend(ctx, () =>
@@ -256,6 +259,8 @@ async function trackSend(ctx, sendFunc) {
   return sent;
 }
 
+const inputState = {};
+
 function subjectsHandler(bot) {
   bot.start(async (ctx) => {
     try {
@@ -272,17 +277,8 @@ function subjectsHandler(bot) {
   });
 
   bot.action("main_menu", async (ctx) => {
-    const buttons = [
-      [Markup.button.callback("📚 Предметы", "subjects")],
-      [Markup.button.callback("ℹ️ Информация", "infos")],
-      [Markup.button.callback("⚙️ Настройки", "settings")],
-    ];
     try {
-      await editOrSend(
-        ctx,
-        "🏠 Главное меню\n\nВыберите опцию ниже:",
-        Markup.inlineKeyboard(buttons)
-      );
+      await mainMenu(ctx);
     } catch (e) {
       console.error("[main_menu error]", e);
     }
@@ -462,6 +458,9 @@ function subjectsHandler(bot) {
         for (const att of task.attachments || []) {
           deleteAttachment(att.local_path);
         }
+        for (const ans of task.answers || []) {
+          deleteAttachment(ans.local_path);
+        }
       }
 
       const removed = data.subjects.splice(idx, 1)[0];
@@ -510,17 +509,21 @@ function subjectsHandler(bot) {
   });
 
   bot.action(/^task_(\d+)_(\d+)$/, async (ctx) => {
+    await showTask(ctx, Number(ctx.match[1]), Number(ctx.match[2]));
+  });
+
+  async function showTask(ctx, sIdx, tIdx) {
     console.log(
-      "[ACTION] task by",
+      "[SHOW_TASK] by",
       ctx.from && ctx.from.username,
-      "match=",
-      ctx.match
+      "sIdx=",
+      sIdx,
+      "tIdx=",
+      tIdx
     );
-    const sIdx = Number(ctx.match[1]);
-    const tIdx = Number(ctx.match[2]);
     const subject = data.subjects[sIdx];
     const task = subject?.tasks[tIdx];
-    if (!task)
+    if (!task) {
       try {
         return await editOrSend(
           ctx,
@@ -530,8 +533,10 @@ function subjectsHandler(bot) {
           ])
         );
       } catch (e) {
-        console.error("[task error]", e);
+        console.error("[showTask error]", e);
       }
+      return;
+    }
     let msg = `*📄 ${task.title}*\n\n`;
     if (task.description) msg += `${task.description}\n\n---\n`;
     let buttons = [];
@@ -575,9 +580,9 @@ function subjectsHandler(bot) {
     try {
       await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
     } catch (e) {
-      console.error("[task error]", e);
+      console.error("[showTask error]", e);
     }
-  });
+  }
 
   bot.action(/^tasks_remove_confirm_(\d+)_(\d+)$/, async (ctx) => {
     const sIdx = Number(ctx.match[1]);
@@ -635,6 +640,9 @@ function subjectsHandler(bot) {
       const task = data.subjects[sIdx].tasks[tIdx];
       for (const att of task.attachments || []) {
         deleteAttachment(att.local_path);
+      }
+      for (const ans of task.answers || []) {
+        deleteAttachment(ans.local_path);
       }
 
       const taskTitle = data.subjects[sIdx].tasks.splice(tIdx, 1)[0]?.title;
@@ -1047,8 +1055,6 @@ function subjectsHandler(bot) {
     }
   });
 
-  const inputState = {};
-
   // Добавление предмета
   bot.action("add_subject", async (ctx) => {
     if (!isAdmin(ctx)) {
@@ -1103,6 +1109,284 @@ function subjectsHandler(bot) {
     }
   });
 
+  // Настройки
+  bot.action("settings", async (ctx) => {
+    let msg = "⚙️ Настройки\n\n";
+    msg += "📋 Админы:\n" + (data.users.ADMINS.join("\n") || "Пусто") + "\n\n";
+    msg +=
+      "👀 Просмотрщики ответов:\n" +
+      (data.users.ANSWER_VIEWERS.join("\n") || "Пусто") +
+      "\n\n";
+    msg +=
+      "🔥 Суперпользователи:\n" +
+      (data.users.SUPERUSERS.join("\n") || "Пусто") +
+      "\n\n---";
+
+    const buttons = [];
+    if (isSuperuser(ctx)) {
+      buttons.push([
+        Markup.button.callback("➕ Добавить админа", "add_admin"),
+        Markup.button.callback("➕ Добавить viewer", "add_answer_viewer"),
+        Markup.button.callback("➕ Добавить superuser", "add_superuser"),
+      ]);
+      if (data.users.ADMINS.length > 0) {
+        buttons.push(
+          ...data.users.ADMINS.map((u) => [
+            Markup.button.callback(
+              `🗑 Удалить ${u}`,
+              `remove_admin_${u.slice(1)}`
+            ),
+          ])
+        );
+      }
+      if (data.users.ANSWER_VIEWERS.length > 0) {
+        buttons.push(
+          ...data.users.ANSWER_VIEWERS.map((u) => [
+            Markup.button.callback(
+              `🗑 Удалить ${u}`,
+              `remove_viewer_${u.slice(1)}`
+            ),
+          ])
+        );
+      }
+      if (data.users.SUPERUSERS.length > 0) {
+        buttons.push(
+          ...data.users.SUPERUSERS.map((u) => [
+            Markup.button.callback(
+              `🗑 Удалить ${u}`,
+              `remove_superuser_${u.slice(1)}`
+            ),
+          ])
+        );
+      }
+    }
+    buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
+
+    try {
+      await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
+    } catch (e) {
+      console.error("[settings error]", e);
+    }
+  });
+
+  // Добавление админа
+  bot.action("add_admin", async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      return;
+    }
+    inputState[ctx.from.id] = { mode: "add_user", step: "add_admin" };
+    await trackSend(ctx, () => ctx.reply("Введите username админа (с @):"));
+  });
+
+  // Добавление просмотрщика ответов
+  bot.action("add_answer_viewer", async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      return;
+    }
+    inputState[ctx.from.id] = { mode: "add_user", step: "add_answer_viewer" };
+    await trackSend(ctx, () =>
+      ctx.reply("Введите username просмотрщика (с @):")
+    );
+  });
+
+  // Добавление суперпользователя
+  bot.action("add_superuser", async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      return;
+    }
+    inputState[ctx.from.id] = { mode: "add_user", step: "add_superuser" };
+    await trackSend(ctx, () =>
+      ctx.reply("Введите username суперпользователя (с @):")
+    );
+  });
+
+  // Удаление админа
+  bot.action(/^remove_admin_(.+)$/, async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      return;
+    }
+    const username = `@${ctx.match[1]}`;
+    const index = data.users.ADMINS.indexOf(username);
+    if (index > -1) {
+      data.users.ADMINS.splice(index, 1);
+      saveData(data);
+      await ctx.answerCbQuery(`✅ ${username} удален из админов.`);
+    } else {
+      await ctx.answerCbQuery("❌ Пользователь не найден.");
+    }
+    // Обновить меню настроек
+    await bot.action("settings", ctx);
+  });
+
+  // Удаление просмотрщика
+  bot.action(/^remove_viewer_(.+)$/, async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      return;
+    }
+    const username = `@${ctx.match[1]}`;
+    const index = data.users.ANSWER_VIEWERS.indexOf(username);
+    if (index > -1) {
+      data.users.ANSWER_VIEWERS.splice(index, 1);
+      saveData(data);
+      await ctx.answerCbQuery(`✅ ${username} удален из просмотрщиков.`);
+    } else {
+      await ctx.answerCbQuery("❌ Пользователь не найден.");
+    }
+    // Обновить меню настроек
+    await bot.action("settings", ctx);
+  });
+
+  // Удаление суперпользователя
+  bot.action(/^remove_superuser_(.+)$/, async (ctx) => {
+    if (!isSuperuser(ctx)) {
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      return;
+    }
+    const username = `@${ctx.match[1]}`;
+    const index = data.users.SUPERUSERS.indexOf(username);
+    if (index > -1) {
+      data.users.SUPERUSERS.splice(index, 1);
+      saveData(data);
+      await ctx.answerCbQuery(`✅ ${username} удален из суперпользователей.`);
+    } else {
+      await ctx.answerCbQuery("❌ Пользователь не найден.");
+    }
+    // Обновить меню настроек
+    await bot.action("settings", ctx);
+  });
+
+  // Добавление задания
+  bot.action(/^add_task_(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) {
+      try {
+        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
+      } catch (e) {
+        console.error("[add_task error]", e);
+      }
+      return;
+    }
+    const sIdx = Number(ctx.match[1]);
+    console.log(
+      "[ACTION] add_task by",
+      ctx.from && ctx.from.username,
+      "sIdx=",
+      sIdx
+    );
+    inputState[ctx.from.id] = {
+      mode: "add_task",
+      step: "title",
+      sIdx,
+      title: "",
+      description: "",
+      attachments: [],
+      emoji: "",
+    };
+    try {
+      await trackSend(ctx, () => ctx.reply("📝 Введите заголовок задания:"));
+    } catch (e) {
+      console.error("[add_task prompt error]", e);
+    }
+  });
+
+  // Добавление ответа к задаче
+  bot.action(/^add_answer_(\d+)_(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) {
+      await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+      return;
+    }
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    const task = data.subjects[sIdx]?.tasks[tIdx];
+    if (!task) {
+      await ctx.answerCbQuery("❌ Задача не найдена.");
+      return;
+    }
+    inputState[ctx.from.id] = {
+      mode: "add_answer",
+      step: "answer",
+      sIdx,
+      tIdx,
+      answers: [], // Временный массив для новых ответов
+    };
+    try {
+      await editOrSend(
+        ctx,
+        "➕ Добавьте ответ(ы) к задаче.\n\nМожете отправить текст, фото или документы. Когда закончите, нажмите '✅ Готово'.\n\n---",
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              "✅ Готово",
+              `finish_answer_${sIdx}_${tIdx}`
+            ),
+          ],
+          [Markup.button.callback("❌ Отмена", `task_${sIdx}_${tIdx}`)],
+        ])
+      );
+    } catch (e) {
+      console.error("[add_answer prompt error]", e);
+    }
+  });
+
+  // Завершение добавления ответов
+  bot.action(/^finish_answer_(\d+)_(\d+)$/, async (ctx) => {
+    const state = inputState[ctx.from.id];
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    if (
+      !state ||
+      state.sIdx !== sIdx ||
+      state.tIdx !== tIdx ||
+      state.mode !== "add_answer"
+    ) {
+      await ctx.answerCbQuery("❌ Ошибка состояния.");
+      return;
+    }
+    if (state.answers.length === 0) {
+      await ctx.answerCbQuery("❌ Нет добавленных ответов.");
+      return;
+    }
+    // Добавляем новые ответы к существующим (если есть)
+    const task = data.subjects[sIdx].tasks[tIdx];
+    if (!Array.isArray(task.answers)) task.answers = [];
+    task.answers.push(...state.answers);
+    saveData(data);
+    delete inputState[ctx.from.id];
+    await ctx.answerCbQuery("✅ Ответ(ы) добавлены.");
+    // Показать задачу заново
+    await showTask(ctx, sIdx, tIdx);
+  });
+
+  // Показать ответы
+  bot.action(/^show_answers_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    const task = data.subjects[sIdx]?.tasks[tIdx];
+    if (!task || !task.answers?.length) {
+      await ctx.answerCbQuery("❌ Нет ответов.");
+      return;
+    }
+    // Отправляем ответы
+    for (const ans of task.answers) {
+      try {
+        if (ans.type === "text") {
+          await trackSend(ctx, () => ctx.reply(ans.content));
+        } else if (ans.type === "photo") {
+          await trackSend(ctx, () => ctx.replyWithPhoto(ans.file_id));
+        } else if (ans.type === "document") {
+          await trackSend(ctx, () => ctx.replyWithDocument(ans.file_id));
+        }
+      } catch (e) {
+        console.error("[show_answers error]", e);
+      }
+    }
+    await ctx.answerCbQuery();
+  });
+
   bot.on("text", async (ctx) => {
     if (ctx.message.text === "/start") {
       delete inputState[ctx.from.id];
@@ -1118,6 +1402,9 @@ function subjectsHandler(bot) {
       delete inputState[ctx.from.id];
       try {
         await mainMenu(ctx);
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
       } catch (e) {
         console.error("[main_menu keyboard error]", e);
       }
@@ -1135,6 +1422,63 @@ function subjectsHandler(bot) {
     if (!state) return;
 
     const text = ctx.message.text.trim();
+
+    // Обработка добавления пользователей в настройки
+    if (state.mode === "add_user") {
+      const username = text;
+      if (!username.startsWith("@")) {
+        try {
+          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
+        } catch (e) {
+          console.error("[add_user error]", e);
+        }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
+        return;
+      }
+      let list;
+      let logMsg;
+      if (state.step === "add_admin") {
+        list = data.users.ADMINS;
+        logMsg = "админ";
+      } else if (state.step === "add_answer_viewer") {
+        list = data.users.ANSWER_VIEWERS;
+        logMsg = "просмотрщик ответов";
+      } else if (state.step === "add_superuser") {
+        list = data.users.SUPERUSERS;
+        logMsg = "суперпользователь";
+      }
+      if (list.includes(username)) {
+        try {
+          await trackSend(ctx, () => ctx.reply(`❌ Уже есть такой ${logMsg}.`));
+        } catch (e) {
+          console.error("[add_user error]", e);
+        }
+        await ctx
+          .deleteMessage(ctx.message.message_id)
+          .catch((e) => console.error("Delete user msg error", e));
+        return;
+      }
+      list.push(username);
+      saveData(data);
+      delete inputState[ctx.from.id];
+      try {
+        await trackSend(ctx, () =>
+          ctx.reply(
+            `✅ ${logMsg.charAt(0).toUpperCase() + logMsg.slice(1)} добавлен.`
+          )
+        );
+        // Вернуться в настройки
+        await bot.action("settings", ctx);
+      } catch (e) {
+        console.error("[add_user finish error]", e);
+      }
+      await ctx
+        .deleteMessage(ctx.message.message_id)
+        .catch((e) => console.error("Delete user msg error", e));
+      return;
+    }
 
     // Edit subject fields (separate handling)
     if (state.mode === "edit_subject") {
@@ -1909,125 +2253,6 @@ function subjectsHandler(bot) {
       }
     }
 
-    // Добавление админа
-    if (state && state.step === "add_admin") {
-      const username = text;
-      if (!username.startsWith("@")) {
-        try {
-          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
-        } catch (e) {
-          console.error("[add_admin error]", e);
-        }
-        await ctx
-          .deleteMessage(ctx.message.message_id)
-          .catch((e) => console.error("Delete user msg error", e));
-        return;
-      }
-      if (data.users.ADMINS.includes(username)) {
-        try {
-          await trackSend(ctx, () => ctx.reply("❌ Уже есть такой админ."));
-        } catch (e) {
-          console.error("[add_admin error]", e);
-        }
-        await ctx
-          .deleteMessage(ctx.message.message_id)
-          .catch((e) => console.error("Delete user msg error", e));
-        return;
-      }
-      data.users.ADMINS.push(username);
-      saveData(data);
-      delete inputState[ctx.from.id];
-      try {
-        await mainMenu(ctx);
-      } catch (e) {
-        console.error("[add_admin finish error]", e);
-      }
-      await ctx
-        .deleteMessage(ctx.message.message_id)
-        .catch((e) => console.error("Delete user msg error", e));
-      return;
-    }
-
-    // Добавление ANSWER_VIEWER
-    if (state && state.step === "add_viewer") {
-      const username = text;
-      if (!username.startsWith("@")) {
-        try {
-          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
-        } catch (e) {
-          console.error("[add_viewer error]", e);
-        }
-        await ctx
-          .deleteMessage(ctx.message.message_id)
-          .catch((e) => console.error("Delete user msg error", e));
-        return;
-      }
-      if (data.users.ANSWER_VIEWERS.includes(username)) {
-        try {
-          await trackSend(ctx, () =>
-            ctx.reply("❌ Уже есть такой ANSWER_VIEWER.")
-          );
-        } catch (e) {
-          console.error("[add_viewer error]", e);
-        }
-        await ctx
-          .deleteMessage(ctx.message.message_id)
-          .catch((e) => console.error("Delete user msg error", e));
-        return;
-      }
-      data.users.ANSWER_VIEWERS.push(username);
-      saveData(data);
-      delete inputState[ctx.from.id];
-      try {
-        await mainMenu(ctx);
-      } catch (e) {
-        console.error("[add_viewer finish error]", e);
-      }
-      await ctx
-        .deleteMessage(ctx.message.message_id)
-        .catch((e) => console.error("Delete user msg error", e));
-      return;
-    }
-
-    // Добавление SUPERUSER
-    if (state && state.step === "add_superuser") {
-      const username = text;
-      if (!username.startsWith("@")) {
-        try {
-          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
-        } catch (e) {
-          console.error("[add_superuser error]", e);
-        }
-        await ctx
-          .deleteMessage(ctx.message.message_id)
-          .catch((e) => console.error("Delete user msg error", e));
-        return;
-      }
-      if (data.users.SUPERUSERS.includes(username)) {
-        try {
-          await trackSend(ctx, () => ctx.reply("❌ Уже есть такой SUPERUSER."));
-        } catch (e) {
-          console.error("[add_superuser error]", e);
-        }
-        await ctx
-          .deleteMessage(ctx.message.message_id)
-          .catch((e) => console.error("Delete user msg error", e));
-        return;
-      }
-      data.users.SUPERUSERS.push(username);
-      saveData(data);
-      delete inputState[ctx.from.id];
-      try {
-        await mainMenu(ctx);
-      } catch (e) {
-        console.error("[add_superuser finish error]", e);
-      }
-      await ctx
-        .deleteMessage(ctx.message.message_id)
-        .catch((e) => console.error("Delete user msg error", e));
-      return;
-    }
-
     // Добавление/редактирование задания
     if (state && (state.mode === "add_task" || state.mode === "edit_task")) {
       const isAdd = state.mode === "add_task";
@@ -2289,7 +2514,7 @@ function subjectsHandler(bot) {
     // Добавление ответа (если текст)
     if (state && state.mode === "add_answer" && state.step === "answer") {
       if (text) {
-        state.answers.push({ type: "text", content: text });
+        state.answers.push({ type: "text", content: text, local_path: null });
         try {
           await trackSend(ctx, () =>
             ctx.reply("✅ Текст добавлен. Добавьте ещё или нажмите Готово.")
@@ -2686,7 +2911,11 @@ function subjectsHandler(bot) {
       if (state && state.mode === "add_answer" && state.step === "answer") {
         const file_id = ctx.message.document.file_id;
         const local_path = await saveAttachment(ctx, file_id, "document");
-        state.answers.push({ type: "document", content: file_id, local_path });
+        state.answers.push({
+          type: "document",
+          file_id: file_id,
+          local_path,
+        });
         await trackSend(ctx, () =>
           ctx.reply("✅ Файл добавлен. Добавьте ещё или нажмите Готово.")
         );
@@ -2740,7 +2969,11 @@ function subjectsHandler(bot) {
           const largest = photo[photo.length - 1];
           const file_id = largest.file_id;
           const local_path = await saveAttachment(ctx, file_id, "photo");
-          state.answers.push({ type: "photo", content: file_id, local_path });
+          state.answers.push({
+            type: "photo",
+            file_id: file_id,
+            local_path,
+          });
           await trackSend(ctx, () =>
             ctx.reply("✅ Фото добавлено. Добавьте ещё или нажмите Готово.")
           );
@@ -2755,39 +2988,7 @@ function subjectsHandler(bot) {
     }
   });
 
-  // Добавление задания
-  bot.action(/^add_task_(\d+)$/, async (ctx) => {
-    if (!isAdmin(ctx)) {
-      try {
-        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
-      } catch (e) {
-        console.error("[add_task error]", e);
-      }
-      return;
-    }
-    const sIdx = Number(ctx.match[1]);
-    console.log(
-      "[ACTION] add_task by",
-      ctx.from && ctx.from.username,
-      "sIdx=",
-      sIdx
-    );
-    inputState[ctx.from.id] = {
-      mode: "add_task",
-      step: "title",
-      sIdx,
-      title: "",
-      description: "",
-      attachments: [],
-      emoji: "",
-    };
-    try {
-      await trackSend(ctx, () => ctx.reply("📝 Введите заголовок задания:"));
-    } catch (e) {
-      console.error("[add_task prompt error]", e);
-    }
-  });
-
+  // Завершение вложений для задания
   bot.action(/^finish_attachments_(\d+)(_(\d+))?$/, async (ctx) => {
     const state = inputState[ctx.from.id];
     const sIdx = Number(ctx.match[1]);
@@ -2813,7 +3014,7 @@ function subjectsHandler(bot) {
         emoji: state.emoji || "📄",
       };
       data.subjects[state.sIdx].tasks.push(newTask);
-    } else {
+    } else if (state.mode === "edit_task" && state.step === "attachments") {
       // Delete old attachments files
       const old_attachments =
         data.subjects[state.sIdx].tasks[state.tIdx].attachments || [];
@@ -2879,14 +3080,14 @@ function subjectsHandler(bot) {
   });
 
   // Admin Tools
-  bot.action("admin_tools", async (ctx) => {
+  bot.action("tools", async (ctx) => {
     if (!isAdmin(ctx)) {
       await ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
       return;
     }
     await editOrSend(
       ctx,
-      "🛠 Админ инструменты\n\n---",
+      "🛠 Инструменты\n\n---",
       Markup.inlineKeyboard([
         [Markup.button.callback("Перекличка", "roll_call")],
         [Markup.button.callback("Очистка", "cleanup")],
@@ -2924,16 +3125,15 @@ function subjectsHandler(bot) {
     await trackSend(ctx, () => ctx.reply("Очистка завершена."));
   });
 
-  // Сброс состояний при callback_query (оставляем, но он должен быть подключён после регистрации action-хендлеров)
-  bot.on("callback_query", async (ctx, next) => {
+  // Сброс состояний при callback_query
+  bot.on("callback_query", async (ctx) => {
     try {
       if (
-        !ctx.match ||
-        (!ctx.match[0].startsWith("edit_") && !ctx.match[0].startsWith("add_"))
+        !ctx.callbackQuery.data.startsWith("edit_") &&
+        !ctx.callbackQuery.data.startsWith("add_")
       ) {
         delete inputState[ctx.from.id];
       }
-      await next();
     } catch (e) {
       console.error("[callback_query error]", e);
     }

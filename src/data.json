@@ -3,7 +3,8 @@
     "ADMINS": [
       "@pippsza",
       "@trachck",
-      "@Evil_bastardd"
+      "@Evil_bastardd",
+      "@homeworkManagerFizTechBot"
     ],
     "ANSWER_VIEWERS": [
       "@pippsza",
@@ -126,7 +127,51 @@
       "lecturerContact": "d",
       "practitionerName": "d",
       "practitionerContact": "d",
-      "tasks": []
+      "tasks": [
+        {
+          "title": "dsa",
+          "description": "d",
+          "attachments": [],
+          "answers": [
+            {
+              "type": "text",
+              "content": "dsadsad",
+              "local_path": null
+            },
+            {
+              "type": "text",
+              "content": "выфв",
+              "local_path": null
+            },
+            {
+              "type": "text",
+              "content": "dsad",
+              "local_path": null
+            }
+          ],
+          "emoji": "d"
+        },
+        {
+          "title": "sd",
+          "description": "d",
+          "attachments": [
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAAS4ZZ5aAAIFX2jOvvX8Wawf7-nGZp0oGYAQsaziAAKr-jEb_l95SvbScWIWbqsJAQADAgADeAADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAAS4ZZ5aAAIFX2jOvvX8Wawf7-nGZp0oGYAQsaziAAKr-jEb_l95SvbScWIWbqsJAQADAgADeAADNgQ.jpg"
+            }
+          ],
+          "answers": [],
+          "emoji": "d"
+        },
+        {
+          "title": "авыа",
+          "description": "а",
+          "attachments": [],
+          "answers": [],
+          "emoji": "а"
+        }
+      ]
     }
   ],
   "infos": [
@@ -148,7 +193,12 @@
       152
     ],
     "-1003093667418": [
-      1302
+      1408,
+      1410,
+      1411,
+      1412,
+      1414,
+      1415
     ],
     "-1002366562383": [
       24492
