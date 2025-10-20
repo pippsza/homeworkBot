@@ -195,6 +195,7 @@ async function mainMenu(ctx) {
       ctx.reply("🏠 Главное меню\n\nВыберите опцию ниже:", {
         parse_mode: "HTML",
         ...Markup.inlineKeyboard(buttons),
+        disable_notification: !isPrivate(ctx),
       })
     );
   } catch (e) {
@@ -222,7 +223,11 @@ async function editOrSend(ctx, text, keyboard) {
       });
     } else {
       const sent = await trackSend(ctx, () =>
-        ctx.reply(text, { ...keyboard, parse_mode: "HTML" })
+        ctx.reply(text, {
+          ...keyboard,
+          parse_mode: "HTML",
+          disable_notification: !isPrivate(ctx),
+        })
       );
       interactiveMessageId[ctx.chat.id] = sent.message_id;
     }
@@ -243,7 +248,11 @@ async function editOrSend(ctx, text, keyboard) {
       await editOrSend(ctx, text, keyboard);
     } else {
       const sent = await trackSend(ctx, () =>
-        ctx.reply(text, { ...keyboard, parse_mode: "HTML" })
+        ctx.reply(text, {
+          ...keyboard,
+          parse_mode: "HTML",
+          disable_notification: !isPrivate(ctx),
+        })
       );
       interactiveMessageId[ctx.chat.id] = sent.message_id;
     }
@@ -266,10 +275,10 @@ function subjectsHandler(bot) {
     try {
       await mainMenu(ctx);
       await trackSend(ctx, () =>
-        ctx.reply(
-          "Или используйте кнопку ниже для возврата в меню:",
-          replyKeyboard
-        )
+        ctx.reply("Или используйте кнопку ниже для возврата в меню:", {
+          ...replyKeyboard,
+          disable_notification: !isPrivate(ctx),
+        })
       );
     } catch (e) {
       console.error("[start error]", e);
@@ -724,9 +733,17 @@ function subjectsHandler(bot) {
       for (const att of task.attachments) {
         try {
           if (att.type === "photo") {
-            await trackSend(ctx, () => ctx.replyWithPhoto(att.file_id));
+            await trackSend(ctx, () =>
+              ctx.replyWithPhoto(att.file_id, {
+                disable_notification: !isPrivate(ctx),
+              })
+            );
           } else if (att.type === "document") {
-            await trackSend(ctx, () => ctx.replyWithDocument(att.file_id));
+            await trackSend(ctx, () =>
+              ctx.replyWithDocument(att.file_id, {
+                disable_notification: !isPrivate(ctx),
+              })
+            );
           }
         } catch (e) {
           console.error("[send attachment error]", e);
@@ -773,6 +790,102 @@ function subjectsHandler(bot) {
       );
     } catch (e) {
       console.error("[edit_task_menu error]", e);
+    }
+  });
+
+  // Редактирование заголовка задачи
+  bot.action(/^edit_task_title_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    inputState[ctx.from.id] = {
+      mode: "edit_task",
+      step: "edit_title",
+      sIdx,
+      tIdx,
+    };
+    try {
+      await trackSend(ctx, () =>
+        ctx.reply("📝 Введите новый заголовок:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
+    } catch (e) {
+      console.error("[edit_task_title prompt error]", e);
+    }
+  });
+
+  // Редактирование emoji задачи
+  bot.action(/^edit_task_emoji_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    inputState[ctx.from.id] = {
+      mode: "edit_task",
+      step: "edit_emoji",
+      sIdx,
+      tIdx,
+    };
+    try {
+      await trackSend(ctx, () =>
+        ctx.reply("😀 Введите новый emoji:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
+    } catch (e) {
+      console.error("[edit_task_emoji prompt error]", e);
+    }
+  });
+
+  // Редактирование описания задачи
+  bot.action(/^edit_task_description_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    inputState[ctx.from.id] = {
+      mode: "edit_task",
+      step: "edit_description",
+      sIdx,
+      tIdx,
+    };
+    try {
+      await trackSend(ctx, () =>
+        ctx.reply("📄 Введите новое описание:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
+    } catch (e) {
+      console.error("[edit_task_description prompt error]", e);
+    }
+  });
+
+  // Редактирование вложений задачи
+  bot.action(/^edit_task_attachments_(\d+)_(\d+)$/, async (ctx) => {
+    const sIdx = Number(ctx.match[1]);
+    const tIdx = Number(ctx.match[2]);
+    inputState[ctx.from.id] = {
+      mode: "edit_task",
+      step: "attachments",
+      sIdx,
+      tIdx,
+      attachments: [],
+    };
+    try {
+      await trackSend(ctx, () =>
+        ctx.reply(
+          '📎 Отправьте новые файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
+          {
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  `finish_attachments_${sIdx}_${tIdx}`
+                ),
+              ],
+            ]),
+            disable_notification: !isPrivate(ctx),
+          }
+        )
+      );
+    } catch (e) {
+      console.error("[edit_task_attachments prompt error]", e);
     }
   });
 
@@ -1014,9 +1127,17 @@ function subjectsHandler(bot) {
       for (const att of info.attachments) {
         try {
           if (att.type === "photo") {
-            await trackSend(ctx, () => ctx.replyWithPhoto(att.file_id));
+            await trackSend(ctx, () =>
+              ctx.replyWithPhoto(att.file_id, {
+                disable_notification: !isPrivate(ctx),
+              })
+            );
           } else if (att.type === "document") {
-            await trackSend(ctx, () => ctx.replyWithDocument(att.file_id));
+            await trackSend(ctx, () =>
+              ctx.replyWithDocument(att.file_id, {
+                disable_notification: !isPrivate(ctx),
+              })
+            );
           }
         } catch (e) {
           console.error("[send attachment error]", e);
@@ -1059,7 +1180,9 @@ function subjectsHandler(bot) {
   bot.action("add_subject", async (ctx) => {
     if (!isAdmin(ctx)) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
+        );
       } catch (e) {
         console.error("[add_subject error]", e);
       }
@@ -1077,7 +1200,9 @@ function subjectsHandler(bot) {
     };
     try {
       await trackSend(ctx, () =>
-        ctx.reply("📘 Введите название нового предмета:")
+        ctx.reply("📘 Введите название нового предмета:", {
+          disable_notification: !isPrivate(ctx),
+        })
       );
     } catch (e) {
       console.error("[add_subject error]", e);
@@ -1088,7 +1213,9 @@ function subjectsHandler(bot) {
   bot.action("add_info", async (ctx) => {
     if (!isAdmin(ctx)) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
+        );
       } catch (e) {
         console.error("[add_info error]", e);
       }
@@ -1103,7 +1230,11 @@ function subjectsHandler(bot) {
       attachments: [],
     };
     try {
-      await trackSend(ctx, () => ctx.reply("ℹ️ Введите заголовок информации:"));
+      await trackSend(ctx, () =>
+        ctx.reply("ℹ️ Введите заголовок информации:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[add_info error]", e);
     }
@@ -1176,7 +1307,11 @@ function subjectsHandler(bot) {
       return;
     }
     inputState[ctx.from.id] = { mode: "add_user", step: "add_admin" };
-    await trackSend(ctx, () => ctx.reply("Введите username админа (с @):"));
+    await trackSend(ctx, () =>
+      ctx.reply("Введите username админа (с @):", {
+        disable_notification: !isPrivate(ctx),
+      })
+    );
   });
 
   // Добавление просмотрщика ответов
@@ -1187,7 +1322,9 @@ function subjectsHandler(bot) {
     }
     inputState[ctx.from.id] = { mode: "add_user", step: "add_answer_viewer" };
     await trackSend(ctx, () =>
-      ctx.reply("Введите username просмотрщика (с @):")
+      ctx.reply("Введите username просмотрщика (с @):", {
+        disable_notification: !isPrivate(ctx),
+      })
     );
   });
 
@@ -1199,7 +1336,9 @@ function subjectsHandler(bot) {
     }
     inputState[ctx.from.id] = { mode: "add_user", step: "add_superuser" };
     await trackSend(ctx, () =>
-      ctx.reply("Введите username суперпользователя (с @):")
+      ctx.reply("Введите username суперпользователя (с @):", {
+        disable_notification: !isPrivate(ctx),
+      })
     );
   });
 
@@ -1264,7 +1403,9 @@ function subjectsHandler(bot) {
   bot.action(/^add_task_(\d+)$/, async (ctx) => {
     if (!isAdmin(ctx)) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Нет прав."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
+        );
       } catch (e) {
         console.error("[add_task error]", e);
       }
@@ -1287,7 +1428,11 @@ function subjectsHandler(bot) {
       emoji: "",
     };
     try {
-      await trackSend(ctx, () => ctx.reply("📝 Введите заголовок задания:"));
+      await trackSend(ctx, () =>
+        ctx.reply("📝 Введите заголовок задания:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[add_task prompt error]", e);
     }
@@ -1374,11 +1519,21 @@ function subjectsHandler(bot) {
     for (const ans of task.answers) {
       try {
         if (ans.type === "text") {
-          await trackSend(ctx, () => ctx.reply(ans.content));
+          await trackSend(ctx, () =>
+            ctx.reply(ans.content, { disable_notification: !isPrivate(ctx) })
+          );
         } else if (ans.type === "photo") {
-          await trackSend(ctx, () => ctx.replyWithPhoto(ans.file_id));
+          await trackSend(ctx, () =>
+            ctx.replyWithPhoto(ans.file_id, {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
         } else if (ans.type === "document") {
-          await trackSend(ctx, () => ctx.replyWithDocument(ans.file_id));
+          await trackSend(ctx, () =>
+            ctx.replyWithDocument(ans.file_id, {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
         }
       } catch (e) {
         console.error("[show_answers error]", e);
@@ -1428,7 +1583,11 @@ function subjectsHandler(bot) {
       const username = text;
       if (!username.startsWith("@")) {
         try {
-          await trackSend(ctx, () => ctx.reply("❌ Введите username с @"));
+          await trackSend(ctx, () =>
+            ctx.reply("❌ Введите username с @", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
         } catch (e) {
           console.error("[add_user error]", e);
         }
@@ -1451,7 +1610,11 @@ function subjectsHandler(bot) {
       }
       if (list.includes(username)) {
         try {
-          await trackSend(ctx, () => ctx.reply(`❌ Уже есть такой ${logMsg}.`));
+          await trackSend(ctx, () =>
+            ctx.reply(`❌ Уже есть такой ${logMsg}.`, {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
         } catch (e) {
           console.error("[add_user error]", e);
         }
@@ -1466,7 +1629,8 @@ function subjectsHandler(bot) {
       try {
         await trackSend(ctx, () =>
           ctx.reply(
-            `✅ ${logMsg.charAt(0).toUpperCase() + logMsg.slice(1)} добавлен.`
+            `✅ ${logMsg.charAt(0).toUpperCase() + logMsg.slice(1)} добавлен.`,
+            { disable_notification: !isPrivate(ctx) }
           )
         );
         // Вернуться в настройки
@@ -1486,7 +1650,9 @@ function subjectsHandler(bot) {
         if (!text) {
           try {
             await trackSend(ctx, () =>
-              ctx.reply("❌ Название не может быть пустым.")
+              ctx.reply("❌ Название не может быть пустым.", {
+                disable_notification: !isPrivate(ctx),
+              })
             );
           } catch (e) {
             console.error("[edit_subject name error]", e);
@@ -1497,7 +1663,11 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await trackSend(ctx, () => ctx.reply("✅ Название обновлено!"));
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Название обновлено!", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
           // Show edit menu again
           await editOrSend(
             ctx,
@@ -1555,7 +1725,11 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await trackSend(ctx, () => ctx.reply("✅ Emoji обновлён!"));
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Emoji обновлён!", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1612,7 +1786,11 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await trackSend(ctx, () => ctx.reply("✅ ФИО лектора обновлено!"));
+          await trackSend(ctx, () =>
+            ctx.reply("✅ ФИО лектора обновлено!", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1670,7 +1848,9 @@ function subjectsHandler(bot) {
         delete inputState[ctx.from.id];
         try {
           await trackSend(ctx, () =>
-            ctx.reply("✅ Контакты лектора обновлены!")
+            ctx.reply("✅ Контакты лектора обновлены!", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
           await editOrSend(
             ctx,
@@ -1728,7 +1908,11 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await trackSend(ctx, () => ctx.reply("✅ ФИО практики обновлено!"));
+          await trackSend(ctx, () =>
+            ctx.reply("✅ ФИО практики обновлено!", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в предмете?\n\n---`,
@@ -1786,7 +1970,9 @@ function subjectsHandler(bot) {
         delete inputState[ctx.from.id];
         try {
           await trackSend(ctx, () =>
-            ctx.reply("✅ Контакты практики обновлены!")
+            ctx.reply("✅ Контакты практики обновлены!", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
           await editOrSend(
             ctx,
@@ -1849,7 +2035,9 @@ function subjectsHandler(bot) {
         if (!name) {
           try {
             await trackSend(ctx, () =>
-              ctx.reply("❌ Название не может быть пустым.")
+              ctx.reply("❌ Название не может быть пустым.", {
+                disable_notification: !isPrivate(ctx),
+              })
             );
           } catch (e) {
             console.error("[add_subject name error]", e);
@@ -1861,7 +2049,8 @@ function subjectsHandler(bot) {
         try {
           await trackSend(ctx, () =>
             ctx.reply(
-              "😀 Введите смайлик для предмета (например, 📐) или пропустите:"
+              "😀 Введите смайлик для предмета (например, 📐) или пропустите:",
+              { disable_notification: !isPrivate(ctx) }
             )
           );
         } catch (e) {
@@ -1877,9 +2066,8 @@ function subjectsHandler(bot) {
         state.step = "lecturer_name";
         try {
           await trackSend(ctx, () =>
-            ctx.reply(
-              "👨‍🏫 Введите ФИО лектора (или пропустите):",
-              Markup.inlineKeyboard([
+            ctx.reply("👨‍🏫 Введите ФИО лектора (или пропустите):", {
+              ...Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
                     "Пропустить",
@@ -1888,8 +2076,9 @@ function subjectsHandler(bot) {
                       : `skip_lecturer_name_${state.sIdx}`
                   ),
                 ],
-              ])
-            )
+              ]),
+              disable_notification: !isPrivate(ctx),
+            })
           );
         } catch (e) {
           console.error("[add_subject lecturer_name prompt error]", e);
@@ -1906,16 +2095,19 @@ function subjectsHandler(bot) {
           await trackSend(ctx, () =>
             ctx.reply(
               "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
-              Markup.inlineKeyboard([
-                [
-                  Markup.button.callback(
-                    "Пропустить",
-                    isAdd
-                      ? "skip_lecturer_contact"
-                      : `skip_lecturer_contact_${state.sIdx}`
-                  ),
-                ],
-              ])
+              {
+                ...Markup.inlineKeyboard([
+                  [
+                    Markup.button.callback(
+                      "Пропустить",
+                      isAdd
+                        ? "skip_lecturer_contact"
+                        : `skip_lecturer_contact_${state.sIdx}`
+                    ),
+                  ],
+                ]),
+                disable_notification: !isPrivate(ctx),
+              }
             )
           );
         } catch (e) {
@@ -1931,9 +2123,8 @@ function subjectsHandler(bot) {
         state.step = "practitioner_name";
         try {
           await trackSend(ctx, () =>
-            ctx.reply(
-              "👩‍🏫 Введите ФИО практики (или пропустите):",
-              Markup.inlineKeyboard([
+            ctx.reply("👩‍🏫 Введите ФИО практики (или пропустите):", {
+              ...Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
                     "Пропустить",
@@ -1942,8 +2133,9 @@ function subjectsHandler(bot) {
                       : `skip_practitioner_name_${state.sIdx}`
                   ),
                 ],
-              ])
-            )
+              ]),
+              disable_notification: !isPrivate(ctx),
+            })
           );
         } catch (e) {
           console.error("[add_subject practitioner_name prompt error]", e);
@@ -1960,16 +2152,19 @@ function subjectsHandler(bot) {
           await trackSend(ctx, () =>
             ctx.reply(
               "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
-              Markup.inlineKeyboard([
-                [
-                  Markup.button.callback(
-                    "Пропустить",
-                    isAdd
-                      ? "skip_practitioner_contact"
-                      : `skip_practitioner_contact_${state.sIdx}`
-                  ),
-                ],
-              ])
+              {
+                ...Markup.inlineKeyboard([
+                  [
+                    Markup.button.callback(
+                      "Пропустить",
+                      isAdd
+                        ? "skip_practitioner_contact"
+                        : `skip_practitioner_contact_${state.sIdx}`
+                    ),
+                  ],
+                ]),
+                disable_notification: !isPrivate(ctx),
+              }
             )
           );
         } catch (e) {
@@ -2004,7 +2199,11 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await trackSend(ctx, () => ctx.reply("✅ Предмет сохранён!\n\n---"));
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Предмет сохранён!\n\n---", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
           await mainMenu(ctx);
         } catch (e) {
           console.error("[add_subject finish error]", e);
@@ -2024,7 +2223,9 @@ function subjectsHandler(bot) {
         if (!title) {
           try {
             await trackSend(ctx, () =>
-              ctx.reply("❌ Заголовок не может быть пустым.")
+              ctx.reply("❌ Заголовок не может быть пустым.", {
+                disable_notification: !isPrivate(ctx),
+              })
             );
           } catch (e) {
             console.error("[add_info title error]", e);
@@ -2036,7 +2237,8 @@ function subjectsHandler(bot) {
         try {
           await trackSend(ctx, () =>
             ctx.reply(
-              "😀 Введите смайлик для информации (например, ℹ️) или пропустите:"
+              "😀 Введите смайлик для информации (например, ℹ️) или пропустите:",
+              { disable_notification: !isPrivate(ctx) }
             )
           );
         } catch (e) {
@@ -2052,9 +2254,8 @@ function subjectsHandler(bot) {
         state.step = "description";
         try {
           await trackSend(ctx, () =>
-            ctx.reply(
-              "📄 Введите описание (или пропустите):",
-              Markup.inlineKeyboard([
+            ctx.reply("📄 Введите описание (или пропустите):", {
+              ...Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
                     "Пропустить",
@@ -2063,8 +2264,9 @@ function subjectsHandler(bot) {
                       : `skip_info_description_${state.idx}`
                   ),
                 ],
-              ])
-            )
+              ]),
+              disable_notification: !isPrivate(ctx),
+            })
           );
         } catch (e) {
           console.error("[add_info description prompt error]", e);
@@ -2081,16 +2283,19 @@ function subjectsHandler(bot) {
           await trackSend(ctx, () =>
             ctx.reply(
               '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-              Markup.inlineKeyboard([
-                [
-                  Markup.button.callback(
-                    "✅ Готово",
-                    isAdd
-                      ? "finish_info_attachments"
-                      : `finish_info_attachments_${state.idx}`
-                  ),
-                ],
-              ])
+              {
+                ...Markup.inlineKeyboard([
+                  [
+                    Markup.button.callback(
+                      "✅ Готово",
+                      isAdd
+                        ? "finish_info_attachments"
+                        : `finish_info_attachments_${state.idx}`
+                    ),
+                  ],
+                ]),
+                disable_notification: !isPrivate(ctx),
+              }
             )
           );
         } catch (e) {
@@ -2106,7 +2311,9 @@ function subjectsHandler(bot) {
         if (!title) {
           try {
             await trackSend(ctx, () =>
-              ctx.reply("❌ Заголовок не может быть пустым.")
+              ctx.reply("❌ Заголовок не может быть пустым.", {
+                disable_notification: !isPrivate(ctx),
+              })
             );
           } catch (e) {
             console.error("[edit_info title error]", e);
@@ -2118,7 +2325,9 @@ function subjectsHandler(bot) {
         delete inputState[ctx.from.id];
         try {
           await trackSend(ctx, () =>
-            ctx.reply("✅ Заголовок обновлён!\n\n---")
+            ctx.reply("✅ Заголовок обновлён!\n\n---", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
           await editOrSend(
             ctx,
@@ -2164,7 +2373,11 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await trackSend(ctx, () => ctx.reply("✅ Emoji обновлён!\n\n---"));
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Emoji обновлён!\n\n---", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в информации?\n\n---`,
@@ -2210,7 +2423,9 @@ function subjectsHandler(bot) {
         delete inputState[ctx.from.id];
         try {
           await trackSend(ctx, () =>
-            ctx.reply("✅ Описание обновлено!\n\n---")
+            ctx.reply("✅ Описание обновлено!\n\n---", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
           await editOrSend(
             ctx,
@@ -2261,7 +2476,9 @@ function subjectsHandler(bot) {
         if (!title) {
           try {
             await trackSend(ctx, () =>
-              ctx.reply("❌ Заголовок не может быть пустым.")
+              ctx.reply("❌ Заголовок не может быть пустым.", {
+                disable_notification: !isPrivate(ctx),
+              })
             );
           } catch (e) {
             console.error("[add_task title error]", e);
@@ -2276,7 +2493,8 @@ function subjectsHandler(bot) {
         try {
           await trackSend(ctx, () =>
             ctx.reply(
-              "😀 Введите смайлик для задания (например, 📄) или пропустите:"
+              "😀 Введите смайлик для задания (например, 📄) или пропустите:",
+              { disable_notification: !isPrivate(ctx) }
             )
           );
         } catch (e) {
@@ -2292,9 +2510,8 @@ function subjectsHandler(bot) {
         state.step = "description";
         try {
           await trackSend(ctx, () =>
-            ctx.reply(
-              "📄 Введите описание (или пропустите):",
-              Markup.inlineKeyboard([
+            ctx.reply("📄 Введите описание (или пропустите):", {
+              ...Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
                     "Пропустить",
@@ -2303,8 +2520,9 @@ function subjectsHandler(bot) {
                       : `skip_description_${state.sIdx}_${state.tIdx}`
                   ),
                 ],
-              ])
-            )
+              ]),
+              disable_notification: !isPrivate(ctx),
+            })
           );
         } catch (e) {
           console.error("[add_task description prompt error]", e);
@@ -2321,16 +2539,19 @@ function subjectsHandler(bot) {
           await trackSend(ctx, () =>
             ctx.reply(
               '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-              Markup.inlineKeyboard([
-                [
-                  Markup.button.callback(
-                    "✅ Готово",
-                    isAdd
-                      ? `finish_attachments_${state.sIdx}`
-                      : `finish_attachments_${state.sIdx}_${state.tIdx}`
-                  ),
-                ],
-              ])
+              {
+                ...Markup.inlineKeyboard([
+                  [
+                    Markup.button.callback(
+                      "✅ Готово",
+                      isAdd
+                        ? `finish_attachments_${state.sIdx}`
+                        : `finish_attachments_${state.sIdx}_${state.tIdx}`
+                    ),
+                  ],
+                ]),
+                disable_notification: !isPrivate(ctx),
+              }
             )
           );
         } catch (e) {
@@ -2346,7 +2567,9 @@ function subjectsHandler(bot) {
         if (!title) {
           try {
             await trackSend(ctx, () =>
-              ctx.reply("❌ Заголовок не может быть пустым.")
+              ctx.reply("❌ Заголовок не может быть пустым.", {
+                disable_notification: !isPrivate(ctx),
+              })
             );
           } catch (e) {
             console.error("[edit_task title error]", e);
@@ -2361,7 +2584,9 @@ function subjectsHandler(bot) {
         delete inputState[ctx.from.id];
         try {
           await trackSend(ctx, () =>
-            ctx.reply("✅ Заголовок обновлён!\n\n---")
+            ctx.reply("✅ Заголовок обновлён!\n\n---", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
           await editOrSend(
             ctx,
@@ -2412,7 +2637,11 @@ function subjectsHandler(bot) {
         saveData(data);
         delete inputState[ctx.from.id];
         try {
-          await trackSend(ctx, () => ctx.reply("✅ Emoji обновлён!\n\n---"));
+          await trackSend(ctx, () =>
+            ctx.reply("✅ Emoji обновлён!\n\n---", {
+              disable_notification: !isPrivate(ctx),
+            })
+          );
           await editOrSend(
             ctx,
             `✏️ Что хотите изменить в задании?\n\n---`,
@@ -2463,7 +2692,9 @@ function subjectsHandler(bot) {
         delete inputState[ctx.from.id];
         try {
           await trackSend(ctx, () =>
-            ctx.reply("✅ Описание обновлено!\n\n---")
+            ctx.reply("✅ Описание обновлено!\n\n---", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
           await editOrSend(
             ctx,
@@ -2517,7 +2748,9 @@ function subjectsHandler(bot) {
         state.answers.push({ type: "text", content: text, local_path: null });
         try {
           await trackSend(ctx, () =>
-            ctx.reply("✅ Текст добавлен. Добавьте ещё или нажмите Готово.")
+            ctx.reply("✅ Текст добавлен. Добавьте ещё или нажмите Готово.", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
         } catch (e) {
           console.error("[add_answer text error]", e);
@@ -2539,7 +2772,11 @@ function subjectsHandler(bot) {
       state.step !== "lecturer_name"
     ) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[skip_lecturer_name error]", e);
       }
@@ -2551,9 +2788,12 @@ function subjectsHandler(bot) {
       await trackSend(ctx, () =>
         ctx.reply(
           "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
-          Markup.inlineKeyboard([
-            [Markup.button.callback("Пропустить", "skip_lecturer_contact")],
-          ])
+          {
+            ...Markup.inlineKeyboard([
+              [Markup.button.callback("Пропустить", "skip_lecturer_contact")],
+            ]),
+            disable_notification: !isPrivate(ctx),
+          }
         )
       );
     } catch (e) {
@@ -2569,7 +2809,11 @@ function subjectsHandler(bot) {
       state.step !== "lecturer_contact"
     ) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[skip_lecturer_contact error]", e);
       }
@@ -2579,12 +2823,12 @@ function subjectsHandler(bot) {
     state.step = "practitioner_name";
     try {
       await trackSend(ctx, () =>
-        ctx.reply(
-          "👩‍🏫 Введите ФИО практики (или пропустите):",
-          Markup.inlineKeyboard([
+        ctx.reply("👩‍🏫 Введите ФИО практики (или пропустите):", {
+          ...Markup.inlineKeyboard([
             [Markup.button.callback("Пропустить", "skip_practitioner_name")],
-          ])
-        )
+          ]),
+          disable_notification: !isPrivate(ctx),
+        })
       );
     } catch (e) {
       console.error("[skip_lecturer_contact prompt error]", e);
@@ -2599,7 +2843,11 @@ function subjectsHandler(bot) {
       state.step !== "practitioner_name"
     ) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[skip_practitioner_name error]", e);
       }
@@ -2611,9 +2859,17 @@ function subjectsHandler(bot) {
       await trackSend(ctx, () =>
         ctx.reply(
           "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
-          Markup.inlineKeyboard([
-            [Markup.button.callback("Пропустить", "skip_practitioner_contact")],
-          ])
+          {
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "Пропустить",
+                  "skip_practitioner_contact"
+                ),
+              ],
+            ]),
+            disable_notification: !isPrivate(ctx),
+          }
         )
       );
     } catch (e) {
@@ -2629,7 +2885,11 @@ function subjectsHandler(bot) {
       state.step !== "practitioner_contact"
     ) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[skip_practitioner_contact error]", e);
       }
@@ -2648,7 +2908,11 @@ function subjectsHandler(bot) {
     saveData(data);
     delete inputState[ctx.from.id];
     try {
-      await trackSend(ctx, () => ctx.reply("✅ Предмет добавлен!\n\n---"));
+      await trackSend(ctx, () =>
+        ctx.reply("✅ Предмет добавлен!\n\n---", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
       await mainMenu(ctx);
     } catch (e) {
       console.error("[skip_practitioner_contact finish error]", e);
@@ -2665,7 +2929,11 @@ function subjectsHandler(bot) {
       state.step !== "description"
     ) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[skip_info_description error]", e);
       }
@@ -2677,16 +2945,19 @@ function subjectsHandler(bot) {
       await trackSend(ctx, () =>
         ctx.reply(
           '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✅ Готово",
-                idx
-                  ? `finish_info_attachments_${idx}`
-                  : "finish_info_attachments"
-              ),
-            ],
-          ])
+          {
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  idx
+                    ? `finish_info_attachments_${idx}`
+                    : "finish_info_attachments"
+                ),
+              ],
+            ]),
+            disable_notification: !isPrivate(ctx),
+          }
         )
       );
     } catch (e) {
@@ -2699,7 +2970,11 @@ function subjectsHandler(bot) {
     const sIdx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_subject", step: "name", sIdx };
     try {
-      await trackSend(ctx, () => ctx.reply("📘 Введите новое название:"));
+      await trackSend(ctx, () =>
+        ctx.reply("📘 Введите новое название:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[edit_subject_name prompt error]", e);
     }
@@ -2709,7 +2984,11 @@ function subjectsHandler(bot) {
     const sIdx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_subject", step: "emoji", sIdx };
     try {
-      await trackSend(ctx, () => ctx.reply("😀 Введите новый emoji:"));
+      await trackSend(ctx, () =>
+        ctx.reply("😀 Введите новый emoji:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[edit_subject_emoji prompt error]", e);
     }
@@ -2723,7 +3002,11 @@ function subjectsHandler(bot) {
       sIdx,
     };
     try {
-      await trackSend(ctx, () => ctx.reply("👨‍🏫 Введите новое ФИО лектора:"));
+      await trackSend(ctx, () =>
+        ctx.reply("👨‍🏫 Введите новое ФИО лектора:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[edit_subject_lecturer_name prompt error]", e);
     }
@@ -2738,7 +3021,9 @@ function subjectsHandler(bot) {
     };
     try {
       await trackSend(ctx, () =>
-        ctx.reply("📞 Введите новые контакты лектора:")
+        ctx.reply("📞 Введите новые контакты лектора:", {
+          disable_notification: !isPrivate(ctx),
+        })
       );
     } catch (e) {
       console.error("[edit_subject_lecturer_contact prompt error]", e);
@@ -2753,7 +3038,11 @@ function subjectsHandler(bot) {
       sIdx,
     };
     try {
-      await trackSend(ctx, () => ctx.reply("👩‍🏫 Введите новое ФИО практики:"));
+      await trackSend(ctx, () =>
+        ctx.reply("👩‍🏫 Введите новое ФИО практики:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[edit_subject_practitioner_name prompt error]", e);
     }
@@ -2768,7 +3057,9 @@ function subjectsHandler(bot) {
     };
     try {
       await trackSend(ctx, () =>
-        ctx.reply("📞 Введите новые контакты практики:")
+        ctx.reply("📞 Введите новые контакты практики:", {
+          disable_notification: !isPrivate(ctx),
+        })
       );
     } catch (e) {
       console.error("[edit_subject_practitioner_contact prompt error]", e);
@@ -2780,7 +3071,11 @@ function subjectsHandler(bot) {
     const idx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_info", step: "edit_title", idx };
     try {
-      await trackSend(ctx, () => ctx.reply("📝 Введите новый заголовок:"));
+      await trackSend(ctx, () =>
+        ctx.reply("📝 Введите новый заголовок:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[edit_info_title prompt error]", e);
     }
@@ -2790,7 +3085,11 @@ function subjectsHandler(bot) {
     const idx = Number(ctx.match[1]);
     inputState[ctx.from.id] = { mode: "edit_info", step: "edit_emoji", idx };
     try {
-      await trackSend(ctx, () => ctx.reply("😀 Введите новый emoji:"));
+      await trackSend(ctx, () =>
+        ctx.reply("😀 Введите новый emoji:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[edit_info_emoji prompt error]", e);
     }
@@ -2804,7 +3103,11 @@ function subjectsHandler(bot) {
       idx,
     };
     try {
-      await trackSend(ctx, () => ctx.reply("📄 Введите новое описание:"));
+      await trackSend(ctx, () =>
+        ctx.reply("📄 Введите новое описание:", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
     } catch (e) {
       console.error("[edit_info_description prompt error]", e);
     }
@@ -2822,14 +3125,17 @@ function subjectsHandler(bot) {
       await trackSend(ctx, () =>
         ctx.reply(
           '📎 Отправьте новые файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✅ Готово",
-                `finish_info_attachments_${idx}`
-              ),
-            ],
-          ])
+          {
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  `finish_info_attachments_${idx}`
+                ),
+              ],
+            ]),
+            disable_notification: !isPrivate(ctx),
+          }
         )
       );
     } catch (e) {
@@ -2849,7 +3155,11 @@ function subjectsHandler(bot) {
       state.step !== "description"
     ) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[skip_description error]", e);
       }
@@ -2861,16 +3171,19 @@ function subjectsHandler(bot) {
       await trackSend(ctx, () =>
         ctx.reply(
           '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                "✅ Готово",
-                tIdx
-                  ? `finish_attachments_${sIdx}_${tIdx}`
-                  : `finish_attachments_${sIdx}`
-              ),
-            ],
-          ])
+          {
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  "✅ Готово",
+                  tIdx
+                    ? `finish_attachments_${sIdx}_${tIdx}`
+                    : `finish_attachments_${sIdx}`
+                ),
+              ],
+            ]),
+            disable_notification: !isPrivate(ctx),
+          }
         )
       );
     } catch (e) {
@@ -2904,7 +3217,8 @@ function subjectsHandler(bot) {
         });
         await trackSend(ctx, () =>
           ctx.reply(
-            "✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'."
+            "✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'.",
+            { disable_notification: !isPrivate(ctx) }
           )
         );
       }
@@ -2917,7 +3231,9 @@ function subjectsHandler(bot) {
           local_path,
         });
         await trackSend(ctx, () =>
-          ctx.reply("✅ Файл добавлен. Добавьте ещё или нажмите Готово.")
+          ctx.reply("✅ Файл добавлен. Добавьте ещё или нажмите Готово.", {
+            disable_notification: !isPrivate(ctx),
+          })
         );
       }
     } catch (e) {
@@ -2958,7 +3274,8 @@ function subjectsHandler(bot) {
           });
           await trackSend(ctx, () =>
             ctx.reply(
-              "✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'."
+              "✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'.",
+              { disable_notification: !isPrivate(ctx) }
             )
           );
         }
@@ -2975,7 +3292,9 @@ function subjectsHandler(bot) {
             local_path,
           });
           await trackSend(ctx, () =>
-            ctx.reply("✅ Фото добавлено. Добавьте ещё или нажмите Готово.")
+            ctx.reply("✅ Фото добавлено. Добавьте ещё или нажмите Готово.", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
         }
       }
@@ -2999,7 +3318,11 @@ function subjectsHandler(bot) {
       (tIdx !== undefined && state.tIdx !== tIdx)
     ) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[finish_attachments error]", e);
       }
@@ -3031,7 +3354,11 @@ function subjectsHandler(bot) {
       tIdx: state.tIdx,
     });
     try {
-      await trackSend(ctx, () => ctx.reply("✅ Задание сохранено!\n\n---"));
+      await trackSend(ctx, () =>
+        ctx.reply("✅ Задание сохранено!\n\n---", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
       await mainMenu(ctx);
     } catch (e) {
       console.error("[finish_attachments finish error]", e);
@@ -3045,7 +3372,11 @@ function subjectsHandler(bot) {
     const idx = ctx.match[2] ? Number(ctx.match[2]) : undefined;
     if (!state || (idx !== undefined && state.idx !== idx)) {
       try {
-        await trackSend(ctx, () => ctx.reply("❌ Ошибка состояния."));
+        await trackSend(ctx, () =>
+          ctx.reply("❌ Ошибка состояния.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
       } catch (e) {
         console.error("[finish_info_attachments error]", e);
       }
@@ -3071,7 +3402,11 @@ function subjectsHandler(bot) {
     delete inputState[ctx.from.id];
     console.log("[INFO] info attachments finished", { idx: state.idx });
     try {
-      await trackSend(ctx, () => ctx.reply("✅ Информация сохранена!\n\n---"));
+      await trackSend(ctx, () =>
+        ctx.reply("✅ Информация сохранена!\n\n---", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
       await mainMenu(ctx);
     } catch (e) {
       console.error("[finish_info_attachments finish error]", e);
@@ -3107,7 +3442,9 @@ function subjectsHandler(bot) {
     ];
     const msg = allUsers.join("\n");
     for (let i = 0; i < 3; i++) {
-      await trackSend(ctx, () => ctx.reply(msg));
+      await trackSend(ctx, () =>
+        ctx.reply(msg, { disable_notification: !isPrivate(ctx) })
+      );
     }
   });
 
@@ -3122,7 +3459,9 @@ function subjectsHandler(bot) {
     }
     data.chatMessages[chatId] = [];
     saveData(data);
-    await trackSend(ctx, () => ctx.reply("Очистка завершена."));
+    await trackSend(ctx, () =>
+      ctx.reply("Очистка завершена.", { disable_notification: !isPrivate(ctx) })
+    );
   });
 
   // Сброс состояний при callback_query

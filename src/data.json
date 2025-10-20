@@ -2,20 +2,27 @@
   "users": {
     "ADMINS": [
       "@pippsza",
-      "@trachck",
       "@Evil_bastardd",
-      "@homeworkManagerFizTechBot"
+      "@homeworkManagerFizTechBot",
+      "@trachck",
+      "@fasarin",
+      "@hayots1tagavor5",
+      "@Jabka3320",
+      "@Hollow_Owl",
+      "@qssatxrn",
+      "@Levanick"
     ],
     "ANSWER_VIEWERS": [
       "@pippsza",
       "@Evil_bastardd",
-      "@trachck"
+      "@trachck",
+      "@Hollow_Owl"
     ],
     "SUPERUSERS": [
       "@pippsza",
       "@zemlyannnaya",
-      "@trachck",
-      "@Evil_bastardd"
+      "@Evil_bastardd",
+      "@trachck"
     ]
   },
   "subjects": [
@@ -28,13 +35,6 @@
       "practitionerContact": "Olha.Korol@khpi.edu.ua",
       "tasks": [
         {
-          "title": "Лаба 2",
-          "description": "",
-          "attachments": [],
-          "answers": [],
-          "emoji": "📄"
-        },
-        {
           "title": "Обчислити поля галуа 2³",
           "description": "",
           "attachments": [],
@@ -43,9 +43,83 @@
               "type": "document",
               "content": "BQACAgIAAyEFAASNDuBPAAJfNGjObvPMiweN-5QvThDSw-YQyp4YAALWhAACXCp4SohfdpOByTk1NgQ",
               "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJfNGjObvPMiweN-5QvThDSw-YQyp4YAALWhAACXCp4SohfdpOByTk1NgQ.xlsx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJfNGjObvPMiweN-5QvThDSw-YQyp4YAALWhAACXCp4SohfdpOByTk1NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJfNGjObvPMiweN-5QvThDSw-YQyp4YAALWhAACXCp4SohfdpOByTk1NgQ.xlsx"
             }
           ],
           "emoji": "🔏"
+        },
+        {
+          "title": "лаба 2 практика",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASCHxn9AAJ422jRGcqOetifGaA7QaAb5V7oEWBnAALwfAACO--RSji7q1SHjG6JNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASCHxn9AAJ422jRGcqOetifGaA7QaAb5V7oEWBnAALwfAACO--RSji7q1SHjG6JNgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASCHxn9AAJ42mjRGcrDFhMQB6dz1KK-jaVLr4rRAALvfAACO--RSmJHy2KZy5F3NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASCHxn9AAJ42mjRGcrDFhMQB6dz1KK-jaVLr4rRAALvfAACO--RSmJHy2KZy5F3NgQ.zip"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJib2jRQOyJ-BxOJmhPMwROkY1Zc3llAAJ-fwACy3uRSmwrsasBHAY8NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJib2jRQOyJ-BxOJmhPMwROkY1Zc3llAAJ-fwACy3uRSmwrsasBHAY8NgQ.odt"
+            }
+          ],
+          "emoji": "🤕"
+        },
+        {
+          "title": "3 лаба",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAAS4ZZ5aAAIHg2jjoLg-ikYkjytLkZhPuyuytRQVAAJgfAACjyogSw01JnRNK_ouNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAAS4ZZ5aAAIHg2jjoLg-ikYkjytLkZhPuyuytRQVAAJgfAACjyogSw01JnRNK_ouNgQ.docx"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJuYWjmE6J5zs6pIIkCB2LmfUEXX6d3AAK_eQACc5A4S4c1DMT_hGNTNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJuYWjmE6J5zs6pIIkCB2LmfUEXX6d3AAK_eQACc5A4S4c1DMT_hGNTNgQ.odt"
+            }
+          ],
+          "emoji": "😟"
+        },
+        {
+          "title": "лаба 4",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJ152jtXAGO8Npni4ZiDdXaEw76N6fhAAJjgQACnT1xS7RAX2vjimWRNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJ152jtXAGO8Npni4ZiDdXaEw76N6fhAAJjgQACnT1xS7RAX2vjimWRNgQ.docx"
+            }
+          ],
+          "answers": [],
+          "emoji": "🥲"
+        },
+        {
+          "title": "Лаба 5",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAxkBAAICA2j2DPwbWZN2Tn54bSN42tcjCLe4AAJ3fAACy3SwS5Qzyum00sG6NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAxkBAAICA2j2DPwbWZN2Tn54bSN42tcjCLe4AAJ3fAACy3SwS5Qzyum00sG6NgQ.docx"
+            }
+          ],
+          "answers": [],
+          "emoji": "🧟‍♀️"
         }
       ]
     },
@@ -58,11 +132,153 @@
       "practitionerContact": "",
       "tasks": [
         {
-          "title": "Лаба 3,4,5",
+          "title": "Лаба 2",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJjUGjSMtr1X_bddaAWWKVb-UFqmm57AALAiAACdGyQSlNOdDq4W3HMNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJjUGjSMtr1X_bddaAWWKVb-UFqmm57AALAiAACdGyQSlNOdDq4W3HMNgQ.docx"
+            }
+          ],
+          "answers": [],
+          "emoji": "💌"
+        },
+        {
+          "title": "Лаба 3",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJjR2jSMUTDzKtZ1i3W-yk9oHoZiWTUAAKwiAACdGyQShnX7cPdy3w1NgQ",
+              "local_path": null
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJkHWjS5khdWPvOIE_RTX0Y4SfYSnnqAAIzhwACdGyYSpyfkhDlen6rNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJkHWjS5khdWPvOIE_RTX0Y4SfYSnnqAAIzhwACdGyYSpyfkhDlen6rNgQ.pdf"
+            }
+          ],
+          "emoji": "💣"
+        },
+        {
+          "title": "Лаба 4",
           "description": "",
           "attachments": [],
-          "answers": [],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJsG2jk0LQAAQqv3HktDyy7d1MJQCMGWwACDnkAAtFVKEt-oX1fnJmikTYE",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJsG2jk0LQAAQqv3HktDyy7d1MJQCMGWwACDnkAAtFVKEt-oX1fnJmikTYE.odt"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJsHWjk0LZqN65eSg6kS3dPDMGOKgy3AAIPeQAC0VUoS55NQaIvMfk_NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJsHWjk0LZqN65eSg6kS3dPDMGOKgy3AAIPeQAC0VUoS55NQaIvMfk_NgQ.docx"
+            }
+          ],
           "emoji": "📄"
+        },
+        {
+          "title": "Лаба 5 это пиздец блять",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJtsGjlJ8CjR-Pm7FVuOb0ytguVq_QvAALpfgAC0VUoS718-MpBa9u2NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJtsGjlJ8CjR-Pm7FVuOb0ytguVq_QvAALpfgAC0VUoS718-MpBa9u2NgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJts2jlJ8CXU9dRV8tvq5Jo2__ei1hHAALtfgAC0VUoS9Q-Ff6T3nFTNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJts2jlJ8CXU9dRV8tvq5Jo2__ei1hHAALtfgAC0VUoS9Q-Ff6T3nFTNgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJtsWjlJ8AWjXQN489veqD6IYMfK5lsAALqfgAC0VUoS6wW6qB2CUE9NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJtsWjlJ8AWjXQN489veqD6IYMfK5lsAALqfgAC0VUoS6wW6qB2CUE9NgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJtt2jlJ8CKvLpYboqULnM6qTSaCyC5AALvfgAC0VUoSyugurbUrKgZNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJtt2jlJ8CKvLpYboqULnM6qTSaCyC5AALvfgAC0VUoSyugurbUrKgZNgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJtsmjlJ8BgfeVSbV7kVGwkfnrL4_Y4AALsfgAC0VUoS0sKBSvquHOfNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJtsmjlJ8BgfeVSbV7kVGwkfnrL4_Y4AALsfgAC0VUoS0sKBSvquHOfNgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJttGjlJ8BiXuHU1VUUKwhOx1PMa8nlAALufgAC0VUoSzq2qvXEIRTMNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJttGjlJ8BiXuHU1VUUKwhOx1PMa8nlAALufgAC0VUoSzq2qvXEIRTMNgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJttWjlJ8BgJ0qjqGgCZkQvypl8eeHlAALxfgAC0VUoS0Q_jcMqU0mANgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJttWjlJ8BgJ0qjqGgCZkQvypl8eeHlAALxfgAC0VUoS0Q_jcMqU0mANgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJttmjlJ8AisLBprfRYE6pteeKKkWeRAALwfgAC0VUoS74-B73uXCWGNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJttmjlJ8AisLBprfRYE6pteeKKkWeRAALwfgAC0VUoS74-B73uXCWGNgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJtuGjlJ8BAD09NY143UAXCUvdVDc8aAALyfgAC0VUoS2lbmLbOWJ6iNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJtuGjlJ8BAD09NY143UAXCUvdVDc8aAALyfgAC0VUoS2lbmLbOWJ6iNgQ.docx"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxbWjo28436O2DcFBlr0xXT9w0vHD0AAKxgQACyDtIS3RQA4Gu_pPtNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxbWjo28436O2DcFBlr0xXT9w0vHD0AAKxgQACyDtIS3RQA4Gu_pPtNgQ.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxbmjo284ekBXL3yXVjfGg-gfcIFH2AAKygQACyDtISzL-dQjZbf7LNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxbmjo284ekBXL3yXVjfGg-gfcIFH2AAKygQACyDtISzL-dQjZbf7LNgQ.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxcGjo285K2Mc1mAMAAcRWuzkiPEvTFgACtIEAAsg7SEs7n-vuXQ5g2zYE",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxcGjo285K2Mc1mAMAAcRWuzkiPEvTFgACtIEAAsg7SEs7n-vuXQ5g2zYE.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxdGjo285UFPVwq_pHYtzQe4qmFpfaAAK4gQACyDtIS1PCOqEprblMNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxdGjo285UFPVwq_pHYtzQe4qmFpfaAAK4gQACyDtIS1PCOqEprblMNgQ.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxb2jo285aoV2q85iNa9OKODRc4mBEAAKzgQACyDtIS_0N7tyriRHJNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxb2jo285aoV2q85iNa9OKODRc4mBEAAKzgQACyDtIS_0N7tyriRHJNgQ.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxcmjo286aeVsnjr2PWUEj1Xp8V17dAAK2gQACyDtIS_BLn3nwedYINgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxcmjo286aeVsnjr2PWUEj1Xp8V17dAAK2gQACyDtIS_BLn3nwedYINgQ.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxc2jo286WEE-qU7AfRRGHOGLEVF3rAAK3gQACyDtIS7u2sjorAAGytDYE",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxc2jo286WEE-qU7AfRRGHOGLEVF3rAAK3gQACyDtIS7u2sjorAAGytDYE.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxdWjo2866s3HD1Am3Og5XMjTi-b6dAAK5gQACyDtIS6s7_7sbZxmbNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxdWjo2866s3HD1Am3Og5XMjTi-b6dAAK5gQACyDtIS6s7_7sbZxmbNgQ.pdf"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxcWjo287QQ5J8hLk1QCZT4o971cecAAK1gQACyDtISy7rxGNVexCFNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxcWjo287QQ5J8hLk1QCZT4o971cecAAK1gQACyDtISy7rxGNVexCFNgQ.pdf"
+            }
+          ],
+          "emoji": "😭"
         }
       ]
     },
@@ -73,7 +289,56 @@
       "lecturerContact": "",
       "practitionerName": "",
       "practitionerContact": "",
-      "tasks": []
+      "tasks": [
+        {
+          "title": "Написати реферат за варіантом який ви обрали в документі \"Теми індивідуальних робіт\". Зробити до 15 листопада",
+          "description": "Здача роботи 15 листопада",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASyAS2gAAIBRGjRCkq-jSSKj6D3mo0euTNC1N52AAIJdwACGZWISl7lHO2m7z5lNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASyAS2gAAIBRGjRCkq-jSSKj6D3mo0euTNC1N52AAIJdwACGZWISl7lHO2m7z5lNgQ.docx"
+            },
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASyAS2gAAIBRWjRCkqiaaODvxe5fIurW6gQoAgWAAIKdwACGZWISnR1fqyPbp6mNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASyAS2gAAIBRWjRCkqiaaODvxe5fIurW6gQoAgWAAIKdwACGZWISnR1fqyPbp6mNgQ.docx"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJxHGjoMjxHXOwiJwyhZFTqOPYENdJ4AAJfegACyDtIS8kTzKqlJY4mNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJxHGjoMjxHXOwiJwyhZFTqOPYENdJ4AAJfegACyDtIS8kTzKqlJY4mNgQ.pdf"
+            }
+          ],
+          "emoji": "☃️"
+        },
+        {
+          "title": "Пара 26.09",
+          "description": "",
+          "attachments": [
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJkbWjWZGnsyWmdaWQmVMXjFKar7tJ1AAKg9DEbGVi5Srzpfy2chrdTAQADAgADeAADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJkbWjWZGnsyWmdaWQmVMXjFKar7tJ1AAKg9DEbGVi5Srzpfy2chrdTAQADAgADeAADNgQ.jpg"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJkbGjWZESnWJR5_iUBmB6toBV8MdOwAALqiQACGVi5SlnFrAEd_Lq4NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJkbGjWZESnWJR5_iUBmB6toBV8MdOwAALqiQACGVi5SlnFrAEd_Lq4NgQ.odt"
+            },
+            {
+              "type": "text",
+              "content": "та пох",
+              "local_path": null
+            }
+          ],
+          "emoji": "😀"
+        }
+      ]
     },
     {
       "name": "Програмування",
@@ -82,7 +347,15 @@
       "lecturerContact": "Andrii.Tkachov@khpi.edu.ua\n+380 (57) 7076 924",
       "practitionerName": "",
       "practitionerContact": "",
-      "tasks": []
+      "tasks": [
+        {
+          "title": "КУРС ЦІСКО",
+          "description": "https://www.netacad.com/launch?id=1fca7a64-78b6-4c37-b189-2d9ddd6e2567&tab=curriculum&view=a5d7d1ec-7047-5c6a-a377-703df83d06b4",
+          "attachments": [],
+          "answers": [],
+          "emoji": "🧐"
+        }
+      ]
     },
     {
       "name": "Англійська",
@@ -91,7 +364,86 @@
       "lecturerContact": "Maryna.Tykhonova@khpi.edu.ua",
       "practitionerName": "",
       "practitionerContact": "",
-      "tasks": []
+      "tasks": [
+        {
+          "title": "WB",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASCHxn9AAJ5YWjSb3QDnX7lsQ7-1P1n5xHOhSuOAAKtfwAC7eOxSajO5VpldofFNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASCHxn9AAJ5YWjSb3QDnX7lsQ7-1P1n5xHOhSuOAAKtfwAC7eOxSajO5VpldofFNgQ.pdf"
+            }
+          ],
+          "answers": [],
+          "emoji": "📕"
+        },
+        {
+          "title": "SB",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASCHxn9AAJ5a2jSb4ts8oeeMQgQklCe3KAvkcO2AALeNwAC7Nz5S_g6i18Q23iHNgQ",
+              "local_path": null
+            }
+          ],
+          "answers": [],
+          "emoji": "📔"
+        },
+        {
+          "title": "SB-ans",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASCHxn9AAJ5dWjSb6nWl80-A9H-RTQRjXQjroX9AAKOgAACE7e5SSCAF3VeC3V2NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASCHxn9AAJ5dWjSb6nWl80-A9H-RTQRjXQjroX9AAKOgAACE7e5SSCAF3VeC3V2NgQ.pdf"
+            }
+          ],
+          "answers": [],
+          "emoji": "📗"
+        },
+        {
+          "title": "Презентация",
+          "description": "это пизда",
+          "attachments": [],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJmFmjZMC39bN3-QMzwDnYuXKY-WyiqAAIzfgACP8rISjqSEjuRWZvCNgQ",
+              "local_path": null
+            }
+          ],
+          "emoji": "🥀"
+        },
+        {
+          "title": "TEST 23.09",
+          "description": "https://docs.google.com/forms/d/e/1FAIpQLScyBp9KqmdRPsyfvv1DneplwcZB2Ui1MpdNI3nV-JFhkUC_4A/viewform?usp=sf_link",
+          "attachments": [],
+          "answers": [
+            {
+              "type": "text",
+              "content": "Добре 🙂 давай зробимо по черзі.\n\n---\n\n### 1. Definitions\n\nТреба співставити слова з правильними значеннями. Два визначення зайві:\n\n* uncover → Remove a cover or covering from something.\n* details → Small features, facts or parts of something.\n* prehistoric → Relating to or about the period thousands of years ago before written records.\n* ancient → Belonging to the very distant past and no longer in existence.\n* giant → Very very very big.\n* site → An area of ground on which a town, building, or monument is built.\n* erect → Build or put up a building, wall, or other upright structure.\n* supply → To give somebody what is lacking or needed.\n\n❌ Зайві:\n\n* \"Something that is difficult or impossible to understand or explain\"\n* \"To produce something new, which did exist before\"\n\n---\n\n### 2. Fill in the gaps\n\n1. details\n2. all\n3. been\n4. away\n5. site\n6. date\n7. giant\n8. burial\n9. the\n10. erect\n11. not\n12. too\n\n---\n\n### 3. True or False\n\n* Scientists know the names of the people who built Stonehenge. → False\n* The ancient stones are in the southeast of England. → False (they are in the southwest)\n* Scientists believe Stonehenge's architects are Welsh and not English. → True\n* The oldest human remains found at Stonehenge are 3,000 years old. → False (≈ 5,000 years old)\n* Each stone at Stonehenge is four metres wide. → False (4 m high, 2.1 m wide)\n* Scientists don't know how the stones got from Wales to Stonehenge. → True\n* The people who transported the stones may be buried at Stonehenge. → True\n* The stones that make up Stonehenge are bluestones. → True\n\n---\n\n### 4. Past tenses\n\n1. He wanted to repair our washing machine that had broken a few days before.\n2. Before he rang at my door, he had been looking for a parking space for about ten minutes.\n3. Suddenly, I realised that they were showing our street on TV.\n4. The reporter said that a car had crashed into a stop sign just before reaching the crossroads.\n5. I opened the door and saw a police officer standing there.\n6. He was waiting for the plumber the whole day.\n7. As it turned out, it was our plumber’s car that had rolled down the street.\n8. Before he had turned 25, he never left his native town.\n9. I probably lost my key when I was running in the park.\n\n---\n\nХочеш, я зроблю для тебе готові варіанти відповідей у вигляді таблиці (щоб можна було зручно вставити у роботу)?",
+              "local_path": null
+            }
+          ],
+          "emoji": "🔖"
+        },
+        {
+          "title": "WB-ans",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASCHxn9AAJ5dWjSb6nWl80-A9H-RTQRjXQjroX9AAKOgAACE7e5SSCAF3VeC3V2NgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASCHxn9AAJ5dWjSb6nWl80-A9H-RTQRjXQjroX9AAKOgAACE7e5SSCAF3VeC3V2NgQ.pdf"
+            }
+          ],
+          "answers": [],
+          "emoji": "📚"
+        }
+      ]
     },
     {
       "name": "БЗВП",
@@ -109,99 +461,612 @@
       "lecturerContact": "Serhii_Yevseiev@khpi.edu.ua",
       "practitionerName": "Ольга Григорівна Король",
       "practitionerContact": "Olha.Korol@khpi.edu.ua",
-      "tasks": []
-    },
-    {
-      "name": "авыа",
-      "emoji": "а",
-      "lecturerName": "а",
-      "lecturerContact": "а",
-      "practitionerName": "а",
-      "practitionerContact": "а",
-      "tasks": []
-    },
-    {
-      "name": "dsad",
-      "emoji": "d",
-      "lecturerName": "d",
-      "lecturerContact": "d",
-      "practitionerName": "d",
-      "practitionerContact": "d",
       "tasks": [
         {
-          "title": "dsa",
-          "description": "d",
-          "attachments": [],
-          "answers": [
-            {
-              "type": "text",
-              "content": "dsadsad",
-              "local_path": null
-            },
-            {
-              "type": "text",
-              "content": "выфв",
-              "local_path": null
-            },
-            {
-              "type": "text",
-              "content": "dsad",
-              "local_path": null
-            }
-          ],
-          "emoji": "d"
-        },
-        {
-          "title": "sd",
-          "description": "d",
+          "title": "Контрольний іспит: концепції Ethernet",
+          "description": "",
           "attachments": [
             {
               "type": "photo",
-              "file_id": "AgACAgIAAyEFAAS4ZZ5aAAIFX2jOvvX8Wawf7-nGZp0oGYAQsaziAAKr-jEb_l95SvbScWIWbqsJAQADAgADeAADNgQ",
-              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAAS4ZZ5aAAIFX2jOvvX8Wawf7-nGZp0oGYAQsaziAAKr-jEb_l95SvbScWIWbqsJAQADAgADeAADNgQ.jpg"
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlkmjWtbiThRKhjE3rsEVKe5v4oBddAAIz_jEbXzK4Srt7mYUmMt7lAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlkmjWtbiThRKhjE3rsEVKe5v4oBddAAIz_jEbXzK4Srt7mYUmMt7lAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJllGjWtbjnMQIUPqvDfsk2W_qfv3qMAAI0_jEbXzK4SnqPwEcqFuY9AQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJllGjWtbjnMQIUPqvDfsk2W_qfv3qMAAI0_jEbXzK4SnqPwEcqFuY9AQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJll2jWtbhs-AJX55L1rxzmZmC6B4rgAAI4_jEbXzK4SldnX5-fcXVhAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJll2jWtbhs-AJX55L1rxzmZmC6B4rgAAI4_jEbXzK4SldnX5-fcXVhAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlk2jWtbjQNbEG02DSdeR5V02LvbXxAAI1_jEbXzK4SrWgbXZQ9X4dAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlk2jWtbjQNbEG02DSdeR5V02LvbXxAAI1_jEbXzK4SrWgbXZQ9X4dAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlmWjWtbgixfCgk-Gf8JUdOl4BPDLjAAI6_jEbXzK4SmvtXQp-SpDIAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlmWjWtbgixfCgk-Gf8JUdOl4BPDLjAAI6_jEbXzK4SmvtXQp-SpDIAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJllWjWtbhel4kbF-WdiYWwfdMdlJIhAAI2_jEbXzK4SiHarTN93DaLAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJllWjWtbhel4kbF-WdiYWwfdMdlJIhAAI2_jEbXzK4SiHarTN93DaLAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlnWjWtbhd8SFJyR9hBFmYlfF1-uIPAAI-_jEbXzK4SnIr1h0xJql8AQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlnWjWtbhd8SFJyR9hBFmYlfF1-uIPAAI-_jEbXzK4SnIr1h0xJql8AQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlnGjWtbhZyYlFJI1fRFm3PQijVWfsAAI8_jEbXzK4Sj8WdgFn582HAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlnGjWtbhZyYlFJI1fRFm3PQijVWfsAAI8_jEbXzK4Sj8WdgFn582HAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJllmjWtbgMIejzQMjuoIOWwnIBgMUeAAI3_jEbXzK4Sn85UJOHmZVDAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJllmjWtbgMIejzQMjuoIOWwnIBgMUeAAI3_jEbXzK4Sn85UJOHmZVDAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJloWjWtbhHAb9LydXzhL-oo_UkzskkAAJC_jEbXzK4SqKj9p3Ye-FdAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJloWjWtbhHAb9LydXzhL-oo_UkzskkAAJC_jEbXzK4SqKj9p3Ye-FdAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlo2jWtbiZLUl7wcCKgFjBlohEsHsMAAJE_jEbXzK4SpkUlWoN9mTfAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlo2jWtbiZLUl7wcCKgFjBlohEsHsMAAJE_jEbXzK4SpkUlWoN9mTfAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlomjWtbigas9xF51Vj2CSQ3JuXZFZAAJD_jEbXzK4SspFJFEIx8SNAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlomjWtbigas9xF51Vj2CSQ3JuXZFZAAJD_jEbXzK4SspFJFEIx8SNAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlp2jWtbjjbGUgLQITqeXpB23Z4sxHAAJI_jEbXzK4SpWjjlHhhOMWAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlp2jWtbjjbGUgLQITqeXpB23Z4sxHAAJI_jEbXzK4SpWjjlHhhOMWAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJln2jWtbjwV1nfFpcZEy7GovchUKj7AAI__jEbXzK4SvL-rjPQB4jGAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJln2jWtbjwV1nfFpcZEy7GovchUKj7AAI__jEbXzK4SvL-rjPQB4jGAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlpGjWtbgvRfpjCAHPIeH9zgnbKnP5AAJF_jEbXzK4Spa4XLOJ8ZG1AQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlpGjWtbgvRfpjCAHPIeH9zgnbKnP5AAJF_jEbXzK4Spa4XLOJ8ZG1AQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlrGjWtbjpXUYHINknOm7qnVDOxigmAAJN_jEbXzK4SnhWMJbYQp9lAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlrGjWtbjpXUYHINknOm7qnVDOxigmAAJN_jEbXzK4SnhWMJbYQp9lAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlr2jWtbh2eW2f_dzcMMFvYd1EQAqTAAJQ_jEbXzK4SufwZiQStHLAAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlr2jWtbh2eW2f_dzcMMFvYd1EQAqTAAJQ_jEbXzK4SufwZiQStHLAAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlnmjWtbg-q3vJ9EBKPPCH_NTjeAKhAAJA_jEbXzK4SsQZxoe8cXLxAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlnmjWtbg-q3vJ9EBKPPCH_NTjeAKhAAJA_jEbXzK4SsQZxoe8cXLxAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlpmjWtbidAk6-Set-Myx-OsIZS4OSAAJH_jEbXzK4StV63k-M_7M1AQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlpmjWtbidAk6-Set-Myx-OsIZS4OSAAJH_jEbXzK4StV63k-M_7M1AQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlmGjWtbgxdrk3G6jF8aPpJHzDOqKxAAI5_jEbXzK4Ssfy6htUe_cSAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlmGjWtbgxdrk3G6jF8aPpJHzDOqKxAAI5_jEbXzK4Ssfy6htUe_cSAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlq2jWtbhACZPfXAS35coDqzDaFi7dAAJM_jEbXzK4St4jWoAS8rc_AQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlq2jWtbhACZPfXAS35coDqzDaFi7dAAJM_jEbXzK4St4jWoAS8rc_AQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlqGjWtbjxtJmvR3rGv_z8iuiGSuyiAAJJ_jEbXzK4SqnkxIqJZunlAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlqGjWtbjxtJmvR3rGv_z8iuiGSuyiAAJJ_jEbXzK4SqnkxIqJZunlAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlqWjWtbgDLC4B0N-bkUv6BSJH5_zlAAJK_jEbXzK4SkGaWBcDs1_tAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlqWjWtbgDLC4B0N-bkUv6BSJH5_zlAAJK_jEbXzK4SkGaWBcDs1_tAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlrWjWtbgbugTnK0_q89r4IjvnmNuIAAJO_jEbXzK4SsAf2TsXlwSWAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlrWjWtbgbugTnK0_q89r4IjvnmNuIAAJO_jEbXzK4SsAf2TsXlwSWAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlrmjWtbiNSMj1w8RNXNdLvGqa3yQIAAJP_jEbXzK4Svd1IeJLzg_FAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlrmjWtbiNSMj1w8RNXNdLvGqa3yQIAAJP_jEbXzK4Svd1IeJLzg_FAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlpWjWtbjf-EgKqL2p6FsCb22s2xm_AAJG_jEbXzK4SotPf8s0EVZxAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlpWjWtbjf-EgKqL2p6FsCb22s2xm_AAJG_jEbXzK4SotPf8s0EVZxAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJloGjWtbjBX8bRdSUBvMIdR4K8FqMqAAJB_jEbXzK4SohLfg5V4IbNAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJloGjWtbjBX8bRdSUBvMIdR4K8FqMqAAJB_jEbXzK4SohLfg5V4IbNAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlm2jWtbiiHoo-0fbsggyLC6NU14vaAAI9_jEbXzK4ShWriGOOxzFPAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlm2jWtbiiHoo-0fbsggyLC6NU14vaAAI9_jEbXzK4ShWriGOOxzFPAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJltGjWtbiptSikNNf5dKbLMy027YugAAJV_jEbXzK4SoQIyupjWXMWAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJltGjWtbiptSikNNf5dKbLMy027YugAAJV_jEbXzK4SoQIyupjWXMWAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlsmjWtbgQ4R_jDNRTlrkzYKjQEpZbAAJT_jEbXzK4SpLDDrYnn0vGAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlsmjWtbgQ4R_jDNRTlrkzYKjQEpZbAAJT_jEbXzK4SpLDDrYnn0vGAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlqmjWtbjrBTaMtbWILGOYUgbW1tANAAJL_jEbXzK4SrJ0pG3oL6cdAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlqmjWtbjrBTaMtbWILGOYUgbW1tANAAJL_jEbXzK4SrJ0pG3oL6cdAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlmmjWtbhEXo0jW3RShFSofzvGLzh9AAI7_jEbXzK4SoNWV5e-LEvlAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlmmjWtbhEXo0jW3RShFSofzvGLzh9AAI7_jEbXzK4SoNWV5e-LEvlAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlsGjWtbj-ws8C6ZtcDV8Xxh0SmQthAAJR_jEbXzK4SthBNTbD8MTmAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlsGjWtbj-ws8C6ZtcDV8Xxh0SmQthAAJR_jEbXzK4SthBNTbD8MTmAQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJlsWjWtbiOXVg3IzdAGSoNQrFLmW58AAJS_jEbXzK4StFM87o13mZ6AQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJlsWjWtbiOXVg3IzdAGSoNQrFLmW58AAJS_jEbXzK4StFM87o13mZ6AQADAgADeQADNgQ.jpg"
+            },
+            {
+              "type": "photo",
+              "file_id": "AgACAgIAAyEFAASNDuBPAAJls2jWtbgDVb2N1MoGuJMOaMAo3piHAAJU_jEbXzK4Ssfd9srUP5hYAQADAgADeQADNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJls2jWtbgDVb2N1MoGuJMOaMAo3piHAAJU_jEbXzK4Ssfd9srUP5hYAQADAgADeQADNgQ.jpg"
             }
           ],
           "answers": [],
-          "emoji": "d"
+          "emoji": "📄"
+        }
+      ]
+    },
+    {
+      "name": "Інтелектуальна Власність",
+      "emoji": "🤌",
+      "lecturerName": "",
+      "lecturerContact": "",
+      "practitionerName": "Владислав Сергійович Хвостенко",
+      "practitionerContact": "Vladyslav.Khvostenko@khpi.edu.ua",
+      "tasks": [
+        {
+          "title": "Лаба 2",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJf22jQ_PiODla5wG81WaqwZQyauHqvAAIUhAACy3uJSmOnLiMjuS6ENgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJf22jQ_PiODla5wG81WaqwZQyauHqvAAIUhAACy3uJSmOnLiMjuS6ENgQ.pdf"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJgEWjQ_b1a9ZGQ_XkvscDxy75JimTcAAJwggACzTZISh3NKsnRTMILNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJgEWjQ_b1a9ZGQ_XkvscDxy75JimTcAAJwggACzTZISh3NKsnRTMILNgQ.docx"
+            }
+          ],
+          "emoji": "😡"
         },
         {
-          "title": "авыа",
-          "description": "а",
-          "attachments": [],
-          "answers": [],
-          "emoji": "а"
+          "title": "Лаба 3",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJjG2jRVLQbtqQO38n4MeDR9Q9s-kKDAAIwgQACy3uRSnfFFHFXAj6hNgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJjG2jRVLQbtqQO38n4MeDR9Q9s-kKDAAIwgQACy3uRSnfFFHFXAj6hNgQ.pdf"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAAS4ZZ5aAAIGDWjXyZCkIoFTscEID4gWQM7liy7WAAKkgAACmznASuMg3UfJ5-eONgQ",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAAS4ZZ5aAAIGDWjXyZCkIoFTscEID4gWQM7liy7WAAKkgAACmznASuMg3UfJ5-eONgQ.pdf"
+            }
+          ],
+          "emoji": "🤓"
+        },
+        {
+          "title": "Лаба 4",
+          "description": "",
+          "attachments": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJrEmjkAAHZrzeuNGSR0M_uQr9Q6rYv9wACy5EAAtFVIEu8FDrmbDyO1TYE",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJrEmjkAAHZrzeuNGSR0M_uQr9Q6rYv9wACy5EAAtFVIEu8FDrmbDyO1TYE.pdf"
+            }
+          ],
+          "answers": [
+            {
+              "type": "document",
+              "file_id": "BQACAgIAAyEFAASNDuBPAAJrF2jkAAH3hdn8HJIe1v0vyE9rvRZlpgAC05EAAtFVIEtdFVuMfG0z6DYE",
+              "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJrF2jkAAH3hdn8HJIe1v0vyE9rvRZlpgAC05EAAtFVIEtdFVuMfG0z6DYE.odt"
+            }
+          ],
+          "emoji": "🪦"
         }
       ]
     }
   ],
   "infos": [
     {
-      "title": "фыв",
-      "description": "фывфыв",
+      "title": "Криптология Методичка",
+      "description": "",
+      "attachments": [
+        {
+          "type": "document",
+          "file_id": "BQACAgIAAyEFAASNDuBPAAJgwGjRGBTReThmsGKqCk_rAAFGOtjFzwACxoUAAst7iUoXTyUTEos8yzYE",
+          "local_path": "/home/pippsza/code/homeworkBot/src/attachments/BQACAgIAAyEFAASNDuBPAAJgwGjRGBTReThmsGKqCk_rAAFGOtjFzwACxoUAAst7iUoXTyUTEos8yzYE.pdf"
+        }
+      ],
+      "emoji": "✔️"
+    },
+    {
+      "title": "Кирюша",
+      "description": "",
       "attachments": [
         {
           "type": "photo",
-          "file_id": "AgACAgIAAyEFAASNDuBPAAJdsGjNwmt4JuUrvTybDTOzWTI4WoAuAAJf_jEbMhxwSgbbL6VAdOdhAQADAgADeAADNgQ",
-          "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJdsGjNwmt4JuUrvTybDTOzWTI4WoAuAAJf_jEbMhxwSgbbL6VAdOdhAQADAgADeAADNgQ.jpg"
+          "file_id": "AgACAgIAAyEFAASNDuBPAAJnBWjaaj7PpCLDRM85vOcB5Xe5GrlwAAJI-jEbPiTRSkelFhR0pJS-AQADAgADbQADNgQ",
+          "local_path": "/home/pippsza/code/homeworkBot/src/attachments/AgACAgIAAyEFAASNDuBPAAJnBWjaaj7PpCLDRM85vOcB5Xe5GrlwAAJI-jEbPiTRSkelFhR0pJS-AQADAgADbQADNgQ.jpg"
         }
       ],
-      "emoji": "в"
+      "emoji": "🥀"
     }
   ],
   "chatMessages": {
+    "790162800": [
+      441
+    ],
+    "932311848": [
+      154,
+      155
+    ],
     "1000357772": [
-      152
+      152,
+      157,
+      158,
+      160,
+      161,
+      163,
+      179,
+      180,
+      181,
+      182,
+      183,
+      184,
+      185,
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193,
+      194,
+      195,
+      196,
+      197,
+      198,
+      199,
+      200,
+      201,
+      202,
+      203,
+      204,
+      205,
+      206,
+      207,
+      208,
+      209,
+      210,
+      211,
+      212,
+      213,
+      214,
+      215,
+      216,
+      217,
+      218,
+      219,
+      220,
+      221,
+      222,
+      223,
+      224,
+      225,
+      226,
+      227,
+      228,
+      229,
+      230,
+      231,
+      232,
+      233,
+      234,
+      235,
+      236,
+      237,
+      238,
+      239,
+      240,
+      241,
+      242,
+      243,
+      244,
+      245,
+      246,
+      247,
+      248,
+      249,
+      250,
+      251,
+      252,
+      253,
+      254,
+      255,
+      256,
+      257,
+      258,
+      259,
+      260,
+      261,
+      262,
+      263,
+      264,
+      265,
+      266,
+      267,
+      268,
+      269,
+      270,
+      271,
+      272,
+      273,
+      274,
+      275,
+      276,
+      277,
+      278,
+      279,
+      280,
+      281,
+      282,
+      283,
+      284,
+      289,
+      290,
+      291,
+      292,
+      293,
+      294,
+      295,
+      297,
+      298,
+      300,
+      301,
+      303,
+      304,
+      306,
+      307,
+      309,
+      310,
+      312,
+      313,
+      318,
+      319,
+      320,
+      322,
+      323,
+      350,
+      351,
+      352,
+      353,
+      354,
+      356,
+      357,
+      358,
+      359,
+      360,
+      361,
+      363,
+      364,
+      365,
+      366,
+      369,
+      370,
+      371,
+      372,
+      373,
+      374,
+      375,
+      376,
+      377,
+      378,
+      379,
+      380,
+      381,
+      382,
+      383,
+      384,
+      385,
+      386,
+      387,
+      388,
+      389,
+      390,
+      391,
+      392,
+      393,
+      394,
+      395,
+      396,
+      397,
+      398,
+      399,
+      443,
+      444,
+      445,
+      446,
+      448,
+      449,
+      450,
+      452,
+      453,
+      454,
+      455,
+      456,
+      457,
+      458,
+      459,
+      460,
+      461,
+      462,
+      463,
+      464,
+      465,
+      466,
+      467,
+      468,
+      469,
+      470,
+      471,
+      472,
+      473,
+      474,
+      475,
+      476,
+      477,
+      478,
+      479,
+      480,
+      482,
+      483,
+      484,
+      485,
+      486,
+      487,
+      488,
+      489,
+      490,
+      491,
+      492,
+      493,
+      494,
+      495,
+      496,
+      497,
+      498,
+      499,
+      501,
+      502,
+      503,
+      506,
+      507,
+      508,
+      510,
+      512,
+      514,
+      516,
+      517,
+      518,
+      519,
+      520,
+      521,
+      522,
+      523,
+      524,
+      525,
+      526,
+      527,
+      528,
+      529,
+      530,
+      531,
+      532,
+      533,
+      534,
+      535,
+      536,
+      537,
+      538,
+      539,
+      540,
+      541,
+      542,
+      543,
+      544,
+      545,
+      546,
+      547,
+      548,
+      549,
+      550,
+      551,
+      552,
+      553,
+      554
+    ],
+    "1256707116": [
+      165,
+      166,
+      167,
+      169,
+      170,
+      171,
+      172,
+      173,
+      174,
+      345,
+      346,
+      347
+    ],
+    "1471258129": [
+      176,
+      177
     ],
     "-1003093667418": [
-      1408,
-      1410,
-      1411,
-      1412,
-      1414,
-      1415
+      1933
     ],
     "-1002366562383": [
-      24492
+      31331,
+      32089,
+      32090,
+      32091
+    ],
+    "-1002183076349": [
+      31321
+    ],
+    "-1002986421664": [
+      385
     ]
   }
 }
