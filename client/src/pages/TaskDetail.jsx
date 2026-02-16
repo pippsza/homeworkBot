@@ -15,12 +15,19 @@ export default function TaskDetail() {
   const [data, setData] = useState(null);
   const [answers, setAnswers] = useState(null);
   const [showAnswers, setShowAnswers] = useState(false);
+  const [canViewAnswers, setCanViewAnswers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sendingAns, setSendingAns] = useState(null);
 
   useEffect(() => {
-    apiFetch(`/subjects/tasks/${taskId}`)
-      .then(setData)
+    Promise.all([
+      apiFetch(`/subjects/tasks/${taskId}`),
+      apiFetch("/users/me"),
+    ])
+      .then(([taskData, user]) => {
+        setData(taskData);
+        setCanViewAnswers(user.isAnswerViewer);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [taskId]);
@@ -74,7 +81,7 @@ export default function TaskDetail() {
 
       <AttachmentViewer attachments={task.attachments} />
 
-      {task.answers?.length > 0 && !showAnswers && (
+      {canViewAnswers && task.answers?.length > 0 && !showAnswers && (
         <button
           onClick={loadAnswers}
           className="mt-4 w-full py-3 rounded-xl font-medium text-sm"

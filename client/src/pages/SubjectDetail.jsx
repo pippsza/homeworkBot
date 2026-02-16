@@ -11,11 +11,18 @@ export default function SubjectDetail() {
   const { apiFetch } = useApi();
   const navigate = useNavigate();
   const [subject, setSubject] = useState(null);
+  const [canViewAnswers, setCanViewAnswers] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch(`/subjects/${id}`)
-      .then(setSubject)
+    Promise.all([
+      apiFetch(`/subjects/${id}`),
+      apiFetch("/users/me"),
+    ])
+      .then(([subj, user]) => {
+        setSubject(subj);
+        setCanViewAnswers(user.isAnswerViewer);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
@@ -97,7 +104,7 @@ export default function SubjectDetail() {
               </div>
               <div className="flex gap-1 text-xs text-[var(--tg-theme-hint-color)]">
                 {t.attachments?.length > 0 && <span><Paperclip size={12} />{t.attachments.length}</span>}
-                {t.answers?.length > 0 && <span><MessageSquare size={12} />{t.answers.length}</span>}
+                {canViewAnswers && t.answers?.length > 0 && <span><MessageSquare size={12} />{t.answers.length}</span>}
               </div>
             </div>
           ))}
