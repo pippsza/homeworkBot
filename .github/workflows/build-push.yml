@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Push Docker Images
 
 on:
   push:
@@ -19,13 +19,26 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push server
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile.server
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/homework-bot:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/homework-bot:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ secrets.DOCKERHUB_USERNAME }}/homework-server:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/homework-server:${{ github.sha }}
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,scope=server,mode=max
+
+      - name: Build and push client
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.client
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/homework-client:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/homework-client:${{ github.sha }}
+          cache-from: type=gha,scope=client
+          cache-to: type=gha,scope=client,mode=max

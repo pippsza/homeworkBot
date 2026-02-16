@@ -1,17 +1,29 @@
 services:
-  bot:
-    image: ${DOCKERHUB_USERNAME}/homework-bot:latest
+  homework-server:
+    image: pippsza/homework-server:latest
+    container_name: HomeworkServer
     restart: unless-stopped
-    ports:
-      - "3000:3000"
-    env_file: .env
+    expose:
+      - "3000"
+    env_file:
+      - .env
     environment:
       - MONGODB_URI=mongodb://mongo:27017/homeworkbot
     depends_on:
       - mongo
 
+  homework-client:
+    image: pippsza/homework-client:latest
+    container_name: HomeworkClient
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - homework-server
+
   mongo:
     image: mongo:7
+    container_name: HomeworkMongo
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
