@@ -1,10 +1,16 @@
 {
+  "name": "homework-bot",
   "scripts": {
-    "dev": "node index.js"
+    "start": "node index.js",
+    "dev": "node index.js",
+    "migrate": "node src/migrate.js"
   },
   "dependencies": {
+    "cors": "^2.8.6",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "mongoose": "^9.2.1",
+    "multer": "^2.0.2",
     "telegraf": "^4.16.3"
   }
 }

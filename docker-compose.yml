@@ -1,0 +1,20 @@
+services:
+  bot:
+    image: ${DOCKERHUB_USERNAME}/homework-bot:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/homeworkbot
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

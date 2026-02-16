@@ -1,8 +1,8 @@
 node_modules/
+client/node_modules/
 src/attachments/
 src/data.json
 .env
-dist/
-client/node_modules/
-client/dist/
+.git/
+.vscode/
 *.log
