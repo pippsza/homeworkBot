@@ -1,7 +1,32 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Component } from "react";
 import { useApi } from "../hooks/useApi";
 import { BookOpen, Info, Settings } from "lucide-react";
+import AiChat from "./AiChat";
+
+class AiChatBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error) {
+    console.error("[AiChat crash]", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          position: "fixed", bottom: 70, left: 8, right: 8,
+          padding: 8, fontSize: 10, background: "#fee", color: "#c00",
+          borderRadius: 8, zIndex: 999, wordBreak: "break-all",
+        }}>
+          AiChat error: {this.state.error.message}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
@@ -22,9 +47,17 @@ export default function Layout({ children }) {
     tabs.push({ path: "/admin", match: (p) => p.startsWith("/admin"), label: "Админ", icon: Settings });
   }
 
+  const showAiChat = user?.isReviewer || user?.isAdmin;
+
   return (
     <div className="min-h-screen pb-20">
       {children}
+
+      {showAiChat && (
+        <AiChatBoundary>
+          <AiChat />
+        </AiChatBoundary>
+      )}
 
       <nav
         className="fixed bottom-0 left-0 right-0 flex"

@@ -9,6 +9,7 @@ export function useApi() {
       headers: {
         "Content-Type": "application/json",
         "x-telegram-init-data": initData,
+        "ngrok-skip-browser-warning": "true",
         ...options.headers,
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
@@ -27,7 +28,10 @@ export function useApi() {
     console.log("[apiUpload] sending to /api/attachments/upload, initData:", initData ? initData.slice(0, 30) + "..." : "MISSING");
     const res = await fetch("/api/attachments/upload", {
       method: "POST",
-      headers: { "x-telegram-init-data": initData },
+      headers: {
+        "x-telegram-init-data": initData,
+        "ngrok-skip-browser-warning": "true",
+      },
       body: formData,
     });
     console.log("[apiUpload] response status:", res.status);

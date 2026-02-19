@@ -27,7 +27,7 @@ function UserManagementContent() {
   const addUser = async (role) => {
     if (!newUser.startsWith("@")) return;
     try {
-      const pathMap = { admins: "admins", answerViewers: "viewers", superusers: "superusers" };
+      const pathMap = { admins: "admins", reviewers: "reviewers", superusers: "superusers" };
       await apiFetch(`/users/${pathMap[role]}`, {
         method: "POST",
         body: { username: newUser },
@@ -45,7 +45,7 @@ function UserManagementContent() {
     if (!confirmRemove) return;
     const { role, username } = confirmRemove;
     try {
-      const pathMap = { admins: "admins", answerViewers: "viewers", superusers: "superusers" };
+      const pathMap = { admins: "admins", reviewers: "reviewers", superusers: "superusers" };
       await apiFetch(`/users/${pathMap[role]}/${username.slice(1)}`, {
         method: "DELETE",
       });
@@ -69,7 +69,7 @@ function UserManagementContent() {
 
   const sections = [
     { key: "admins", label: "Админы", desc: "Управление предметами, заданиями, информацией и ответами" },
-    { key: "answerViewers", label: "Просмотрщики ответов", desc: "Просмотр ответов к заданиям" },
+    { key: "reviewers", label: "Ревьюверы", desc: "Просмотр ответов к заданиям и доступ к AI" },
     { key: "superusers", label: "Суперпользователи", desc: "Управление всеми ролями пользователей" },
   ];
 

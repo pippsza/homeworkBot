@@ -4,6 +4,8 @@ const tasksHandler = require("./handlers/tasks");
 const infosHandler = require("./handlers/infos");
 const settingsHandler = require("./handlers/settings");
 const toolsHandler = require("./handlers/tools");
+const aiHandler = require("./handlers/ai");
+const { setupHomeworkHandler } = require("./handlers/homework");
 const textHandler = require("./handlers/text");
 const mediaHandler = require("./handlers/media");
 const groupMemberService = require("../services/groupMemberService");
@@ -23,6 +25,8 @@ function setupBot(bot) {
   infosHandler(bot);
   settingsHandler(bot);
   toolsHandler(bot);
+  aiHandler(bot);
+  setupHomeworkHandler(bot);
   textHandler(bot);
   mediaHandler(bot);
 }

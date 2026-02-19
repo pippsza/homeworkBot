@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../hooks/useApi";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { SkeletonList } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 
@@ -10,12 +10,16 @@ export default function SubjectsList() {
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     apiFetch("/subjects")
       .then(setSubjects)
       .catch(console.error)
       .finally(() => setLoading(false));
+    apiFetch("/users/me")
+      .then((u) => setIsAdmin(u.isAdmin))
+      .catch(() => {});
   }, []);
 
   if (loading) {
@@ -28,36 +32,51 @@ export default function SubjectsList() {
   }
 
   return (
-    <div className="p-4 page-enter">
-      <h1 className="text-xl font-bold mb-4">Предметы</h1>
-      {subjects.length === 0 ? (
-        <EmptyState
-          emoji="📚"
-          title="Нет предметов"
-          description="Предметы пока не добавлены"
-        />
-      ) : (
-        <div className="space-y-2">
-          {subjects.map((s) => (
-            <div
-              key={s._id}
-              className="card flex items-center gap-3"
-              onClick={() => navigate(`/subjects/${s._id}`)}
-            >
-              <span className="text-2xl">{s.emoji || "📚"}</span>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{s.name}</div>
-                {s.lecturerName && (
-                  <div className="text-xs text-[var(--tg-theme-hint-color)] truncate">
-                    {s.lecturerName}
-                  </div>
-                )}
+    <>
+      <div className="p-4 page-enter">
+        <h1 className="text-xl font-bold mb-4">Предметы</h1>
+        {subjects.length === 0 ? (
+          <EmptyState
+            emoji="📚"
+            title="Нет предметов"
+            description="Предметы пока не добавлены"
+          />
+        ) : (
+          <div className="space-y-2">
+            {subjects.map((s) => (
+              <div
+                key={s._id}
+                className="card flex items-center gap-3"
+                onClick={() => navigate(`/subjects/${s._id}`)}
+              >
+                <span className="text-2xl">{s.emoji || "📚"}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{s.name}</div>
+                  {s.lecturerName && (
+                    <div className="text-xs text-[var(--tg-theme-hint-color)] truncate">
+                      {s.lecturerName}
+                    </div>
+                  )}
+                </div>
+                <ChevronRight size={16} style={{ color: "var(--tg-theme-hint-color)" }} />
               </div>
-              <ChevronRight size={16} style={{ color: "var(--tg-theme-hint-color)" }} />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {isAdmin && (
+        <button
+          onClick={() => navigate("/admin/subjects")}
+          className="fixed left-4 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+          style={{
+            bottom: "70px",
+            backgroundColor: "var(--tg-theme-button-color)",
+            color: "var(--tg-theme-button-text-color)",
+          }}
+        >
+          <Plus size={24} />
+        </button>
       )}
-    </div>
+    </>
   );
 }

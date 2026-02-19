@@ -10,7 +10,7 @@ export default function RoleGuard({ role, children, fallback }) {
     apiFetch("/users/me")
       .then((u) => {
         if (role === "admin") setAllowed(u.isAdmin);
-        else if (role === "viewer") setAllowed(u.isAnswerViewer);
+        else if (role === "reviewer") setAllowed(u.isReviewer);
         else if (role === "superuser") setAllowed(u.isSuperuser);
         else setAllowed(true);
       })

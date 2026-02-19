@@ -6,6 +6,10 @@ const subjectsRoutes = require("./routes/subjects");
 const infosRoutes = require("./routes/infos");
 const usersRoutes = require("./routes/users");
 const attachmentsRoutes = require("./routes/attachments");
+const promptsRoutes = require("./routes/prompts");
+const aiRoutes = require("./routes/ai");
+const knowledgeRoutes = require("./routes/knowledge");
+const modelsRoutes = require("./routes/models");
 
 const router = Router();
 
@@ -38,5 +42,9 @@ router.use("/subjects", subjectsRoutes);
 router.use("/infos", infosRoutes);
 router.use("/users", usersRoutes);
 router.use("/attachments", attachmentsRoutes);
+router.use("/prompts", promptsRoutes);
+router.use("/ai", aiRoutes);
+router.use("/knowledge", knowledgeRoutes);
+router.use("/models", modelsRoutes);
 
 module.exports = router;

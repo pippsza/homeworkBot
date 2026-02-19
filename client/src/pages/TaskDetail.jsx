@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Eye, Send } from "lucide-react";
+import { Eye, Send, Bot, Loader2, Download } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { useToast } from "../components/Toast";
 import BackButton from "../components/BackButton";
@@ -15,7 +15,7 @@ export default function TaskDetail() {
   const [data, setData] = useState(null);
   const [answers, setAnswers] = useState(null);
   const [showAnswers, setShowAnswers] = useState(false);
-  const [canViewAnswers, setCanViewAnswers] = useState(false);
+  const [canReview, setCanReview] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sendingAns, setSendingAns] = useState(null);
 
@@ -26,7 +26,7 @@ export default function TaskDetail() {
     ])
       .then(([taskData, user]) => {
         setData(taskData);
-        setCanViewAnswers(user.isAnswerViewer);
+        setCanReview(user.isReviewer);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -60,6 +60,49 @@ export default function TaskDetail() {
 
   const { subject, task } = data;
 
+  const renderMarkdown = (text) => {
+    let html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    html = html.replace(
+      /```[\w]*\n([\s\S]*?)```/g,
+      '<pre style="background:var(--tg-theme-secondary-bg-color);padding:8px;border-radius:8px;overflow-x:auto;font-size:12px;margin:4px 0">$1</pre>'
+    );
+    html = html.replace(
+      /`([^`]+)`/g,
+      '<code style="background:var(--tg-theme-secondary-bg-color);padding:1px 4px;border-radius:4px;font-size:12px">$1</code>'
+    );
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
+    html = html
+      .split(/(<pre[\s\S]*?<\/pre>)/g)
+      .map((part, i) => (i % 2 === 0 ? part.replace(/\n/g, "<br>") : part))
+      .join("");
+    return html;
+  };
+
+  const downloadAiFile = async (taskId, index, filename) => {
+    try {
+      const res = await fetch(`/api/subjects/tasks/${taskId}/ai-file/${index}`, {
+        headers: {
+          "x-telegram-init-data": window.Telegram?.WebApp?.initData || "",
+          "ngrok-skip-browser-warning": "true",
+        },
+      });
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      showToast(e.message || "Ошибка скачивания", "error");
+    }
+  };
+
   return (
     <div className="p-4 page-enter">
       <BackButton to={`/subjects/${subject._id}`} />
@@ -81,7 +124,50 @@ export default function TaskDetail() {
 
       <AttachmentViewer attachments={task.attachments} />
 
-      {canViewAnswers && task.answers?.length > 0 && !showAnswers && (
+      {/* AI Answer */}
+      {task.aiAnswer && (
+        <div className="card mt-4" style={{ cursor: "default" }}>
+          <div className="flex items-center gap-1 text-xs text-[var(--tg-theme-hint-color)] mb-2">
+            <Bot size={12} /> AI ответ
+          </div>
+          <div
+            className="text-sm ai-answer-content"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(task.aiAnswer) }}
+          />
+          {task.aiAnswerFiles?.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: "1px solid var(--tg-theme-secondary-bg-color)" }}>
+              {task.aiAnswerFiles.map((f, i) => (
+                <a
+                  key={i}
+                  href={`/api/subjects/tasks/${task._id}/ai-file/${i}?${new URLSearchParams({ "x-telegram-init-data": "" })}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    downloadAiFile(task._id, i, f.filename);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium"
+                  style={{
+                    backgroundColor: "var(--tg-theme-button-color)",
+                    color: "var(--tg-theme-button-text-color)",
+                  }}
+                >
+                  <Download size={12} />
+                  {f.filename}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Auto-solve indicator */}
+      {task.autoSolve && !task.aiAnswer && (
+        <div className="card mt-4 flex items-center gap-2" style={{ cursor: "default" }}>
+          <Loader2 size={14} className="animate-spin" style={{ color: "var(--tg-theme-button-color)" }} />
+          <span className="text-sm text-[var(--tg-theme-hint-color)]">AI решает задание...</span>
+        </div>
+      )}
+
+      {canReview && task.answers?.length > 0 && !showAnswers && (
         <button
           onClick={loadAnswers}
           className="mt-4 w-full py-3 rounded-xl font-medium text-sm"

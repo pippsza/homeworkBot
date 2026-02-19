@@ -48,12 +48,20 @@ async function main() {
   });
 
   if (MODE !== "webhook") {
-    bot.launch();
+    bot.launch().catch((err) => {
+      console.error("Bot polling failed:", err.message);
+      console.log("Server continues running without bot polling (API still works)");
+    });
     console.log("Bot started in polling mode");
   }
 
   process.once("SIGINT", () => bot.stop("SIGINT"));
   process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
+  // Prevent unhandled stream errors from crashing the server
+  process.on("unhandledRejection", (err) => {
+    console.error("[unhandledRejection]", err?.message || err);
+  });
 }
 
 main().catch(console.error);

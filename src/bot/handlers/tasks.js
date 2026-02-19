@@ -1,5 +1,5 @@
 const { Markup } = require("telegraf");
-const { isAdmin, isAnswerViewer } = require("../middleware/auth");
+const { isAdmin, isReviewer } = require("../middleware/auth");
 const { editOrSend, trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 const subjectService = require("../../services/subjectService");
@@ -30,7 +30,7 @@ async function showTask(ctx, taskId) {
   if (task.description) msg += `${task.description}\n\n---\n`;
 
   const buttons = [];
-  if ((await isAnswerViewer(ctx)) && task.answers?.length) {
+  if ((await isReviewer(ctx)) && task.answers?.length) {
     buttons.push([
       Markup.button.callback("📖 Показать ответы", `sa_${taskId}`),
     ]);
@@ -157,14 +157,33 @@ function tasksHandler(bot) {
 
   // Show answers
   bot.action(/^sa_([a-f0-9]{24})$/, async (ctx) => {
-    if (!(await isAnswerViewer(ctx))) {
+    if (!(await isReviewer(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
     const { task } = await subjectService.getTask(ctx.match[1]);
-    if (!task?.answers?.length) {
+    if (!task?.answers?.length && !task?.aiAnswerFiles?.length) {
       return ctx.answerCbQuery("❌ Нет ответов.");
     }
-    for (const ans of task.answers) {
+    // Send AI-generated files (LaTeX etc.)
+    if (task.aiAnswerFiles?.length) {
+      for (const file of task.aiAnswerFiles) {
+        try {
+          await trackSend(ctx, () =>
+            ctx.replyWithDocument(
+              { source: Buffer.from(file.content, "utf-8"), filename: file.filename },
+              {
+                caption: `📄 AI: ${file.filename}`,
+                disable_notification: !isPrivate(ctx),
+              }
+            )
+          );
+        } catch (e) {
+          console.error("[show_answers ai-file error]", e);
+        }
+      }
+    }
+    // Send regular answers
+    for (const ans of (task.answers || [])) {
       try {
         if (ans.type === "text") {
           await trackSend(ctx, () =>

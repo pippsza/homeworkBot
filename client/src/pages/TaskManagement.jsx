@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Bot, Loader2 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import BackButton from "../components/BackButton";
 import RoleGuard from "../components/RoleGuard";
@@ -26,6 +26,7 @@ function TaskManagementContent() {
   const [newAnswer, setNewAnswer] = useState("");
   const [answerFiles, setAnswerFiles] = useState([]);
   const [addingAnswer, setAddingAnswer] = useState(null);
+  const [solving, setSolving] = useState(null);
 
   const load = () => {
     apiFetch(`/subjects/${subjectId}`)
@@ -99,6 +100,18 @@ function TaskManagementContent() {
     } catch {
       showToast("Ошибка добавления", "error");
     }
+  };
+
+  const solveWithAI = async (taskId) => {
+    setSolving(taskId);
+    try {
+      await apiFetch(`/subjects/tasks/${taskId}/solve`, { method: "POST" });
+      showToast("AI решил задание");
+      load();
+    } catch (e) {
+      showToast(e.message || "Ошибка AI", "error");
+    }
+    setSolving(null);
   };
 
   if (loading) {
@@ -249,6 +262,30 @@ function TaskManagementContent() {
                         ))}
                       </div>
                     )}
+
+                    {/* AI Answer */}
+                    {t.aiAnswer && (
+                      <div className="p-2 rounded-lg" style={{ backgroundColor: "var(--tg-theme-secondary-bg-color)" }}>
+                        <div className="flex items-center gap-1 text-xs text-[var(--tg-theme-hint-color)] mb-1">
+                          <Bot size={12} /> AI ответ
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap">{t.aiAnswer}</p>
+                      </div>
+                    )}
+
+                    {/* Solve with AI button */}
+                    <button
+                      onClick={() => solveWithAI(t._id)}
+                      disabled={solving === t._id}
+                      className="flex items-center gap-1 text-xs font-medium disabled:opacity-50"
+                      style={{ color: "var(--tg-theme-button-color)" }}
+                    >
+                      {solving === t._id ? (
+                        <><Loader2 size={12} className="animate-spin" /> AI решает...</>
+                      ) : (
+                        <><Bot size={12} /> {t.aiAnswer ? "Перерешить с AI" : "Решить с AI"}</>
+                      )}
+                    </button>
 
                     {addingAnswer === t._id ? (
                       <div className="space-y-2">

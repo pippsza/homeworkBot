@@ -11,7 +11,7 @@ export default function SubjectDetail() {
   const { apiFetch } = useApi();
   const navigate = useNavigate();
   const [subject, setSubject] = useState(null);
-  const [canViewAnswers, setCanViewAnswers] = useState(false);
+  const [canReview, setCanReview] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,7 +21,7 @@ export default function SubjectDetail() {
     ])
       .then(([subj, user]) => {
         setSubject(subj);
-        setCanViewAnswers(user.isAnswerViewer);
+        setCanReview(user.isReviewer);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -104,7 +104,7 @@ export default function SubjectDetail() {
               </div>
               <div className="flex gap-1 text-xs text-[var(--tg-theme-hint-color)]">
                 {t.attachments?.length > 0 && <span><Paperclip size={12} />{t.attachments.length}</span>}
-                {canViewAnswers && t.answers?.length > 0 && <span><MessageSquare size={12} />{t.answers.length}</span>}
+                {canReview && t.answers?.length > 0 && <span><MessageSquare size={12} />{t.answers.length}</span>}
               </div>
             </div>
           ))}

@@ -24,6 +24,13 @@ const taskSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     attachments: [attachmentSchema],
     answers: [answerSchema],
+    aiAnswer: { type: String, default: "" },
+    aiAnswerFiles: [{
+      format: { type: String, enum: ["latex"] },
+      content: String,
+      filename: String,
+    }],
+    autoSolve: { type: Boolean, default: false },
   },
   { _id: true, timestamps: true }
 );

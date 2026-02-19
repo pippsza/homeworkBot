@@ -1,8 +1,9 @@
 const Settings = require("../models/Settings");
+const { AI_MODELS, MODEL_TASKS } = require("../config/aiModels");
 
 const DEFAULT_USERS = {
   admins: ["@pippsza"],
-  answerViewers: ["@pippsza"],
+  reviewers: ["@pippsza"],
   superusers: ["@pippsza"],
 };
 
@@ -24,10 +25,10 @@ module.exports = {
     );
   },
 
-  async isAnswerViewer(username) {
+  async isReviewer(username) {
     const s = await getSettings();
     return (
-      s.answerViewers.includes(username) || s.superusers.includes(username)
+      s.reviewers.includes(username) || s.superusers.includes(username)
     );
   },
 
@@ -55,6 +56,26 @@ module.exports = {
 
   async getAllUsers() {
     const s = await getSettings();
-    return [...new Set([...s.admins, ...s.answerViewers, ...s.superusers])];
+    return [...new Set([...s.admins, ...s.reviewers, ...s.superusers])];
+  },
+
+  async getModelSettings() {
+    const s = await getSettings();
+    const defaults = {};
+    for (const [task, cfg] of Object.entries(MODEL_TASKS)) {
+      defaults[task] = cfg.default;
+    }
+    return { ...defaults, ...s.models?.toObject?.() || s.models || {} };
+  },
+
+  async updateModelSetting(task, modelId) {
+    if (!MODEL_TASKS[task]) return false;
+    if (!AI_MODELS[modelId]) return false;
+    const s = await getSettings();
+    if (!s.models) s.models = {};
+    s.models[task] = modelId;
+    s.markModified("models");
+    await s.save();
+    return true;
   },
 };

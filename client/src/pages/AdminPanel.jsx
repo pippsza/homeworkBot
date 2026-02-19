@@ -1,14 +1,16 @@
 import { useNavigate } from "react-router-dom";
-import { Users, BookOpen, FileText, ChevronRight } from "lucide-react";
+import { Users, BookOpen, FileText, MessageSquareCode, Cpu, ChevronRight } from "lucide-react";
 import RoleGuard from "../components/RoleGuard";
 
 function AdminContent() {
   const navigate = useNavigate();
 
   const items = [
-    { path: "/admin/users", icon: Users, label: "Пользователи", desc: "Админы, просмотрщики, суперюзеры" },
+    { path: "/admin/users", icon: Users, label: "Пользователи", desc: "Админы, ревьюверы, суперюзеры" },
     { path: "/admin/subjects", icon: BookOpen, label: "Предметы", desc: "Предметы, задания, ответы" },
     { path: "/admin/infos", icon: FileText, label: "Информация", desc: "Добавление и редактирование инфо" },
+    { path: "/admin/prompts", icon: MessageSquareCode, label: "Промпты", desc: "Управление AI-промптами" },
+    { path: "/admin/models", icon: Cpu, label: "AI модели", desc: "Настройка моделей для задач" },
   ];
 
   return (

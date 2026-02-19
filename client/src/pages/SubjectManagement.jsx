@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, BookOpen } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import BackButton from "../components/BackButton";
 import RoleGuard from "../components/RoleGuard";
@@ -136,6 +136,14 @@ function SubjectManagementContent() {
                     </div>
                   </div>
                   <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => navigate(`/admin/subjects/${s._id}/knowledge`)}
+                      className="text-xs font-medium"
+                      style={{ color: "var(--tg-theme-button-color)" }}
+                      title="База знаний"
+                    >
+                      <BookOpen size={14} />
+                    </button>
                     <button
                       onClick={() => setEditing(s)}
                       className="text-xs font-medium"

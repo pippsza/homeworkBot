@@ -9,8 +9,10 @@ services:
       - .env
     environment:
       - MONGODB_URI=mongodb://mongo:27017/homeworkbot
+      - QDRANT_URL=http://qdrant:6333
     depends_on:
       - mongo
+      - qdrant
 
   homework-client:
     image: pippsza/homework-client:latest
@@ -28,5 +30,15 @@ services:
     volumes:
       - mongo_data:/data/db
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: HomeworkQdrant
+    restart: unless-stopped
+    expose:
+      - "6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
 volumes:
   mongo_data:
+  qdrant_data:

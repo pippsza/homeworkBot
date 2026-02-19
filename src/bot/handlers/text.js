@@ -9,6 +9,11 @@ const { subjectEditMenu } = require("./subjects");
 const { taskEditMenu, showTask } = require("./tasks");
 const { infoEditMenu } = require("./infos");
 const { showSettings } = require("./settings");
+const { isAdmin, isReviewer } = require("../middleware/auth");
+const { processQuery } = require("../../services/orchestratorService");
+const ChatHistory = require("../../models/ChatHistory");
+const { mdToHtml } = require("./ai");
+const { isForwarded, getMessageText: getHwMsgText, updateCollectMessage } = require("./homework");
 
 async function deleteUserMsg(ctx) {
   await ctx
@@ -45,8 +50,101 @@ function textHandler(bot) {
       return;
     }
 
+    // Forwarded messages → collect for homework creation (admins only, private chat)
+    const preState = inputState.get(ctx.from.id);
+    if (isForwarded(ctx.message) && isPrivate(ctx) && (await isAdmin(ctx))) {
+      const msgText = getHwMsgText(ctx.message);
+      if (preState?.mode === "collect_hw") {
+        // Append to existing collection
+        if (msgText) preState.messages.push(msgText);
+        inputState.set(ctx.from.id, preState);
+        await updateCollectMessage(ctx, preState);
+        return;
+      }
+      // Start new collection
+      const newState = {
+        mode: "collect_hw",
+        messages: msgText ? [msgText] : [],
+        attachments: [],
+        statusMessageId: null,
+      };
+      inputState.set(ctx.from.id, newState);
+      await updateCollectMessage(ctx, newState);
+      return;
+    }
+
+    // If in collect_hw mode and non-forwarded text → also append (user adds context)
+    if (preState?.mode === "collect_hw" && isPrivate(ctx)) {
+      const text = ctx.message.text?.trim();
+      if (text) {
+        preState.messages.push(text);
+        inputState.set(ctx.from.id, preState);
+        await updateCollectMessage(ctx, preState);
+      }
+      return;
+    }
+
+    // AI conversation: reply to bot message OR ai_chat mode
     const state = inputState.get(ctx.from.id);
-    if (!state) return;
+    const isAiReply =
+      !state &&
+      ctx.message.reply_to_message?.from?.id === ctx.botInfo.id;
+    const isAiChat = state?.mode === "ai_chat";
+
+    if ((isAiReply || isAiChat) && (await isReviewer(ctx))) {
+      const question = ctx.message.text.trim();
+      if (!question) return;
+
+      const thinking = await ctx.reply("Думаю...", {
+        disable_notification: !isPrivate(ctx),
+      });
+
+      try {
+        const history = await ChatHistory.findOne({ telegramUserId: ctx.from.id });
+        const recentMessages = (history?.messages || [])
+          .slice(-10)
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const text = await processQuery(question, recentMessages);
+        const htmlText = mdToHtml(text).slice(0, 4096);
+
+        await ctx.telegram
+          .editMessageText(ctx.chat.id, thinking.message_id, null, htmlText, {
+            parse_mode: "HTML",
+          })
+          .catch(() =>
+            ctx.telegram.editMessageText(
+              ctx.chat.id, thinking.message_id, null, text.slice(0, 4096)
+            )
+          );
+
+        // Keep user in ai_chat mode
+        inputState.set(ctx.from.id, { mode: "ai_chat" });
+
+        await ChatHistory.findOneAndUpdate(
+          { telegramUserId: ctx.from.id },
+          {
+            $push: {
+              messages: {
+                $each: [
+                  { role: "user", content: question },
+                  { role: "assistant", content: text },
+                ],
+              },
+            },
+          },
+          { upsert: true }
+        ).catch((e) => console.error("[ai reply] history save error:", e.message));
+      } catch (e) {
+        console.error("[ai reply] error:", e);
+        await ctx.telegram
+          .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка AI. Попробуйте позже.")
+          .catch(() => {});
+      }
+      return;
+    }
+
+    if (!state || state.mode === "ai_chat") return;
 
     const text = ctx.message.text.trim();
 
@@ -65,7 +163,7 @@ function textHandler(bot) {
       }
       const roleMap = {
         add_admin: { field: "admins", label: "админ" },
-        add_answer_viewer: { field: "answerViewers", label: "просмотрщик ответов" },
+        add_reviewer: { field: "reviewers", label: "ревьювер" },
         add_superuser: { field: "superusers", label: "суперпользователь" },
       };
       const { field, label } = roleMap[state.step];

@@ -7,6 +7,7 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
   const [emoji, setEmoji] = useState(task?.emoji || "📄");
   const [description, setDescription] = useState(task?.description || "");
   const [attachments, setAttachments] = useState(task?.attachments || []);
+  const [autoSolve, setAutoSolve] = useState(task?.autoSolve || false);
 
   const handleSubmit = () => {
     if (!title.trim()) return;
@@ -15,6 +16,7 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
       emoji: emoji.trim() || "📄",
       description: description.trim() || undefined,
       attachments,
+      autoSolve,
     });
   };
 
@@ -38,6 +40,16 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
       />
 
       <FileUpload attachments={attachments} onChange={setAttachments} />
+
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={autoSolve}
+          onChange={(e) => setAutoSolve(e.target.checked)}
+          className="w-4 h-4 rounded"
+        />
+        <span className="text-sm">Решить с помощью AI</span>
+      </label>
 
       <div className="flex gap-2 pt-1">
         <button

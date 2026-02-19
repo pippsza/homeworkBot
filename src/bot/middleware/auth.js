@@ -9,9 +9,9 @@ async function isAdmin(ctx) {
   return u ? await userService.isAdmin(u) : false;
 }
 
-async function isAnswerViewer(ctx) {
+async function isReviewer(ctx) {
   const u = getUsername(ctx);
-  return u ? await userService.isAnswerViewer(u) : false;
+  return u ? await userService.isReviewer(u) : false;
 }
 
 async function isSuperuser(ctx) {
@@ -19,4 +19,4 @@ async function isSuperuser(ctx) {
   return u ? await userService.isSuperuser(u) : false;
 }
 
-module.exports = { isAdmin, isAnswerViewer, isSuperuser, getUsername };
+module.exports = { isAdmin, isReviewer, isSuperuser, getUsername };

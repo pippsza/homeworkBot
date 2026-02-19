@@ -17,7 +17,7 @@ router.get("/me", async (req, res) => {
   res.json({
     username,
     isAdmin: await userService.isAdmin(username),
-    isAnswerViewer: await userService.isAnswerViewer(username),
+    isReviewer: await userService.isReviewer(username),
     isSuperuser: await userService.isSuperuser(username),
   });
 });
@@ -27,7 +27,7 @@ router.get("/settings", requireSuperuser, async (req, res) => {
   const settings = await userService.getSettings();
   res.json({
     admins: settings.admins,
-    answerViewers: settings.answerViewers,
+    reviewers: settings.reviewers,
     superusers: settings.superusers,
   });
 });
@@ -35,7 +35,7 @@ router.get("/settings", requireSuperuser, async (req, res) => {
 // Add/remove users
 const roles = [
   { path: "admins", field: "admins" },
-  { path: "viewers", field: "answerViewers" },
+  { path: "reviewers", field: "reviewers" },
   { path: "superusers", field: "superusers" },
 ];
 
