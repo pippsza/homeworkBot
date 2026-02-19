@@ -135,8 +135,8 @@ function PromptManagementContent() {
             ) : (
               <div>
                 <pre
-                  className="text-xs whitespace-pre-wrap opacity-70 max-h-24 overflow-hidden"
-                  style={{ fontFamily: "inherit" }}
+                  className="text-xs opacity-70 max-h-24 overflow-hidden"
+                  style={{ fontFamily: "inherit", whiteSpace: "pre-wrap" }}
                 >
                   {p.content}
                 </pre>

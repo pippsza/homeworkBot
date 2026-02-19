@@ -117,9 +117,10 @@ async function processQueryStream(messages, systemPrompt, extras = {}) {
     messages: await convertToModelMessages(messages),
   };
 
-  // Pass through extra options (tools, maxSteps, etc.)
+  // Pass through extra options (tools, maxSteps, toolChoice, etc.)
   if (extras.tools) streamOpts.tools = extras.tools;
   if (extras.maxSteps) streamOpts.maxSteps = extras.maxSteps;
+  if (extras.toolChoice) streamOpts.toolChoice = extras.toolChoice;
 
   return streamText(streamOpts);
 }

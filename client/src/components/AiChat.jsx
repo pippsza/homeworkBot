@@ -250,13 +250,14 @@ export default function AiChat() {
                 {text && (
                   <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm ${msg.role === "user" ? "whitespace-pre-wrap" : ""}`}
+                      className="max-w-[85%] px-3 py-2 rounded-2xl text-sm"
                       style={
                         msg.role === "user"
                           ? {
                               backgroundColor: "var(--tg-theme-button-color)",
                               color: "var(--tg-theme-button-text-color)",
                               borderBottomRightRadius: "4px",
+                              whiteSpace: "pre-wrap",
                             }
                           : {
                               backgroundColor:

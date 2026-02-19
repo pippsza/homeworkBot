@@ -1,6 +1,5 @@
 const { Router } = require("express");
-const { tool } = require("ai");
-const { z } = require("zod");
+const { tool, jsonSchema } = require("ai");
 const userService = require("../../services/userService");
 const promptService = require("../../services/promptService");
 const subjectService = require("../../services/subjectService");
@@ -36,16 +35,20 @@ router.post("/chat", requireReviewer, async (req, res) => {
         .map((s) => `- ${s.emoji || "📚"} ${s.name} (ID: ${s._id})`)
         .join("\n");
 
-      systemPrompt += `\n\nТы можешь создавать домашние задания. Доступные предметы:\n${subjectsList}\nКогда пользователь просит создать домашку/задание — используй инструмент createHomework. Обязательно укажи subjectId из списка предметов.`;
+      systemPrompt += `\n\nУ тебя есть инструмент createHomework для создания домашних заданий.\nДоступные предметы:\n${subjectsList}\n\nКОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ СОЗДАТЬ ДОМАШКУ/ЗАДАНИЕ — ТЫ ОБЯЗАН ВЫЗВАТЬ ИНСТРУМЕНТ createHomework.\nНИКОГДА не отвечай текстом "я создал задание" без реального вызова инструмента.\nВсегда указывай subjectId из списка предметов выше. Название и описание придумай на основе запроса пользователя.`;
 
       extras.tools = {
         createHomework: tool({
           description: "Создать домашнее задание. Используй когда пользователь просит создать, добавить домашку или задание.",
-          parameters: z.object({
-            subjectId: z.string().describe("ID предмета из списка доступных предметов"),
-            title: z.string().describe("Название задания (краткое, 5-15 слов)"),
-            emoji: z.string().optional().describe("Эмодзи для задания (по умолчанию 📄)"),
-            description: z.string().describe("Полное описание задания"),
+          parameters: jsonSchema({
+            type: "object",
+            properties: {
+              subjectId: { type: "string", description: "ID предмета из списка доступных предметов" },
+              title: { type: "string", description: "Название задания (краткое, 5-15 слов)" },
+              emoji: { type: "string", description: "Эмодзи для задания (по умолчанию 📄)" },
+              description: { type: "string", description: "Полное описание задания" },
+            },
+            required: ["subjectId", "title", "description"],
           }),
           execute: async ({ subjectId, title, emoji, description }) => {
             console.log("[ai tool] createHomework:", { subjectId, title });
@@ -67,8 +70,10 @@ router.post("/chat", requireReviewer, async (req, res) => {
         }),
       };
       extras.maxSteps = 2;
+      extras.toolChoice = "auto";
     }
 
+    console.log("[ai] chat extras:", { hasTools: !!extras.tools, toolNames: extras.tools ? Object.keys(extras.tools) : [], maxSteps: extras.maxSteps });
     const result = await processQueryStream(messages, systemPrompt, extras);
 
     result.pipeUIMessageStreamToResponse(res);

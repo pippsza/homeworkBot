@@ -224,7 +224,7 @@ function TaskManagementContent() {
                 {expandedTask === t._id && (
                   <div className="mt-3 pt-3 border-t border-[var(--tg-theme-hint-color)]/20 space-y-3">
                     {t.description && (
-                      <p className="text-sm whitespace-pre-wrap">{t.description}</p>
+                      <p className="text-sm" style={{ whiteSpace: "pre-wrap" }}>{t.description}</p>
                     )}
 
                     {t.attachments?.length > 0 && (
@@ -269,7 +269,7 @@ function TaskManagementContent() {
                         <div className="flex items-center gap-1 text-xs text-[var(--tg-theme-hint-color)] mb-1">
                           <Bot size={12} /> AI ответ
                         </div>
-                        <p className="text-sm whitespace-pre-wrap">{t.aiAnswer}</p>
+                        <p className="text-sm" style={{ whiteSpace: "pre-wrap" }}>{t.aiAnswer}</p>
                       </div>
                     )}
 

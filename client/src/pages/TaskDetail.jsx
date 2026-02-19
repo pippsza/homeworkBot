@@ -117,7 +117,7 @@ export default function TaskDetail() {
       </div>
 
       {task.description && (
-        <div className="card mb-4 whitespace-pre-wrap" style={{ cursor: "default" }}>
+        <div className="card mb-4" style={{ cursor: "default", whiteSpace: "pre-wrap" }}>
           {task.description}
         </div>
       )}
@@ -187,7 +187,7 @@ export default function TaskDetail() {
           </h3>
           {answers.map((ans, i) => (
             <div key={ans._id || i} className="card mb-2" style={{ cursor: "default" }}>
-              {ans.type === "text" && <p className="whitespace-pre-wrap">{ans.content}</p>}
+              {ans.type === "text" && <p style={{ whiteSpace: "pre-wrap" }}>{ans.content}</p>}
               {ans.type === "photo" && (
                 <div className="relative">
                   <img

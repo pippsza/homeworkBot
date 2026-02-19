@@ -46,7 +46,7 @@ export default function InfoDetail() {
       </div>
 
       {info.description && (
-        <div className="card whitespace-pre-wrap mb-4" style={{ cursor: "default" }}>
+        <div className="card mb-4" style={{ cursor: "default", whiteSpace: "pre-wrap" }}>
           {info.description}
         </div>
       )}
