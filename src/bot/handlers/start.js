@@ -1,5 +1,5 @@
 const { Markup } = require("telegraf");
-const { isAdmin } = require("../middleware/auth");
+const { isSuperadmin } = require("../middleware/auth");
 const { editOrSend, trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 
@@ -12,13 +12,11 @@ async function mainMenu(ctx) {
     [Markup.button.callback("📚 Предметы", "subjects")],
     [Markup.button.callback("ℹ️ Информация", "infos")],
   ];
-  if (await isAdmin(ctx)) {
+  if (await isSuperadmin(ctx)) {
     buttons.push([
       Markup.button.callback("⚙️ Настройки", "settings"),
       Markup.button.callback("🛠 Инструменты", "tools"),
     ]);
-  } else {
-    buttons.push([Markup.button.callback("⚙️ Настройки", "settings")]);
   }
   if (isPrivate(ctx) && process.env.WEBAPP_URL) {
     buttons.push([

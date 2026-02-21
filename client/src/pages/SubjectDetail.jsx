@@ -21,7 +21,7 @@ export default function SubjectDetail() {
     ])
       .then(([subj, user]) => {
         setSubject(subj);
-        setCanReview(user.isReviewer);
+        setCanReview(user.isStudent);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

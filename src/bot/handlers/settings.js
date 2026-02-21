@@ -1,5 +1,5 @@
 const { Markup } = require("telegraf");
-const { isSuperuser, isAdmin } = require("../middleware/auth");
+const { isSuperadmin } = require("../middleware/auth");
 const { editOrSend, trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 const userService = require("../../services/userService");
@@ -8,49 +8,37 @@ const { AI_MODELS, MODEL_TASKS } = require("../../config/aiModels");
 async function showSettings(ctx) {
   const s = await userService.getSettings();
   let msg = "⚙️ Настройки\n\n";
-  msg += "📋 Админы (управление предметами, заданиями, информацией):\n" + (s.admins.join("\n") || "Пусто") + "\n\n";
   msg +=
-    "👀 Ревьюверы (просмотр ответов к заданиям):\n" +
-    (s.reviewers.join("\n") || "Пусто") +
+    "👥 Студенты (предметы, задания, ответы, AI):\n" +
+    (s.students?.length ? s.students.join("\n") : "Пусто") +
     "\n\n";
   msg +=
-    "🔥 Суперпользователи (управление ролями):\n" +
-    (s.superusers.join("\n") || "Пусто") +
+    "🔥 Супер-админы (админ-панель, модели, юзеры):\n" +
+    (s.superadmins?.length ? s.superadmins.join("\n") : "Пусто") +
     "\n\n---";
 
   const buttons = [];
-  if (await isSuperuser(ctx)) {
+  if (await isSuperadmin(ctx)) {
     buttons.push([
-      Markup.button.callback("➕ Админ", "add_admin"),
-      Markup.button.callback("➕ Reviewer", "add_reviewer"),
-      Markup.button.callback("➕ Superuser", "add_superuser"),
+      Markup.button.callback("➕ Студент", "add_student"),
+      Markup.button.callback("➕ Супер-админ", "add_superadmin"),
     ]);
-    for (const u of s.admins) {
+    for (const u of s.students || []) {
       buttons.push([
         Markup.button.callback(
-          `🗑 ${u} (admin)`,
-          `ra_${u.slice(1)}`
+          `🗑 ${u} (студент)`,
+          `rst_${u.slice(1)}`
         ),
       ]);
     }
-    for (const u of s.reviewers) {
+    for (const u of s.superadmins || []) {
       buttons.push([
         Markup.button.callback(
-          `🗑 ${u} (reviewer)`,
-          `rv_${u.slice(1)}`
+          `🗑 ${u} (супер)`,
+          `rsa_${u.slice(1)}`
         ),
       ]);
     }
-    for (const u of s.superusers) {
-      buttons.push([
-        Markup.button.callback(
-          `🗑 ${u} (super)`,
-          `rs_${u.slice(1)}`
-        ),
-      ]);
-    }
-  }
-  if (await isSuperuser(ctx) || await isAdmin(ctx)) {
     buttons.push([Markup.button.callback("🤖 AI модели", "ai_models")]);
   }
   buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
@@ -64,14 +52,13 @@ function settingsHandler(bot) {
 
   // Add users
   const addActions = [
-    { action: "add_admin", step: "add_admin", prompt: "Введите username админа (с @):" },
-    { action: "add_reviewer", step: "add_reviewer", prompt: "Введите username ревьювера (с @):" },
-    { action: "add_superuser", step: "add_superuser", prompt: "Введите username суперпользователя (с @):" },
+    { action: "add_student", step: "add_student", prompt: "Введите username студента (с @):" },
+    { action: "add_superadmin", step: "add_superadmin", prompt: "Введите username супер-админа (с @):" },
   ];
 
   for (const { action, step, prompt } of addActions) {
     bot.action(action, async (ctx) => {
-      if (!(await isSuperuser(ctx))) {
+      if (!(await isSuperadmin(ctx))) {
         return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
       }
       inputState.set(ctx.from.id, { mode: "add_user", step });
@@ -88,15 +75,14 @@ function settingsHandler(bot) {
 
   // Confirm remove user
   const removeConfirms = [
-    { pattern: "ra", label: "админа", field: "admins", confirm: "yra" },
-    { pattern: "rv", label: "ревьювера", field: "reviewers", confirm: "yrv" },
-    { pattern: "rs", label: "суперпользователя", field: "superusers", confirm: "yrs" },
+    { pattern: "rst", label: "студента", field: "students", confirm: "yrst" },
+    { pattern: "rsa", label: "супер-админа", field: "superadmins", confirm: "yrsa" },
   ];
 
   for (const { pattern, label, field, confirm } of removeConfirms) {
     // Show confirmation
     bot.action(new RegExp(`^${pattern}_(.+)$`), async (ctx) => {
-      if (!(await isSuperuser(ctx))) {
+      if (!(await isSuperadmin(ctx))) {
         return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
       }
       const username = `@${ctx.match[1]}`;
@@ -112,7 +98,7 @@ function settingsHandler(bot) {
 
     // Execute removal
     bot.action(new RegExp(`^${confirm}_(.+)$`), async (ctx) => {
-      if (!(await isSuperuser(ctx))) {
+      if (!(await isSuperadmin(ctx))) {
         return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
       }
       const username = `@${ctx.match[1]}`;
@@ -124,9 +110,8 @@ function settingsHandler(bot) {
     });
   }
 
-  // --- AI Model settings ---
+  // --- AI Model settings (will be rewritten in Phase 3) ---
 
-  // Task key mapping for short callback names
   const taskMap = { chat: "chat", orch: "orchestrator", solve: "autoSolve" };
   const taskShort = { chat: "chat", orchestrator: "orch", autoSolve: "solve" };
 
@@ -148,15 +133,14 @@ function settingsHandler(bot) {
   }
 
   bot.action("ai_models", async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isSuperadmin(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
     await showModelMenu(ctx);
   });
 
-  // Show model selection for a task
   bot.action(/^aim_(chat|orch|solve)$/, async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isSuperadmin(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
     const short = ctx.match[1];
@@ -175,9 +159,8 @@ function settingsHandler(bot) {
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons));
   });
 
-  // Save model selection
   bot.action(/^ams_(chat|orch|solve)_(.+)$/, async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isSuperadmin(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
     const short = ctx.match[1];

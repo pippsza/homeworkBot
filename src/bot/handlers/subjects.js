@@ -1,5 +1,5 @@
 const { Markup } = require("telegraf");
-const { isAdmin } = require("../middleware/auth");
+const { isStudent } = require("../middleware/auth");
 const { editOrSend, trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 const subjectService = require("../../services/subjectService");
@@ -22,7 +22,7 @@ function subjectsHandler(bot) {
     const subjects = await subjectService.getAll();
     if (subjects.length === 0) {
       const buttons = [];
-      if (await isAdmin(ctx)) {
+      if (await isStudent(ctx)) {
         buttons.push([
           Markup.button.callback("➕ Добавить предмет", "add_subject"),
         ]);
@@ -50,7 +50,7 @@ function subjectsHandler(bot) {
       );
     }
     const buttons = [...subjectButtons];
-    if (await isAdmin(ctx)) {
+    if (await isStudent(ctx)) {
       buttons.push([
         Markup.button.callback("➕ Добавить предмет", "add_subject"),
       ]);
@@ -106,7 +106,7 @@ function subjectsHandler(bot) {
       );
     }
     const buttons = [...taskButtons];
-    if (await isAdmin(ctx)) {
+    if (await isStudent(ctx)) {
       buttons.push([
         Markup.button.callback("➕ Добавить задание", `add_task_${id}`),
       ]);
@@ -136,7 +136,7 @@ function subjectsHandler(bot) {
 
   // Execute delete subject
   bot.action(/^sry_([a-f0-9]{24})$/, async (ctx) => {
-    if (!(await isAdmin(ctx)))
+    if (!(await isStudent(ctx)))
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     const id = ctx.match[1];
     const removed = await subjectService.delete(id);
@@ -162,7 +162,7 @@ function subjectsHandler(bot) {
       );
     }
     const buttons = [...subjectButtons];
-    if (await isAdmin(ctx))
+    if (await isStudent(ctx))
       buttons.push([
         Markup.button.callback("➕ Добавить предмет", "add_subject"),
       ]);
@@ -172,7 +172,7 @@ function subjectsHandler(bot) {
 
   // Add subject
   bot.action("add_subject", async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isStudent(ctx))) {
       return trackSend(ctx, () =>
         ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
       );

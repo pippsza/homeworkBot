@@ -1,3 +1,4 @@
+// Legacy catalog (used by old bot settings menu, will be removed in Phase 3)
 const AI_MODELS = {
   "gemini-2.5-flash-lite": {
     name: "Gemini 2.5 Flash Lite",
@@ -25,10 +26,45 @@ const AI_MODELS = {
   },
 };
 
+// Legacy tasks (used by old bot settings menu, will be removed in Phase 3)
 const MODEL_TASKS = {
   chat: { label: "💬 AI-чат", default: "gemini-2.5-flash-lite" },
   orchestrator: { label: "🧠 Оркестратор", default: "gemini-2.5-flash-lite" },
   autoSolve: { label: "🤖 Авторешение", default: "gemini-2.5-flash" },
 };
 
-module.exports = { AI_MODELS, MODEL_TASKS };
+// New 5-role system for multi-provider AI
+const MODEL_ROLES = {
+  chat: {
+    label: "💬 AI-чат",
+    description: "Разговорный AI в боте и Mini App",
+    default: { provider: "google", modelId: "gemini-2.5-flash-lite" },
+    requirements: { supportsToolCalling: true },
+  },
+  solveText: {
+    label: "🤖 Авторешение (текст)",
+    description: "Решение текстовых задач",
+    default: { provider: "google", modelId: "gemini-2.5-flash" },
+    requirements: {},
+  },
+  solveTextPro: {
+    label: "🧠 Авторешение PRO (текст)",
+    description: "Сложные задачи, требующие рассуждений",
+    default: { provider: "google", modelId: "gemini-2.5-pro" },
+    requirements: { supportsReasoning: true },
+  },
+  solveImage: {
+    label: "🖼️ Авторешение (с фото)",
+    description: "Решение задач с изображениями",
+    default: { provider: "google", modelId: "gemini-2.5-flash" },
+    requirements: { supportsVision: true },
+  },
+  solveImagePro: {
+    label: "🖼️🧠 Авторешение PRO (с фото)",
+    description: "Сложные задачи с изображениями",
+    default: { provider: "google", modelId: "gemini-2.5-pro" },
+    requirements: { supportsVision: true, supportsReasoning: true },
+  },
+};
+
+module.exports = { AI_MODELS, MODEL_TASKS, MODEL_ROLES };

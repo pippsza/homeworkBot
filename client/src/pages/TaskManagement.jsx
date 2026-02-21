@@ -361,7 +361,7 @@ function TaskManagementContent() {
 export default function TaskManagement() {
   return (
     <RoleGuard
-      role="admin"
+      role="superadmin"
       fallback={<div className="p-4 text-center text-[var(--tg-theme-hint-color)]">Нет доступа</div>}
     >
       <TaskManagementContent />

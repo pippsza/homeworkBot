@@ -4,19 +4,14 @@ function getUsername(ctx) {
   return ctx.from ? `@${ctx.from.username}` : null;
 }
 
-async function isAdmin(ctx) {
+async function isStudent(ctx) {
   const u = getUsername(ctx);
-  return u ? await userService.isAdmin(u) : false;
+  return u ? await userService.isStudent(u) : false;
 }
 
-async function isReviewer(ctx) {
+async function isSuperadmin(ctx) {
   const u = getUsername(ctx);
-  return u ? await userService.isReviewer(u) : false;
+  return u ? await userService.isSuperadmin(u) : false;
 }
 
-async function isSuperuser(ctx) {
-  const u = getUsername(ctx);
-  return u ? await userService.isSuperuser(u) : false;
-}
-
-module.exports = { isAdmin, isReviewer, isSuperuser, getUsername };
+module.exports = { isStudent, isSuperadmin, getUsername };

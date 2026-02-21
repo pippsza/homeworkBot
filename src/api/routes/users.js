@@ -3,9 +3,9 @@ const userService = require("../../services/userService");
 
 const router = Router();
 
-async function requireSuperuser(req, res, next) {
+async function requireSuperadmin(req, res, next) {
   const username = `@${req.telegramUser?.username}`;
-  if (!(await userService.isSuperuser(username))) {
+  if (!(await userService.isSuperadmin(username))) {
     return res.status(403).json({ error: "Forbidden" });
   }
   next();
@@ -16,38 +16,35 @@ router.get("/me", async (req, res) => {
   const username = `@${req.telegramUser?.username}`;
   res.json({
     username,
-    isAdmin: await userService.isAdmin(username),
-    isReviewer: await userService.isReviewer(username),
-    isSuperuser: await userService.isSuperuser(username),
+    isStudent: await userService.isStudent(username),
+    isSuperadmin: await userService.isSuperadmin(username),
   });
 });
 
-// Get all users (superuser only)
-router.get("/settings", requireSuperuser, async (req, res) => {
+// Get all users (superadmin only)
+router.get("/settings", requireSuperadmin, async (req, res) => {
   const settings = await userService.getSettings();
   res.json({
-    admins: settings.admins,
-    reviewers: settings.reviewers,
-    superusers: settings.superusers,
+    students: settings.students || [],
+    superadmins: settings.superadmins || [],
   });
 });
 
 // Add/remove users
 const roles = [
-  { path: "admins", field: "admins" },
-  { path: "reviewers", field: "reviewers" },
-  { path: "superusers", field: "superusers" },
+  { path: "students", field: "students" },
+  { path: "superadmins", field: "superadmins" },
 ];
 
 for (const { path, field } of roles) {
-  router.post(`/${path}`, requireSuperuser, async (req, res) => {
+  router.post(`/${path}`, requireSuperadmin, async (req, res) => {
     const { username } = req.body;
     if (!username) return res.status(400).json({ error: "Username required" });
     const added = await userService.addUser(field, username);
     res.json({ success: added });
   });
 
-  router.delete(`/${path}/:username`, requireSuperuser, async (req, res) => {
+  router.delete(`/${path}/:username`, requireSuperadmin, async (req, res) => {
     const username = `@${req.params.username}`;
     const removed = await userService.removeUser(field, username);
     res.json({ success: removed });

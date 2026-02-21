@@ -26,7 +26,7 @@ export default function TaskDetail() {
     ])
       .then(([taskData, user]) => {
         setData(taskData);
-        setCanReview(user.isReviewer);
+        setCanReview(user.isStudent);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

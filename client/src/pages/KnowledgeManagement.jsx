@@ -246,7 +246,7 @@ function KnowledgeContent() {
 export default function KnowledgeManagement() {
   return (
     <RoleGuard
-      role="admin"
+      role="superadmin"
       fallback={<div className="p-4 text-center text-[var(--tg-theme-hint-color)]">Нет доступа</div>}
     >
       <KnowledgeContent />

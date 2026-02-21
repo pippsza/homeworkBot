@@ -1,5 +1,5 @@
 const { Markup } = require("telegraf");
-const { isAdmin, isReviewer } = require("../middleware/auth");
+const { isStudent } = require("../middleware/auth");
 const { editOrSend, trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 const subjectService = require("../../services/subjectService");
@@ -30,7 +30,7 @@ async function showTask(ctx, taskId) {
   if (task.description) msg += `${task.description}\n\n---\n`;
 
   const buttons = [];
-  if ((await isReviewer(ctx)) && task.answers?.length) {
+  if ((await isStudent(ctx)) && task.answers?.length) {
     buttons.push([
       Markup.button.callback("📖 Показать ответы", `sa_${taskId}`),
     ]);
@@ -43,7 +43,7 @@ async function showTask(ctx, taskId) {
       ),
     ]);
   }
-  if (await isAdmin(ctx)) {
+  if (await isStudent(ctx)) {
     buttons.push([
       Markup.button.callback("➕ Добавить ответ", `aa_${taskId}`),
     ]);
@@ -81,7 +81,7 @@ function tasksHandler(bot) {
 
   // Execute delete task
   bot.action(/^try_([a-f0-9]{24})$/, async (ctx) => {
-    if (!(await isAdmin(ctx)))
+    if (!(await isStudent(ctx)))
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     const taskId = ctx.match[1];
     const result = await subjectService.deleteTask(taskId);
@@ -112,7 +112,7 @@ function tasksHandler(bot) {
       );
     }
     const buttons = [...taskButtons];
-    if (await isAdmin(ctx)) {
+    if (await isStudent(ctx)) {
       buttons.push([
         Markup.button.callback(
           "➕ Добавить задание",
@@ -157,7 +157,7 @@ function tasksHandler(bot) {
 
   // Show answers
   bot.action(/^sa_([a-f0-9]{24})$/, async (ctx) => {
-    if (!(await isReviewer(ctx))) {
+    if (!(await isStudent(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
     const { task } = await subjectService.getTask(ctx.match[1]);
@@ -211,7 +211,7 @@ function tasksHandler(bot) {
 
   // Add task
   bot.action(/^add_task_([a-f0-9]{24})$/, async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isStudent(ctx))) {
       return trackSend(ctx, () =>
         ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
       );
@@ -238,7 +238,7 @@ function tasksHandler(bot) {
 
   // Add answer
   bot.action(/^aa_([a-f0-9]{24})$/, async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isStudent(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
     const taskId = ctx.match[1];

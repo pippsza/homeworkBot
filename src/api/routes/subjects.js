@@ -5,9 +5,9 @@ const { solveTask } = require("../../services/orchestratorService");
 
 const router = Router();
 
-async function requireAdmin(req, res, next) {
+async function requireStudent(req, res, next) {
   const username = `@${req.telegramUser?.username}`;
-  if (!(await userService.isAdmin(username))) {
+  if (!(await userService.isStudent(username))) {
     return res.status(403).json({ error: "Forbidden" });
   }
   next();
@@ -27,27 +27,27 @@ router.get("/:id", async (req, res) => {
 });
 
 // Create subject
-router.post("/", requireAdmin, async (req, res) => {
+router.post("/", requireStudent, async (req, res) => {
   const subject = await subjectService.create(req.body);
   res.status(201).json(subject);
 });
 
 // Update subject
-router.put("/:id", requireAdmin, async (req, res) => {
+router.put("/:id", requireStudent, async (req, res) => {
   const subject = await subjectService.update(req.params.id, req.body);
   if (!subject) return res.status(404).json({ error: "Not found" });
   res.json(subject);
 });
 
 // Delete subject
-router.delete("/:id", requireAdmin, async (req, res) => {
+router.delete("/:id", requireStudent, async (req, res) => {
   const subject = await subjectService.delete(req.params.id);
   if (!subject) return res.status(404).json({ error: "Not found" });
   res.json({ success: true });
 });
 
 // Add task to subject
-router.post("/:id/tasks", requireAdmin, async (req, res) => {
+router.post("/:id/tasks", requireStudent, async (req, res) => {
   const task = await subjectService.addTask(req.params.id, req.body);
   if (!task) return res.status(404).json({ error: "Subject not found" });
   res.status(201).json(task);
@@ -55,7 +55,13 @@ router.post("/:id/tasks", requireAdmin, async (req, res) => {
   // Auto-solve in background if requested
   if (req.body.autoSolve) {
     const subject = await subjectService.getById(req.params.id);
-    solveTask(task, subject)
+    const tracking = {
+      userId: String(req.telegramUser?.id || "anon"),
+      operationType: "solve",
+      feature: "auto-solve-create",
+      endpoint: "/api/subjects/:id/tasks",
+    };
+    solveTask(task, subject, tracking)
       .then(({ text, files }) => {
         const update = { aiAnswer: text };
         if (files.length) update.aiAnswerFiles = files;
@@ -73,7 +79,7 @@ router.get("/tasks/:taskId", async (req, res) => {
 });
 
 // Update task
-router.put("/tasks/:taskId", requireAdmin, async (req, res) => {
+router.put("/tasks/:taskId", requireStudent, async (req, res) => {
   const result = await subjectService.updateTask(req.params.taskId, req.body);
   if (!result) return res.status(404).json({ error: "Not found" });
   res.json(result.task);
@@ -81,7 +87,13 @@ router.put("/tasks/:taskId", requireAdmin, async (req, res) => {
   // Auto-solve in background if requested
   if (req.body.autoSolve && !result.task.aiAnswer) {
     const { subject } = await subjectService.getTask(req.params.taskId);
-    solveTask(result.task, subject)
+    const tracking = {
+      userId: String(req.telegramUser?.id || "anon"),
+      operationType: "solve",
+      feature: "auto-solve-update",
+      endpoint: "/api/subjects/tasks/:taskId",
+    };
+    solveTask(result.task, subject, tracking)
       .then(({ text, files }) => {
         const update = { aiAnswer: text };
         if (files.length) update.aiAnswerFiles = files;
@@ -92,19 +104,24 @@ router.put("/tasks/:taskId", requireAdmin, async (req, res) => {
 });
 
 // Delete task
-router.delete("/tasks/:taskId", requireAdmin, async (req, res) => {
+router.delete("/tasks/:taskId", requireStudent, async (req, res) => {
   const result = await subjectService.deleteTask(req.params.taskId);
   if (!result) return res.status(404).json({ error: "Not found" });
   res.json({ success: true });
 });
 
-// Force solve task with AI (admin)
-router.post("/tasks/:taskId/solve", requireAdmin, async (req, res) => {
+// Force solve task with AI
+router.post("/tasks/:taskId/solve", requireStudent, async (req, res) => {
   try {
     const { subject, task } = await subjectService.getTask(req.params.taskId);
     if (!task) return res.status(404).json({ error: "Not found" });
 
-    const { text, files } = await solveTask(task, subject);
+    const { text, files } = await solveTask(task, subject, {
+      userId: String(req.telegramUser?.id || "anon"),
+      operationType: "solve",
+      feature: "manual-solve",
+      endpoint: "/api/subjects/tasks/:taskId/solve",
+    });
     const update = { aiAnswer: text };
     if (files.length) update.aiAnswerFiles = files;
     await subjectService.updateTask(req.params.taskId, update);
@@ -119,7 +136,7 @@ router.post("/tasks/:taskId/solve", requireAdmin, async (req, res) => {
 // Download AI-generated file (LaTeX etc.)
 router.get("/tasks/:taskId/ai-file/:index", async (req, res) => {
   const username = `@${req.telegramUser?.username}`;
-  if (!(await userService.isReviewer(username))) {
+  if (!(await userService.isStudent(username))) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
@@ -139,7 +156,7 @@ router.get("/tasks/:taskId/ai-file/:index", async (req, res) => {
 // Get task answers
 router.get("/tasks/:taskId/answers", async (req, res) => {
   const username = `@${req.telegramUser?.username}`;
-  if (!(await userService.isReviewer(username))) {
+  if (!(await userService.isStudent(username))) {
     return res.status(403).json({ error: "Forbidden" });
   }
   const { task } = await subjectService.getTask(req.params.taskId);
@@ -148,7 +165,7 @@ router.get("/tasks/:taskId/answers", async (req, res) => {
 });
 
 // Add answer to task
-router.post("/tasks/:taskId/answers", requireAdmin, async (req, res) => {
+router.post("/tasks/:taskId/answers", requireStudent, async (req, res) => {
   const result = await subjectService.addAnswer(req.params.taskId, req.body);
   if (!result) return res.status(404).json({ error: "Not found" });
   res.status(201).json(result.task.answers);

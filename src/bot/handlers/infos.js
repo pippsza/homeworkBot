@@ -1,5 +1,5 @@
 const { Markup } = require("telegraf");
-const { isAdmin } = require("../middleware/auth");
+const { isStudent } = require("../middleware/auth");
 const { editOrSend, trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 const infoService = require("../../services/infoService");
@@ -20,7 +20,7 @@ function infosHandler(bot) {
     const infos = await infoService.getAll();
     if (infos.length === 0) {
       const buttons = [];
-      if (await isAdmin(ctx)) {
+      if (await isStudent(ctx)) {
         buttons.push([
           Markup.button.callback("➕ Добавить информацию", "add_info"),
         ]);
@@ -50,7 +50,7 @@ function infosHandler(bot) {
       );
     }
     const buttons = [...infoButtons];
-    if (await isAdmin(ctx)) {
+    if (await isStudent(ctx)) {
       buttons.push([
         Markup.button.callback("➕ Добавить информацию", "add_info"),
       ]);
@@ -85,7 +85,7 @@ function infosHandler(bot) {
         ),
       ]);
     }
-    if (await isAdmin(ctx)) {
+    if (await isStudent(ctx)) {
       buttons.push([
         Markup.button.callback("✏️ Редактировать", `eim_${id}`),
       ]);
@@ -112,7 +112,7 @@ function infosHandler(bot) {
 
   // Execute delete info
   bot.action(/^iry_([a-f0-9]{24})$/, async (ctx) => {
-    if (!(await isAdmin(ctx)))
+    if (!(await isStudent(ctx)))
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     const id = ctx.match[1];
     const removed = await infoService.delete(id);
@@ -144,7 +144,7 @@ function infosHandler(bot) {
       );
     }
     const buttons = [...infoButtons];
-    if (await isAdmin(ctx))
+    if (await isStudent(ctx))
       buttons.push([
         Markup.button.callback("➕ Добавить информацию", "add_info"),
       ]);
@@ -179,7 +179,7 @@ function infosHandler(bot) {
 
   // Add info
   bot.action("add_info", async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isStudent(ctx))) {
       return trackSend(ctx, () =>
         ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
       );

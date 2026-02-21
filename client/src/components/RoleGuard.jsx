@@ -9,9 +9,8 @@ export default function RoleGuard({ role, children, fallback }) {
   useEffect(() => {
     apiFetch("/users/me")
       .then((u) => {
-        if (role === "admin") setAllowed(u.isAdmin);
-        else if (role === "reviewer") setAllowed(u.isReviewer);
-        else if (role === "superuser") setAllowed(u.isSuperuser);
+        if (role === "student") setAllowed(u.isStudent);
+        else if (role === "superadmin") setAllowed(u.isSuperadmin);
         else setAllowed(true);
       })
       .catch(() => setAllowed(false));

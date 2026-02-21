@@ -9,7 +9,7 @@ const { subjectEditMenu } = require("./subjects");
 const { taskEditMenu, showTask } = require("./tasks");
 const { infoEditMenu } = require("./infos");
 const { showSettings } = require("./settings");
-const { isAdmin, isReviewer } = require("../middleware/auth");
+const { isStudent } = require("../middleware/auth");
 const { processQuery } = require("../../services/orchestratorService");
 const ChatHistory = require("../../models/ChatHistory");
 const { mdToHtml } = require("./ai");
@@ -52,7 +52,7 @@ function textHandler(bot) {
 
     // Forwarded messages → collect for homework creation (admins only, private chat)
     const preState = inputState.get(ctx.from.id);
-    if (isForwarded(ctx.message) && isPrivate(ctx) && (await isAdmin(ctx))) {
+    if (isForwarded(ctx.message) && isPrivate(ctx) && (await isStudent(ctx))) {
       const msgText = getHwMsgText(ctx.message);
       if (preState?.mode === "collect_hw") {
         // Append to existing collection
@@ -91,7 +91,7 @@ function textHandler(bot) {
       ctx.message.reply_to_message?.from?.id === ctx.botInfo.id;
     const isAiChat = state?.mode === "ai_chat";
 
-    if ((isAiReply || isAiChat) && (await isReviewer(ctx))) {
+    if ((isAiReply || isAiChat) && (await isStudent(ctx))) {
       const question = ctx.message.text.trim();
       if (!question) return;
 
@@ -105,7 +105,15 @@ function textHandler(bot) {
           .slice(-10)
           .map((m) => ({ role: m.role, content: m.content }));
 
-        const text = await processQuery(question, recentMessages);
+        const text = await processQuery(question, recentMessages, {
+          userId: String(ctx.from.id),
+          operationType: "chat",
+          feature: "bot-chat-continue",
+          user: {
+            name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
+            role: "student",
+          },
+        });
         const htmlText = mdToHtml(text).slice(0, 4096);
 
         await ctx.telegram
@@ -162,9 +170,8 @@ function textHandler(bot) {
         return;
       }
       const roleMap = {
-        add_admin: { field: "admins", label: "админ" },
-        add_reviewer: { field: "reviewers", label: "ревьювер" },
-        add_superuser: { field: "superusers", label: "суперпользователь" },
+        add_student: { field: "students", label: "студент" },
+        add_superadmin: { field: "superadmins", label: "супер-админ" },
       };
       const { field, label } = roleMap[state.step];
       const added = await userService.addUser(field, username);

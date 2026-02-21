@@ -162,7 +162,7 @@ function PromptManagementContent() {
 export default function PromptManagement() {
   return (
     <RoleGuard
-      role="admin"
+      role="superadmin"
       fallback={
         <div className="p-4 text-center text-[var(--tg-theme-hint-color)]">
           Нет доступа

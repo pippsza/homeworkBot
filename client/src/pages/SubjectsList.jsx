@@ -10,7 +10,7 @@ export default function SubjectsList() {
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
 
   useEffect(() => {
     apiFetch("/subjects")
@@ -18,7 +18,7 @@ export default function SubjectsList() {
       .catch(console.error)
       .finally(() => setLoading(false));
     apiFetch("/users/me")
-      .then((u) => setIsAdmin(u.isAdmin))
+      .then((u) => setIsStudent(u.isStudent))
       .catch(() => {});
   }, []);
 
@@ -64,7 +64,7 @@ export default function SubjectsList() {
           </div>
         )}
       </div>
-      {isAdmin && (
+      {isStudent && (
         <button
           onClick={() => navigate("/admin/subjects")}
           className="fixed left-4 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"

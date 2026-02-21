@@ -1,4 +1,4 @@
-const { isReviewer } = require("../middleware/auth");
+const { isStudent } = require("../middleware/auth");
 const { trackSend, isPrivate } = require("../helpers/editOrSend");
 const { processQuery } = require("../../services/orchestratorService");
 const ChatHistory = require("../../models/ChatHistory");
@@ -27,7 +27,7 @@ const MAX_HISTORY = 10;
 
 function aiHandler(bot) {
   bot.command("ai", async (ctx) => {
-    if (!(await isReviewer(ctx))) {
+    if (!(await isStudent(ctx))) {
       return trackSend(ctx, () =>
         ctx.reply("Нет доступа к AI.", {
           disable_notification: !isPrivate(ctx),
@@ -58,7 +58,15 @@ function aiHandler(bot) {
         .map((m) => ({ role: m.role, content: m.content }));
 
       // Process through orchestrator (decides if RAG is needed)
-      const text = await processQuery(question, recentMessages);
+      const text = await processQuery(question, recentMessages, {
+        userId: String(ctx.from.id),
+        operationType: "chat",
+        feature: "bot-chat",
+        user: {
+          name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
+          role: "student",
+        },
+      });
 
       // Edit the "thinking" message with the answer
       const htmlText = mdToHtml(text).slice(0, 4096);

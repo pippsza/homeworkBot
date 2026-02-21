@@ -27,8 +27,7 @@ function UserManagementContent() {
   const addUser = async (role) => {
     if (!newUser.startsWith("@")) return;
     try {
-      const pathMap = { admins: "admins", reviewers: "reviewers", superusers: "superusers" };
-      await apiFetch(`/users/${pathMap[role]}`, {
+      await apiFetch(`/users/${role}`, {
         method: "POST",
         body: { username: newUser },
       });
@@ -45,8 +44,7 @@ function UserManagementContent() {
     if (!confirmRemove) return;
     const { role, username } = confirmRemove;
     try {
-      const pathMap = { admins: "admins", reviewers: "reviewers", superusers: "superusers" };
-      await apiFetch(`/users/${pathMap[role]}/${username.slice(1)}`, {
+      await apiFetch(`/users/${role}/${username.slice(1)}`, {
         method: "DELETE",
       });
       showToast(`${username} удален`);
@@ -68,9 +66,8 @@ function UserManagementContent() {
   }
 
   const sections = [
-    { key: "admins", label: "Админы", desc: "Управление предметами, заданиями, информацией и ответами" },
-    { key: "reviewers", label: "Ревьюверы", desc: "Просмотр ответов к заданиям и доступ к AI" },
-    { key: "superusers", label: "Суперпользователи", desc: "Управление всеми ролями пользователей" },
+    { key: "students", label: "Студенты", desc: "Создание предметов, заданий, информации, ответов и доступ к AI" },
+    { key: "superadmins", label: "Супер-админы", desc: "Админ-панель, модели, юзеры, промпты, знания" },
   ];
 
   return (
@@ -121,7 +118,7 @@ function UserManagementContent() {
           {settings[key]?.length === 0 ? (
             <p className="text-xs text-[var(--tg-theme-hint-color)] py-2">Пусто</p>
           ) : (
-            settings[key].map((u) => (
+            settings[key]?.map((u) => (
               <div key={u} className="card flex items-center justify-between" style={{ cursor: "default" }}>
                 <span className="text-sm">{u}</span>
                 <button
@@ -150,7 +147,7 @@ function UserManagementContent() {
 export default function UserManagement() {
   return (
     <RoleGuard
-      role="superuser"
+      role="superadmin"
       fallback={
         <div className="p-4 text-center text-[var(--tg-theme-hint-color)]">
           Нет доступа

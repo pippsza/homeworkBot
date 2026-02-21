@@ -43,11 +43,11 @@ export default function Layout({ children }) {
     { path: "/infos", match: (p) => p.startsWith("/infos"), label: "Инфо", icon: Info },
   ];
 
-  if (user?.isAdmin) {
+  if (user?.isSuperadmin) {
     tabs.push({ path: "/admin", match: (p) => p.startsWith("/admin"), label: "Админ", icon: Settings });
   }
 
-  const showAiChat = user?.isReviewer || user?.isAdmin;
+  const showAiChat = user?.isStudent;
 
   return (
     <div className="min-h-screen pb-20">

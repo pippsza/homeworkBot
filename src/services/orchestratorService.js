@@ -1,10 +1,11 @@
 const { generateText, streamText, convertToModelMessages } = require("ai");
-const { createModelForTask } = require("./aiService");
+const { getChatModels, getSolveModels } = require("./modelResolverService");
 const promptService = require("./promptService");
 const embeddingService = require("./embeddingService");
 const qdrantService = require("./qdrantService");
 const subjectService = require("./subjectService");
 const KnowledgeDocument = require("../models/KnowledgeDocument");
+const { ai } = require("../lib/tracked-ai");
 
 async function getSubjectsList() {
   const subjects = await subjectService.getAll();
@@ -15,8 +16,135 @@ async function getSubjectsList() {
   }));
 }
 
+// Safety defaults per AI_STRATEGY.md
+const SAFETY = {
+  maxRetries: 0, // no auto-retries on paid models to prevent cost overruns
+  maxOutputTokens: {
+    orchestrator: 256, // short JSON response
+    chat: 4096, // chat responses
+    solve: 8192, // auto-solve can be lengthy
+  },
+};
+
+/**
+ * Helper: run generateText with fallback on 429/rate-limit errors.
+ * @param {object} models - { primary, fallback, primaryId, fallbackId, primaryProvider, fallbackProvider }
+ * @param {object} opts - generateText options (without model)
+ * @param {object} [tracking] - optional tracking context { userId, operationType, feature, ... }
+ */
+async function generateWithFallback(models, opts, tracking) {
+  const safeOpts = { maxRetries: SAFETY.maxRetries, ...opts };
+
+  const doGenerate = (model) => generateText({ ...safeOpts, model });
+
+  if (tracking) {
+    const ctx = {
+      userId: tracking.userId || "system",
+      operationType: tracking.operationType || "generate",
+      feature: tracking.feature,
+      endpoint: tracking.endpoint,
+      provider: models.primaryProvider,
+      user: tracking.user,
+    };
+
+    try {
+      return await ai.generateObject(
+        () => doGenerate(models.primary),
+        models.primaryId,
+        ctx
+      );
+    } catch (e) {
+      if (models.fallback && isRateLimitError(e)) {
+        console.log(`[fallback] Primary model rate-limited, trying fallback: ${models.fallbackId}`);
+        return await ai.generateObject(
+          () => doGenerate(models.fallback),
+          models.fallbackId,
+          { ...ctx, provider: models.fallbackProvider }
+        );
+      }
+      throw e;
+    }
+  }
+
+  // No tracking context — plain call
+  try {
+    return await doGenerate(models.primary);
+  } catch (e) {
+    if (models.fallback && isRateLimitError(e)) {
+      console.log(`[fallback] Primary model rate-limited, trying fallback: ${models.fallbackId}`);
+      return await doGenerate(models.fallback);
+    }
+    throw e;
+  }
+}
+
+/**
+ * Helper: run streamText with fallback on 429/rate-limit errors.
+ * @param {object} models - resolved models
+ * @param {object} opts - streamText options (without model)
+ * @param {object} [tracking] - optional tracking context
+ */
+async function streamWithFallback(models, opts, tracking) {
+  const safeOpts = { maxRetries: SAFETY.maxRetries, ...opts };
+
+  if (tracking) {
+    const startTime = new Date();
+    const ctx = {
+      userId: tracking.userId || "system",
+      operationType: tracking.operationType || "chat",
+      feature: tracking.feature,
+      endpoint: tracking.endpoint,
+      provider: models.primaryProvider,
+      user: tracking.user,
+    };
+
+    // Chain onFinish: existing callback + tracking callback
+    const existingOnFinish = safeOpts.onFinish;
+    const trackingOnFinish = ai.onStreamFinish(models.primaryId, ctx, startTime);
+
+    safeOpts.onFinish = existingOnFinish
+      ? (event) => { trackingOnFinish(event); existingOnFinish(event); }
+      : trackingOnFinish;
+  }
+
+  try {
+    return streamText({ ...safeOpts, model: models.primary });
+  } catch (e) {
+    if (models.fallback && isRateLimitError(e)) {
+      console.log(`[fallback] Primary model rate-limited, trying fallback: ${models.fallbackId}`);
+
+      // Re-create tracking onFinish for fallback model
+      if (tracking) {
+        const startTime = new Date();
+        const ctx = {
+          userId: tracking.userId || "system",
+          operationType: tracking.operationType || "chat",
+          feature: tracking.feature,
+          endpoint: tracking.endpoint,
+          provider: models.fallbackProvider,
+          user: tracking.user,
+        };
+        const existingOnFinish = opts.onFinish; // original, not the wrapped one
+        const trackingOnFinish = ai.onStreamFinish(models.fallbackId, ctx, startTime);
+        safeOpts.onFinish = existingOnFinish
+          ? (event) => { trackingOnFinish(event); existingOnFinish(event); }
+          : trackingOnFinish;
+      }
+
+      return streamText({ ...safeOpts, model: models.fallback });
+    }
+    throw e;
+  }
+}
+
+function isRateLimitError(e) {
+  if (e?.statusCode === 429) return true;
+  if (e?.status === 429) return true;
+  const msg = (e?.message || "").toLowerCase();
+  return msg.includes("rate limit") || msg.includes("429") || msg.includes("quota");
+}
+
 async function orchestrate(query) {
-  // Skip orchestrator if no knowledge exists (saves 1 API call)
   const knowledgeCount = await KnowledgeDocument.countDocuments().limit(1);
   if (knowledgeCount === 0) {
     console.log("[orchestrator] skipping — no knowledge documents in DB");
@@ -39,17 +167,20 @@ async function orchestrate(query) {
 
   try {
     console.log("[orchestrator] query:", query);
-    console.log("[orchestrator] available subjects:", subjects.map((s) => `${s.emoji} ${s.name}`).join(", "));
+    const chatModels = await getChatModels();
 
-    const { text } = await generateText({
-      model: await createModelForTask("orchestrator"),
-      system: prompt,
-      messages: [{ role: "user", content: query }],
-    });
+    const { text } = await generateWithFallback(
+      chatModels,
+      {
+        system: prompt,
+        messages: [{ role: "user", content: query }],
+        maxOutputTokens: SAFETY.maxOutputTokens.orchestrator,
+      },
+      { operationType: "orchestrator", feature: "rag-routing" }
+    );
 
     console.log("[orchestrator] raw response:", text);
 
-    // Parse JSON response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const decision = JSON.parse(jsonMatch[0]);
@@ -61,7 +192,6 @@ async function orchestrate(query) {
     console.error("[orchestrator] error:", e.message);
   }
 
-  console.log("[orchestrator] fallback: no search");
   return { needsSearch: false, subjectId: null, searchQuery: null };
 }
 
@@ -71,9 +201,6 @@ async function searchKnowledge(subjectId, searchQuery) {
     const embedding = await embeddingService.embedText(searchQuery);
     const results = await qdrantService.search(subjectId, embedding, 5);
     console.log(`[orchestrator] found ${results.length} chunks`);
-    if (results.length > 0) {
-      results.forEach((r, i) => console.log(`[orchestrator]   chunk ${i + 1} (score: ${r.score?.toFixed(3) || "?"}): ${r.text?.slice(0, 100)}...`));
-    }
     return results.map((r) => r.text).join("\n\n---\n\n");
   } catch (e) {
     console.error("[orchestrator] search error:", e.message);
@@ -84,16 +211,17 @@ async function searchKnowledge(subjectId, searchQuery) {
 /**
  * Process a chat query through the orchestrator.
  * Returns a streamText result for streaming responses.
+ * @param {Array} messages - UI messages
+ * @param {string} systemPrompt - system prompt
+ * @param {object} extras - { tools, maxSteps, toolChoice, onFinish, tracking }
  */
 async function processQueryStream(messages, systemPrompt, extras = {}) {
-  // Get the last user message for orchestration
   const lastMsg = messages[messages.length - 1];
   const query =
     lastMsg?.parts?.find((p) => p.type === "text")?.text ||
     lastMsg?.content ||
     "";
 
-  // Run orchestrator to decide if we need RAG
   console.log("[processQueryStream] user query:", query);
   const decision = await orchestrate(query);
 
@@ -101,34 +229,42 @@ async function processQueryStream(messages, systemPrompt, extras = {}) {
   if (decision.needsSearch && decision.subjectId && decision.searchQuery) {
     context = await searchKnowledge(decision.subjectId, decision.searchQuery);
     console.log("[processQueryStream] RAG context length:", context.length);
-  } else {
-    console.log("[processQueryStream] no RAG needed");
   }
 
-  // Build enhanced system prompt
   let enhancedSystem = systemPrompt || "You are a helpful assistant.";
   if (context) {
     enhancedSystem += `\n\nRelated information from knowledge base:\n${context}`;
   }
 
+  const chatModels = await getChatModels();
   const streamOpts = {
-    model: await createModelForTask("chat"),
     system: enhancedSystem,
     messages: await convertToModelMessages(messages),
+    maxOutputTokens: SAFETY.maxOutputTokens.chat,
   };
 
-  // Pass through extra options (tools, maxSteps, toolChoice, etc.)
   if (extras.tools) streamOpts.tools = extras.tools;
   if (extras.maxSteps) streamOpts.maxSteps = extras.maxSteps;
   if (extras.toolChoice) streamOpts.toolChoice = extras.toolChoice;
+  if (extras.onFinish) streamOpts.onFinish = extras.onFinish;
 
-  return streamText(streamOpts);
+  // Build tracking context from extras
+  const tracking = extras.tracking || {
+    operationType: "chat",
+    feature: "web-chat",
+    endpoint: "/api/ai/chat",
+  };
+
+  return streamWithFallback(chatModels, streamOpts, tracking);
 }
 
 /**
  * Process a chat query and return full text (non-streaming, for bot).
+ * @param {string} query
+ * @param {Array} historyMessages
+ * @param {object} [tracking] - optional tracking context
  */
-async function processQuery(query, historyMessages = []) {
+async function processQuery(query, historyMessages = [], tracking) {
   console.log("[processQuery] user query:", query, "| history:", historyMessages.length, "msgs");
   const systemPrompt = await promptService.getPrompt("chat-system");
 
@@ -137,9 +273,6 @@ async function processQuery(query, historyMessages = []) {
   let context = "";
   if (decision.needsSearch && decision.subjectId && decision.searchQuery) {
     context = await searchKnowledge(decision.subjectId, decision.searchQuery);
-    console.log("[processQuery] RAG context length:", context.length);
-  } else {
-    console.log("[processQuery] no RAG needed");
   }
 
   let enhancedSystem = systemPrompt || "You are a helpful assistant.";
@@ -148,32 +281,39 @@ async function processQuery(query, historyMessages = []) {
   }
 
   const messages = [...historyMessages, { role: "user", content: query }];
+  const chatModels = await getChatModels();
 
-  const { text } = await generateText({
-    model: await createModelForTask("chat"),
-    system: enhancedSystem,
-    messages,
-  });
+  const { text } = await generateWithFallback(
+    chatModels,
+    {
+      system: enhancedSystem,
+      messages,
+      maxOutputTokens: SAFETY.maxOutputTokens.chat,
+    },
+    tracking || { operationType: "chat", feature: "bot-chat" }
+  );
 
   return text;
 }
 
 /**
  * Auto-solve a task using AI.
+ * @param {object} task
+ * @param {object} subject
+ * @param {object} [tracking] - optional tracking context
  */
-async function solveTask(task, subject) {
+async function solveTask(task, subject, tracking) {
   const autoSolvePrompt = await promptService.getPrompt("auto-solve");
   if (!autoSolvePrompt) {
     throw new Error("auto-solve prompt not found");
   }
 
-  // Build task description
   let taskDescription = "";
   if (task.description) {
     taskDescription = `\nОписание:\n${task.description}`;
   }
 
-  // Check if we have knowledge for this subject
+  // Check for knowledge
   let context = "";
   try {
     const searchQuery = `${task.title} ${task.description || ""}`.trim();
@@ -187,7 +327,7 @@ async function solveTask(task, subject) {
       context = `\nМатериалы из базы знаний:\n${results.map((r) => r.text).join("\n\n---\n\n")}`;
     }
   } catch {
-    // No knowledge base for this subject, that's ok
+    // No knowledge base for this subject
   }
 
   const prompt = autoSolvePrompt
@@ -196,10 +336,23 @@ async function solveTask(task, subject) {
     .replace("{description}", taskDescription)
     .replace("{context}", context);
 
-  const { text: raw } = await generateText({
-    model: await createModelForTask("autoSolve"),
-    messages: [{ role: "user", content: prompt }],
-  });
+  // Determine if task has images (check attachments)
+  const hasImages = task.attachments?.some((a) => a.type === "photo") || false;
+  const solveModels = await getSolveModels(hasImages);
+
+  const { text: raw } = await generateWithFallback(
+    solveModels,
+    {
+      messages: [{ role: "user", content: prompt }],
+      maxOutputTokens: SAFETY.maxOutputTokens.solve,
+    },
+    tracking || {
+      operationType: "solve",
+      feature: "auto-solve",
+      entityType: "task",
+      entityId: task._id?.toString(),
+    }
+  );
 
   // Parse LaTeX block if AI included one
   const latexMatch = raw.match(/---LATEX---\n([\s\S]*?)\n---\/LATEX---/);

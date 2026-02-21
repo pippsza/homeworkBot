@@ -1,7 +1,7 @@
 const { Markup } = require("telegraf");
 const { trackSend, editOrSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
-const { isAdmin } = require("../middleware/auth");
+const { isStudent } = require("../middleware/auth");
 const {
   extractHomework,
   createHomework,
@@ -137,7 +137,7 @@ async function showSubjectPicker(ctx) {
 function setupHomeworkHandler(bot) {
   // /newHW command
   bot.command("newhw", async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isStudent(ctx))) {
       return ctx.reply("⛔ Только для админов.", {
         disable_notification: !isPrivate(ctx),
       });

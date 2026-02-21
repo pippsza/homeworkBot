@@ -10,7 +10,7 @@ export default function InfosList() {
   const navigate = useNavigate();
   const [infos, setInfos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
 
   useEffect(() => {
     apiFetch("/infos")
@@ -18,7 +18,7 @@ export default function InfosList() {
       .catch(console.error)
       .finally(() => setLoading(false));
     apiFetch("/users/me")
-      .then((u) => setIsAdmin(u.isAdmin))
+      .then((u) => setIsStudent(u.isStudent))
       .catch(() => {});
   }, []);
 
@@ -69,7 +69,7 @@ export default function InfosList() {
           </div>
         )}
       </div>
-      {isAdmin && (
+      {isStudent && (
         <button
           onClick={() => navigate("/admin/infos")}
           className="fixed left-4 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"

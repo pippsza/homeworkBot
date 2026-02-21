@@ -8,16 +8,47 @@ const ChatHistory = require("../../models/ChatHistory");
 
 const router = Router();
 
-async function requireReviewer(req, res, next) {
+async function requireStudent(req, res, next) {
   const username = `@${req.telegramUser?.username}`;
-  if (!(await userService.isReviewer(username))) {
+  if (!(await userService.isStudent(username))) {
     return res.status(403).json({ error: "Forbidden" });
   }
   next();
 }
 
+// In-memory rate limiter per user (10 req/min)
+const rateLimits = new Map();
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW = 60_000;
+
+function rateLimit(req, res, next) {
+  const userId = String(req.telegramUser?.id || "anon");
+  const now = Date.now();
+  const entry = rateLimits.get(userId);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimits.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: "Too many requests. Try again later." });
+  }
+
+  entry.count++;
+  return next();
+}
+
+// Cleanup stale entries every 5 min
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimits) {
+    if (now > entry.resetAt) rateLimits.delete(key);
+  }
+}, 5 * 60_000).unref();
+
 // Stream chat (with orchestrator + RAG)
-router.post("/chat", requireReviewer, async (req, res) => {
+router.post("/chat", requireStudent, rateLimit, async (req, res) => {
   try {
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages)) {
@@ -27,9 +58,9 @@ router.post("/chat", requireReviewer, async (req, res) => {
     let systemPrompt = await promptService.getPrompt("chat-system");
     const extras = {};
 
-    // Add homework creation tool for admins
+    // Add homework creation tool for students
     const username = `@${req.telegramUser?.username}`;
-    if (await userService.isAdmin(username)) {
+    if (await userService.isStudent(username)) {
       const subjects = await subjectService.getAll();
       const subjectsList = subjects
         .map((s) => `- ${s.emoji || "📚"} ${s.name} (ID: ${s._id})`)
@@ -72,6 +103,18 @@ router.post("/chat", requireReviewer, async (req, res) => {
       extras.maxSteps = 2;
       extras.toolChoice = "auto";
     }
+
+    // Pass tracking context for usage tracking
+    extras.tracking = {
+      userId: String(req.telegramUser?.id || "anon"),
+      operationType: "chat",
+      feature: "web-chat",
+      endpoint: "/api/ai/chat",
+      user: {
+        name: [req.telegramUser?.first_name, req.telegramUser?.last_name].filter(Boolean).join(" ") || undefined,
+        role: "student",
+      },
+    };
 
     console.log("[ai] chat extras:", { hasTools: !!extras.tools, toolNames: extras.tools ? Object.keys(extras.tools) : [], maxSteps: extras.maxSteps });
     const result = await processQueryStream(messages, systemPrompt, extras);
@@ -118,14 +161,14 @@ router.post("/chat", requireReviewer, async (req, res) => {
 });
 
 // Get chat history
-router.get("/history", requireReviewer, async (req, res) => {
+router.get("/history", requireStudent, async (req, res) => {
   const userId = req.telegramUser?.id;
   const history = await ChatHistory.findOne({ telegramUserId: userId });
   res.json(history?.messages || []);
 });
 
 // Clear chat history
-router.delete("/history", requireReviewer, async (req, res) => {
+router.delete("/history", requireStudent, async (req, res) => {
   const userId = req.telegramUser?.id;
   await ChatHistory.deleteOne({ telegramUserId: userId });
   res.json({ success: true });

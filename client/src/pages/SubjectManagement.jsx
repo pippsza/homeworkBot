@@ -190,7 +190,7 @@ function SubjectManagementContent() {
 export default function SubjectManagement() {
   return (
     <RoleGuard
-      role="admin"
+      role="superadmin"
       fallback={<div className="p-4 text-center text-[var(--tg-theme-hint-color)]">Нет доступа</div>}
     >
       <SubjectManagementContent />

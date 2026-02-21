@@ -1,12 +1,12 @@
 const { Markup } = require("telegraf");
-const { isAdmin } = require("../middleware/auth");
+const { isSuperadmin } = require("../middleware/auth");
 const { editOrSend, trackSend, isPrivate } = require("../helpers/editOrSend");
 const chatMessageService = require("../../services/chatMessageService");
 const groupMemberService = require("../../services/groupMemberService");
 
 function toolsHandler(bot) {
   bot.action("tools", async (ctx) => {
-    if (!(await isAdmin(ctx))) {
+    if (!(await isSuperadmin(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
     await editOrSend(
@@ -21,7 +21,7 @@ function toolsHandler(bot) {
   });
 
   bot.action("roll_call", async (ctx) => {
-    if (!(await isAdmin(ctx))) return;
+    if (!(await isSuperadmin(ctx))) return;
 
     if (isPrivate(ctx)) {
       return trackSend(ctx, () =>
@@ -78,7 +78,7 @@ function toolsHandler(bot) {
   });
 
   bot.action("cleanup", async (ctx) => {
-    if (!(await isAdmin(ctx))) return;
+    if (!(await isSuperadmin(ctx))) return;
     const chatId = ctx.chat.id;
     const messageIds = await chatMessageService.getMessages(chatId);
     for (const id of messageIds) {

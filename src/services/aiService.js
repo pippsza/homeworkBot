@@ -1,23 +1,34 @@
 const { createGoogleGenerativeAI } = require("@ai-sdk/google");
-const userService = require("./userService");
-const { MODEL_TASKS } = require("../config/aiModels");
+const { resolveModels, getChatModels, getSolveModels } = require("./modelResolverService");
 
-function getGoogle() {
-  return createGoogleGenerativeAI({
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-  });
+/**
+ * Create a LanguageModel for a specific AI role.
+ * New code should use this.
+ */
+async function createModelForRole(role) {
+  const { primary } = await resolveModels(role);
+  return primary;
 }
 
+/**
+ * Legacy compat: createModelForTask maps old task names → new roles.
+ */
 async function createModelForTask(task) {
-  const models = await userService.getModelSettings();
-  const modelId = models[task] || MODEL_TASKS[task]?.default || "gemini-2.0-flash";
-  return getGoogle()(modelId);
+  const taskToRole = {
+    chat: "chat",
+    orchestrator: "chat",
+    autoSolve: "solveText",
+  };
+  const role = taskToRole[task] || "chat";
+  return createModelForRole(role);
 }
 
-// Legacy compat: "flash" → chat, "pro" → autoSolve
+/**
+ * Legacy compat: "flash" → chat, "pro" → solveTextPro
+ */
 async function createModel(type = "flash") {
-  if (type === "pro") return createModelForTask("autoSolve");
-  return createModelForTask("chat");
+  if (type === "pro") return createModelForRole("solveTextPro");
+  return createModelForRole("chat");
 }
 
-module.exports = { createModel, createModelForTask };
+module.exports = { createModel, createModelForTask, createModelForRole };

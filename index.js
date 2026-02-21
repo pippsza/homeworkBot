@@ -19,6 +19,19 @@ if (!BOT_TOKEN) {
 async function main() {
   await connectDB();
 
+  // Run migrations
+  const { migrateRoles, migrateModelsToModelConfig } = require("./src/services/userService");
+  await migrateRoles().catch((e) => console.error("[migrate] roles:", e.message));
+  await migrateModelsToModelConfig().catch((e) => console.error("[migrate] models:", e.message));
+
+  // Sync model catalog on startup
+  const { syncAll } = require("./src/services/modelCatalogService");
+  syncAll().catch((e) => console.error("[modelCatalog] sync error:", e.message));
+
+  // Start usage tracking (if USAGE_DATABASE_URI is set)
+  const { startTracking, stopTracking } = require("./src/lib/tracked-ai");
+  startTracking();
+
   const bot = new Telegraf(BOT_TOKEN);
   setupBot(bot);
 
@@ -55,8 +68,14 @@ async function main() {
     console.log("Bot started in polling mode");
   }
 
-  process.once("SIGINT", () => bot.stop("SIGINT"));
-  process.once("SIGTERM", () => bot.stop("SIGTERM"));
+  process.once("SIGINT", async () => {
+    await stopTracking();
+    bot.stop("SIGINT");
+  });
+  process.once("SIGTERM", async () => {
+    await stopTracking();
+    bot.stop("SIGTERM");
+  });
 
   // Prevent unhandled stream errors from crashing the server
   process.on("unhandledRejection", (err) => {

@@ -1,6 +1,5 @@
 const { Router } = require("express");
 const multer = require("multer");
-const crypto = require("crypto");
 const userService = require("../../services/userService");
 const qdrantService = require("../../services/qdrantService");
 const embeddingService = require("../../services/embeddingService");
@@ -10,8 +9,16 @@ const KnowledgeDocument = require("../../models/KnowledgeDocument");
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+async function requireSuperadmin(req, res, next) {
+  const username = `@${req.telegramUser?.username}`;
+  if (!(await userService.isSuperadmin(username))) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  next();
+}
+
 // Upload a file to knowledge base
-router.post("/:subjectId/upload", upload.single("file"), async (req, res) => {
+router.post("/:subjectId/upload", requireSuperadmin, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "File required" });
 
@@ -68,7 +75,7 @@ router.post("/:subjectId/upload", upload.single("file"), async (req, res) => {
 });
 
 // Upload text directly
-router.post("/:subjectId/text", async (req, res) => {
+router.post("/:subjectId/text", requireSuperadmin, async (req, res) => {
   try {
     const { text, title } = req.body;
     if (!text || text.trim().length < 10) {
@@ -113,7 +120,7 @@ router.post("/:subjectId/text", async (req, res) => {
 });
 
 // Get documents for a subject
-router.get("/:subjectId", async (req, res) => {
+router.get("/:subjectId", requireSuperadmin, async (req, res) => {
   const docs = await KnowledgeDocument.find({
     subjectId: req.params.subjectId,
   }).sort({ createdAt: -1 });
@@ -124,7 +131,7 @@ router.get("/:subjectId", async (req, res) => {
 });
 
 // Delete a document
-router.delete("/:subjectId/:documentId", async (req, res) => {
+router.delete("/:subjectId/:documentId", requireSuperadmin, async (req, res) => {
   const { subjectId, documentId } = req.params;
 
   const doc = await KnowledgeDocument.findByIdAndDelete(documentId);
