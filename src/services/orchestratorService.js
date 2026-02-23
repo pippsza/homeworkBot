@@ -292,7 +292,7 @@ async function processQueryStream(messages, systemPrompt, extras = {}) {
  */
 async function processQuery(query, historyMessages = [], tracking) {
   console.log("[processQuery] user query:", query, "| history:", historyMessages.length, "msgs");
-  const systemPrompt = await promptService.getPrompt("chat-system");
+  let systemPrompt = await promptService.getPrompt("chat-system");
 
   const decision = await orchestrate(query);
 
@@ -314,6 +314,11 @@ async function processQuery(query, historyMessages = [], tracking) {
     enhancedSystem += `\n\nRelated information from knowledge base:\n${context}`;
   }
 
+  // Add assistant tools
+  const { buildAssistantTools } = require("./aiToolsService");
+  const { tools, systemPromptAddition, maxSteps } = await buildAssistantTools();
+  enhancedSystem += systemPromptAddition;
+
   const messages = [...historyMessages, { role: "user", content: query }];
   const chatModels = await getChatModels();
 
@@ -322,6 +327,9 @@ async function processQuery(query, historyMessages = [], tracking) {
     {
       system: enhancedSystem,
       messages,
+      tools,
+      maxSteps,
+      toolChoice: "auto",
       maxOutputTokens: SAFETY.maxOutputTokens.chat,
     },
     tracking || { operationType: "chat", feature: "bot-chat" }
