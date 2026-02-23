@@ -15,6 +15,7 @@ const infoSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     attachments: [attachmentSchema],
     order: { type: Number, default: 0 },
+    chunkCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

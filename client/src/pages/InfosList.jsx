@@ -58,6 +58,11 @@ export default function InfosList() {
                     </div>
                   )}
                 </div>
+                {info.chunkCount > 0 && (
+                  <span className="text-xs text-[var(--tg-theme-hint-color)]">
+                    🧩 {info.chunkCount}
+                  </span>
+                )}
                 {info.attachments?.length > 0 && (
                   <span className="text-xs text-[var(--tg-theme-hint-color)]">
                     <Paperclip size={12} className="inline" /> {info.attachments.length}

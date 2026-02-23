@@ -74,7 +74,9 @@ function infosHandler(bot) {
     }
 
     let msg = `*ℹ️ ${info.title}*\n\n`;
-    if (info.description) msg += `${info.description}\n\n---\n`;
+    if (info.description) msg += `${info.description}\n\n`;
+    if (info.chunkCount > 0) msg += `🧩 Чанков: ${info.chunkCount}\n`;
+    msg += "---\n";
 
     const buttons = [];
     if (info.attachments && info.attachments.length > 0) {

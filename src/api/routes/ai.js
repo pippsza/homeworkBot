@@ -3,6 +3,7 @@ const { tool, jsonSchema } = require("ai");
 const userService = require("../../services/userService");
 const promptService = require("../../services/promptService");
 const subjectService = require("../../services/subjectService");
+const infoService = require("../../services/infoService");
 const { processQueryStream } = require("../../services/orchestratorService");
 const ChatHistory = require("../../models/ChatHistory");
 
@@ -58,15 +59,29 @@ router.post("/chat", requireStudent, rateLimit, async (req, res) => {
     let systemPrompt = await promptService.getPrompt("chat-system");
     const extras = {};
 
-    // Add homework creation tool for students
+    // Add assistant tools for students
     const username = `@${req.telegramUser?.username}`;
     if (await userService.isStudent(username)) {
       const subjects = await subjectService.getAll();
       const subjectsList = subjects
-        .map((s) => `- ${s.emoji || "📚"} ${s.name} (ID: ${s._id})`)
+        .map((s) => {
+          let desc = `- ${s.emoji || "📚"} ${s.name} (ID: ${s._id})`;
+          if (s.lecturerName) desc += ` | Лектор: ${s.lecturerName}`;
+          if (s.practitionerName) desc += ` | Практик: ${s.practitionerName}`;
+          return desc;
+        })
         .join("\n");
 
-      systemPrompt += `\n\nУ тебя есть инструмент createHomework для создания домашних заданий.\nДоступные предметы:\n${subjectsList}\n\nКОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ СОЗДАТЬ ДОМАШКУ/ЗАДАНИЕ — ТЫ ОБЯЗАН ВЫЗВАТЬ ИНСТРУМЕНТ createHomework.\nНИКОГДА не отвечай текстом "я создал задание" без реального вызова инструмента.\nВсегда указывай subjectId из списка предметов выше. Название и описание придумай на основе запроса пользователя.`;
+      systemPrompt += `\n\nТы — полноценный AI-ассистент для учебного бота. У тебя есть инструменты для управления данными.
+Доступные предметы:
+${subjectsList}
+
+ПРАВИЛА ИСПОЛЬЗОВАНИЯ ИНСТРУМЕНТОВ:
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ СОЗДАТЬ ДОМАШКУ/ЗАДАНИЕ — ВЫЗОВИ createHomework.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ЗАПОМНИТЬ/СОХРАНИТЬ ИНФОРМАЦИЮ — ВЫЗОВИ rememberInfo.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ГОВОРИТ ФИО ПРЕПОДАВАТЕЛЯ/ПРАКТИКА ИЛИ ПРОСИТ ОБНОВИТЬ ПРЕДМЕТ — ВЫЗОВИ updateSubject.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ИЗМЕНИТЬ ЗАДАНИЕ — ВЫЗОВИ updateTask.
+- НИКОГДА не отвечай текстом "я сделал" без реального вызова инструмента.`;
 
       extras.tools = {
         createHomework: tool({
@@ -99,8 +114,109 @@ router.post("/chat", requireStudent, rateLimit, async (req, res) => {
             };
           },
         }),
+
+        rememberInfo: tool({
+          description: "Запомнить информацию. Используй когда пользователь просит запомнить, сохранить, записать какую-то информацию или факт.",
+          parameters: jsonSchema({
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Краткий заголовок (3-10 слов)" },
+              emoji: { type: "string", description: "Подходящий emoji (по умолчанию ℹ️)" },
+              description: { type: "string", description: "Полный текст информации для запоминания" },
+            },
+            required: ["title", "emoji", "description"],
+          }),
+          execute: async ({ title, emoji, description }) => {
+            console.log("[ai tool] rememberInfo:", { title });
+            const info = await infoService.create({
+              title,
+              emoji: emoji || "ℹ️",
+              description,
+            });
+            return {
+              success: true,
+              infoTitle: title,
+              infoEmoji: emoji || "ℹ️",
+              infoId: info._id.toString(),
+            };
+          },
+        }),
+
+        updateSubject: tool({
+          description: "Обновить данные предмета: название, эмодзи, ФИО/контакты лектора или практика. Используй когда пользователь сообщает ФИО преподавателя, меняет название предмета и т.д.",
+          parameters: jsonSchema({
+            type: "object",
+            properties: {
+              subjectId: { type: "string", description: "ID предмета из списка" },
+              name: { type: "string", description: "Новое название предмета. Пустая строка — не менять" },
+              emoji: { type: "string", description: "Новый эмодзи. Пустая строка — не менять" },
+              lecturerName: { type: "string", description: "ФИО лектора. Пустая строка — не менять" },
+              lecturerContact: { type: "string", description: "Контакт лектора. Пустая строка — не менять" },
+              practitionerName: { type: "string", description: "ФИО практика. Пустая строка — не менять" },
+              practitionerContact: { type: "string", description: "Контакт практика. Пустая строка — не менять" },
+            },
+            required: ["subjectId", "name", "emoji", "lecturerName", "lecturerContact", "practitionerName", "practitionerContact"],
+          }),
+          execute: async ({ subjectId, name, emoji, lecturerName, lecturerContact, practitionerName, practitionerContact }) => {
+            console.log("[ai tool] updateSubject:", { subjectId, name, lecturerName, practitionerName });
+            const subject = await subjectService.getById(subjectId);
+            if (!subject) return { error: "Предмет не найден" };
+
+            const updates = {};
+            if (name) updates.name = name;
+            if (emoji) updates.emoji = emoji;
+            if (lecturerName) updates.lecturerName = lecturerName;
+            if (lecturerContact) updates.lecturerContact = lecturerContact;
+            if (practitionerName) updates.practitionerName = practitionerName;
+            if (practitionerContact) updates.practitionerContact = practitionerContact;
+
+            if (Object.keys(updates).length === 0) {
+              return { error: "Нет данных для обновления" };
+            }
+
+            const updated = await subjectService.update(subjectId, updates);
+            return {
+              success: true,
+              subjectName: updated.name,
+              updatedFields: Object.keys(updates),
+            };
+          },
+        }),
+
+        updateTask: tool({
+          description: "Обновить существующее задание: название, описание, эмодзи. Используй когда пользователь просит изменить/отредактировать задание.",
+          parameters: jsonSchema({
+            type: "object",
+            properties: {
+              taskId: { type: "string", description: "ID задания" },
+              title: { type: "string", description: "Новое название. Пустая строка — не менять" },
+              emoji: { type: "string", description: "Новый эмодзи. Пустая строка — не менять" },
+              description: { type: "string", description: "Новое описание. Пустая строка — не менять" },
+            },
+            required: ["taskId", "title", "emoji", "description"],
+          }),
+          execute: async ({ taskId, title, emoji, description }) => {
+            console.log("[ai tool] updateTask:", { taskId, title });
+            const updates = {};
+            if (title) updates.title = title;
+            if (emoji) updates.emoji = emoji;
+            if (description) updates.description = description;
+
+            if (Object.keys(updates).length === 0) {
+              return { error: "Нет данных для обновления" };
+            }
+
+            const result = await subjectService.updateTask(taskId, updates);
+            if (!result) return { error: "Задание не найдено" };
+            return {
+              success: true,
+              taskTitle: result.task.title,
+              updatedFields: Object.keys(updates),
+            };
+          },
+        }),
       };
-      extras.maxSteps = 2;
+      extras.maxSteps = 3;
       extras.toolChoice = "auto";
     }
 

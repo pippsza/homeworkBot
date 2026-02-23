@@ -5,6 +5,7 @@ const embeddingService = require("./embeddingService");
 const qdrantService = require("./qdrantService");
 const subjectService = require("./subjectService");
 const KnowledgeDocument = require("../models/KnowledgeDocument");
+const Info = require("../models/Info");
 const { ai } = require("../lib/tracked-ai");
 
 async function getSubjectsList() {
@@ -144,11 +145,28 @@ function isRateLimitError(e) {
   return msg.includes("rate limit") || msg.includes("429") || msg.includes("quota");
 }
 
+async function searchGeneralKnowledge(searchQuery) {
+  try {
+    console.log(`[orchestrator] searching general knowledge: "${searchQuery}"`);
+    const embedding = await embeddingService.embedText(searchQuery);
+    const results = await qdrantService.searchGeneral(embedding, 5);
+    console.log(`[orchestrator] found ${results.length} general chunks`);
+    return results.map((r) => r.text).join("\n\n---\n\n");
+  } catch (e) {
+    console.error("[orchestrator] general search error:", e.message);
+    return "";
+  }
+}
+
 async function orchestrate(query) {
-  const knowledgeCount = await KnowledgeDocument.countDocuments().limit(1);
-  if (knowledgeCount === 0) {
-    console.log("[orchestrator] skipping — no knowledge documents in DB");
-    return { needsSearch: false, subjectId: null, searchQuery: null };
+  const [knowledgeCount, infoChunkedCount] = await Promise.all([
+    KnowledgeDocument.countDocuments().limit(1),
+    Info.countDocuments({ chunkCount: { $gt: 0 } }).limit(1),
+  ]);
+
+  if (knowledgeCount === 0 && infoChunkedCount === 0) {
+    console.log("[orchestrator] skipping — no knowledge documents or chunked infos");
+    return { needsSearch: false, subjectId: null, searchQuery: null, searchGeneral: false };
   }
 
   const subjects = await getSubjectsList();
@@ -228,7 +246,15 @@ async function processQueryStream(messages, systemPrompt, extras = {}) {
   let context = "";
   if (decision.needsSearch && decision.subjectId && decision.searchQuery) {
     context = await searchKnowledge(decision.subjectId, decision.searchQuery);
-    console.log("[processQueryStream] RAG context length:", context.length);
+    console.log("[processQueryStream] subject RAG context length:", context.length);
+  }
+  if (decision.searchGeneral && decision.searchQuery) {
+    const generalContext = await searchGeneralKnowledge(decision.searchQuery);
+    if (generalContext) {
+      context = context
+        ? context + "\n\n---\nОбщая информация:\n" + generalContext
+        : generalContext;
+    }
   }
 
   let enhancedSystem = systemPrompt || "You are a helpful assistant.";
@@ -273,6 +299,14 @@ async function processQuery(query, historyMessages = [], tracking) {
   let context = "";
   if (decision.needsSearch && decision.subjectId && decision.searchQuery) {
     context = await searchKnowledge(decision.subjectId, decision.searchQuery);
+  }
+  if (decision.searchGeneral && decision.searchQuery) {
+    const generalContext = await searchGeneralKnowledge(decision.searchQuery);
+    if (generalContext) {
+      context = context
+        ? context + "\n\n---\nОбщая информация:\n" + generalContext
+        : generalContext;
+    }
   }
 
   let enhancedSystem = systemPrompt || "You are a helpful assistant.";
@@ -326,8 +360,13 @@ async function solveTask(task, subject, tracking) {
     if (results.length > 0) {
       context = `\nМатериалы из базы знаний:\n${results.map((r) => r.text).join("\n\n---\n\n")}`;
     }
+    // Also search general knowledge
+    const generalResults = await qdrantService.searchGeneral(embedding, 3);
+    if (generalResults.length > 0) {
+      context += `\nОбщая информация:\n${generalResults.map((r) => r.text).join("\n\n---\n\n")}`;
+    }
   } catch {
-    // No knowledge base for this subject
+    // No knowledge base
   }
 
   const prompt = autoSolvePrompt

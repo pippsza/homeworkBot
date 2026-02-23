@@ -1,4 +1,5 @@
 const Info = require("../models/Info");
+const { syncInfoChunks, deleteInfoChunks } = require("./infoChunkingService");
 
 module.exports = {
   async getAll() {
@@ -11,18 +12,42 @@ module.exports = {
 
   async create(data) {
     const count = await Info.countDocuments();
-    return Info.create({ ...data, order: count });
+    const info = await Info.create({ ...data, order: count });
+    // Chunk in background
+    syncInfoChunks(info._id.toString()).catch((e) =>
+      console.error("[infoService] chunking error on create:", e.message)
+    );
+    return info;
   },
 
   async update(id, data) {
-    return Info.findByIdAndUpdate(id, data, { returnDocument: "after" });
+    const info = await Info.findByIdAndUpdate(id, data, { returnDocument: "after" });
+    if (info) {
+      syncInfoChunks(id).catch((e) =>
+        console.error("[infoService] chunking error on update:", e.message)
+      );
+    }
+    return info;
   },
 
   async delete(id) {
+    await deleteInfoChunks(id).catch((e) =>
+      console.error("[infoService] chunk deletion error:", e.message)
+    );
     return Info.findByIdAndDelete(id);
   },
 
   async setAttachments(id, attachments) {
-    return Info.findByIdAndUpdate(id, { attachments }, { returnDocument: "after" });
+    const info = await Info.findByIdAndUpdate(
+      id,
+      { attachments },
+      { returnDocument: "after" }
+    );
+    if (info) {
+      syncInfoChunks(id).catch((e) =>
+        console.error("[infoService] chunking error on setAttachments:", e.message)
+      );
+    }
+    return info;
   },
 };

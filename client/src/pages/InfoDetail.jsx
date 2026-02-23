@@ -51,6 +51,12 @@ export default function InfoDetail() {
         </div>
       )}
 
+      {info.chunkCount > 0 && (
+        <div className="text-xs text-[var(--tg-theme-hint-color)] mb-4 flex items-center gap-1">
+          <span>🧩</span> {info.chunkCount} чанков в базе знаний
+        </div>
+      )}
+
       <AttachmentViewer attachments={info.attachments} />
     </div>
   );
