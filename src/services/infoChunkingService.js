@@ -35,9 +35,13 @@ async function downloadTelegramFile(fileId) {
  * Returns { chunks: string[], embeddings: number[][] }
  */
 async function chunkDescription(description) {
-  if (!description || description.trim().length < 20) return { chunks: [], embeddings: [] };
+  if (!description || description.trim().length < 3) return { chunks: [], embeddings: [] };
 
-  const chunks = chunkingService.chunkText(description);
+  // chunkText filters out chunks < 20 chars, but short facts from "запомни" are valuable
+  let chunks = chunkingService.chunkText(description);
+  if (chunks.length === 0) {
+    chunks = [description.trim()];
+  }
   if (chunks.length === 0) return { chunks: [], embeddings: [] };
 
   const embeddings = await embeddingService.embedTexts(chunks);

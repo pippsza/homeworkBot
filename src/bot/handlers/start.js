@@ -11,6 +11,7 @@ async function mainMenu(ctx) {
   const buttons = [
     [Markup.button.callback("📚 Предметы", "subjects")],
     [Markup.button.callback("ℹ️ Информация", "infos")],
+    [Markup.button.callback("📅 Расписание", "sch")],
   ];
   if (await isSuperadmin(ctx)) {
     buttons.push([

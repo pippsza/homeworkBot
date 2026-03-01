@@ -16,6 +16,8 @@ import InfoManagement from "./pages/InfoManagement";
 import PromptManagement from "./pages/PromptManagement";
 import KnowledgeManagement from "./pages/KnowledgeManagement";
 import ModelManagement from "./pages/ModelManagement";
+import ScheduleView from "./pages/ScheduleView";
+import ScheduleManagement from "./pages/ScheduleManagement";
 
 export default function App() {
   const { tg } = useTelegram();
@@ -43,6 +45,8 @@ export default function App() {
             <Route path="/admin/prompts" element={<PromptManagement />} />
             <Route path="/admin/subjects/:id/knowledge" element={<KnowledgeManagement />} />
             <Route path="/admin/models" element={<ModelManagement />} />
+            <Route path="/schedule" element={<ScheduleView />} />
+            <Route path="/admin/schedule" element={<ScheduleManagement />} />
           </Routes>
         </Layout>
       </HashRouter>

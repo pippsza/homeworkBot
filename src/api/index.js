@@ -10,6 +10,7 @@ const promptsRoutes = require("./routes/prompts");
 const aiRoutes = require("./routes/ai");
 const knowledgeRoutes = require("./routes/knowledge");
 const modelsRoutes = require("./routes/models");
+const scheduleRoutes = require("./routes/schedule");
 
 const router = Router();
 
@@ -46,5 +47,6 @@ router.use("/prompts", promptsRoutes);
 router.use("/ai", aiRoutes);
 router.use("/knowledge", knowledgeRoutes);
 router.use("/models", modelsRoutes);
+router.use("/schedule", scheduleRoutes);
 
 module.exports = router;

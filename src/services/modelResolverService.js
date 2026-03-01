@@ -118,10 +118,15 @@ async function getProSolveModels(hasImages = false) {
   return resolveModels(hasImages ? "solveImagePro" : "solveTextPro");
 }
 
+async function getChatVisionModels() {
+  return resolveModels("chatVision");
+}
+
 module.exports = {
   createLanguageModel,
   resolveModels,
   getChatModels,
+  getChatVisionModels,
   getSolveModels,
   getProSolveModels,
   invalidateModelCache,

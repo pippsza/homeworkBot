@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState, Component } from "react";
 import { useApi } from "../hooks/useApi";
-import { BookOpen, Info, Settings } from "lucide-react";
+import { BookOpen, Info, Calendar, Settings } from "lucide-react";
 import AiChat from "./AiChat";
 
 class AiChatBoundary extends Component {
@@ -41,6 +41,7 @@ export default function Layout({ children }) {
   const tabs = [
     { path: "/", match: (p) => p === "/" || p.startsWith("/subjects") || p.startsWith("/tasks"), label: "Предметы", icon: BookOpen },
     { path: "/infos", match: (p) => p.startsWith("/infos"), label: "Инфо", icon: Info },
+    { path: "/schedule", match: (p) => p === "/schedule", label: "Расписание", icon: Calendar },
   ];
 
   if (user?.isSuperadmin) {

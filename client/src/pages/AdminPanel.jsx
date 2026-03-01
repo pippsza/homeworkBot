@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Users, BookOpen, FileText, MessageSquareCode, Cpu, ChevronRight } from "lucide-react";
+import { Users, BookOpen, FileText, MessageSquareCode, Cpu, Calendar, ChevronRight } from "lucide-react";
 import RoleGuard from "../components/RoleGuard";
 
 function AdminContent() {
@@ -11,6 +11,7 @@ function AdminContent() {
     { path: "/admin/infos", icon: FileText, label: "Информация", desc: "Добавление и редактирование инфо" },
     { path: "/admin/prompts", icon: MessageSquareCode, label: "Промпты", desc: "Управление AI-промптами" },
     { path: "/admin/models", icon: Cpu, label: "AI модели", desc: "Настройка моделей для задач" },
+    { path: "/admin/schedule", icon: Calendar, label: "Расписание", desc: "Тайм-слоты, дни, субботы, уведомления" },
   ];
 
   return (

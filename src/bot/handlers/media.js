@@ -1,11 +1,22 @@
 const { trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 const { updateCollectMessage } = require("./homework");
+const { isStudent } = require("../middleware/auth");
+const { processQuery } = require("../../services/orchestratorService");
+const ChatHistory = require("../../models/ChatHistory");
+const { mdToHtml } = require("./ai");
 
 async function deleteUserMsg(ctx) {
   await ctx
     .deleteMessage(ctx.message.message_id)
     .catch((e) => console.error("Delete user msg error", e));
+}
+
+async function downloadPhoto(ctx, fileId) {
+  const url = await ctx.telegram.getFileLink(fileId);
+  const res = await fetch(url.href);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return buffer;
 }
 
 function mediaHandler(bot) {
@@ -50,6 +61,85 @@ function mediaHandler(bot) {
   });
 
   bot.on("photo", async (ctx) => {
+    // AI vision: photo as reply to bot OR in ai_chat mode
+    const aiState = inputState.get(ctx.from.id);
+    const isAiReply =
+      !aiState &&
+      ctx.message.reply_to_message?.from?.id === ctx.botInfo.id;
+    const isAiChat = aiState?.mode === "ai_chat";
+
+    if ((isAiReply || isAiChat) && (await isStudent(ctx))) {
+      const photo = ctx.message.photo;
+      if (!photo || !photo.length) return;
+
+      const fileId = photo[photo.length - 1].file_id;
+      const caption = ctx.message.caption || "";
+
+      const thinking = await ctx.reply("🖼 Анализирую изображение...", {
+        disable_notification: !isPrivate(ctx),
+      });
+
+      try {
+        const buffer = await downloadPhoto(ctx, fileId);
+
+        const history = await ChatHistory.findOne({ telegramUserId: ctx.from.id });
+        const recentMessages = (history?.messages || [])
+          .slice(-10)
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const text = await processQuery(
+          caption,
+          recentMessages,
+          {
+            userId: String(ctx.from.id),
+            operationType: "chat",
+            feature: "bot-chat-vision",
+            user: {
+              name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
+              role: "student",
+            },
+          },
+          { buffer, mimeType: "image/jpeg" }
+        );
+        const replyText = text || "Готово!";
+        const htmlText = mdToHtml(replyText).slice(0, 4096);
+
+        await ctx.telegram
+          .editMessageText(ctx.chat.id, thinking.message_id, null, htmlText, {
+            parse_mode: "HTML",
+          })
+          .catch(() =>
+            ctx.telegram.editMessageText(
+              ctx.chat.id, thinking.message_id, null, replyText.slice(0, 4096)
+            )
+          );
+
+        inputState.set(ctx.from.id, { mode: "ai_chat" });
+
+        const historyContent = caption ? `[фото] ${caption}` : "[фото]";
+        await ChatHistory.findOneAndUpdate(
+          { telegramUserId: ctx.from.id },
+          {
+            $push: {
+              messages: {
+                $each: [
+                  { role: "user", content: historyContent },
+                  { role: "assistant", content: replyText },
+                ],
+              },
+            },
+          },
+          { upsert: true }
+        ).catch((e) => console.error("[ai vision] history save error:", e.message));
+      } catch (e) {
+        console.error("[ai vision] error:", e);
+        await ctx.telegram
+          .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка AI. Попробуйте позже.")
+          .catch(() => {});
+      }
+      return;
+    }
+
     const state = inputState.get(ctx.from.id);
     if (!state) return;
     try {

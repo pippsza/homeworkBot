@@ -114,7 +114,8 @@ function textHandler(bot) {
             role: "student",
           },
         });
-        const htmlText = mdToHtml(text).slice(0, 4096);
+        const replyText = text || "Готово!";
+        const htmlText = mdToHtml(replyText).slice(0, 4096);
 
         await ctx.telegram
           .editMessageText(ctx.chat.id, thinking.message_id, null, htmlText, {
@@ -122,7 +123,7 @@ function textHandler(bot) {
           })
           .catch(() =>
             ctx.telegram.editMessageText(
-              ctx.chat.id, thinking.message_id, null, text.slice(0, 4096)
+              ctx.chat.id, thinking.message_id, null, replyText.slice(0, 4096)
             )
           );
 
@@ -136,7 +137,7 @@ function textHandler(bot) {
               messages: {
                 $each: [
                   { role: "user", content: question },
-                  { role: "assistant", content: text },
+                  { role: "assistant", content: replyText },
                 ],
               },
             },

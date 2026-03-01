@@ -35,6 +35,10 @@ async function main() {
   const bot = new Telegraf(BOT_TOKEN);
   setupBot(bot);
 
+  // Start schedule notifications
+  const { startScheduleNotifier } = require("./src/services/scheduleNotificationService");
+  startScheduleNotifier(bot);
+
   const app = express();
   app.use(cors());
   app.use(express.json());

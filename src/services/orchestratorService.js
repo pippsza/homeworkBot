@@ -1,5 +1,5 @@
 const { generateText, streamText, convertToModelMessages } = require("ai");
-const { getChatModels, getSolveModels } = require("./modelResolverService");
+const { getChatModels, getChatVisionModels, getSolveModels } = require("./modelResolverService");
 const promptService = require("./promptService");
 const embeddingService = require("./embeddingService");
 const qdrantService = require("./qdrantService");
@@ -257,6 +257,20 @@ async function processQueryStream(messages, systemPrompt, extras = {}) {
     }
   }
 
+  // Always search general knowledge if chunks exist (cheap: 1 embedding + vector search)
+  if (!decision.searchGeneral) {
+    const infoChunkedCount = await Info.countDocuments({ chunkCount: { $gt: 0 } }).limit(1);
+    if (infoChunkedCount > 0) {
+      const searchQuery = decision.searchQuery || query;
+      const generalContext = await searchGeneralKnowledge(searchQuery);
+      if (generalContext) {
+        context = context
+          ? context + "\n\n---\nОбщая информация:\n" + generalContext
+          : generalContext;
+      }
+    }
+  }
+
   let enhancedSystem = systemPrompt || "You are a helpful assistant.";
   if (context) {
     enhancedSystem += `\n\nRelated information from knowledge base:\n${context}`;
@@ -290,11 +304,11 @@ async function processQueryStream(messages, systemPrompt, extras = {}) {
  * @param {Array} historyMessages
  * @param {object} [tracking] - optional tracking context
  */
-async function processQuery(query, historyMessages = [], tracking) {
-  console.log("[processQuery] user query:", query, "| history:", historyMessages.length, "msgs");
+async function processQuery(query, historyMessages = [], tracking, imageData = null) {
+  console.log("[processQuery] user query:", query, "| history:", historyMessages.length, "msgs", imageData ? "| with image" : "");
   let systemPrompt = await promptService.getPrompt("chat-system");
 
-  const decision = await orchestrate(query);
+  const decision = await orchestrate(query || "изображение");
 
   let context = "";
   if (decision.needsSearch && decision.subjectId && decision.searchQuery) {
@@ -309,6 +323,20 @@ async function processQuery(query, historyMessages = [], tracking) {
     }
   }
 
+  // Always search general knowledge if chunks exist
+  if (!decision.searchGeneral) {
+    const infoChunkedCount = await Info.countDocuments({ chunkCount: { $gt: 0 } }).limit(1);
+    if (infoChunkedCount > 0) {
+      const searchQuery = decision.searchQuery || query || "изображение";
+      const generalContext = await searchGeneralKnowledge(searchQuery);
+      if (generalContext) {
+        context = context
+          ? context + "\n\n---\nОбщая информация:\n" + generalContext
+          : generalContext;
+      }
+    }
+  }
+
   let enhancedSystem = systemPrompt || "You are a helpful assistant.";
   if (context) {
     enhancedSystem += `\n\nRelated information from knowledge base:\n${context}`;
@@ -319,8 +347,22 @@ async function processQuery(query, historyMessages = [], tracking) {
   const { tools, systemPromptAddition, maxSteps } = await buildAssistantTools();
   enhancedSystem += systemPromptAddition;
 
-  const messages = [...historyMessages, { role: "user", content: query }];
-  const chatModels = await getChatModels();
+  // Build last user message (with or without image)
+  let lastUserMessage;
+  if (imageData) {
+    lastUserMessage = {
+      role: "user",
+      content: [
+        { type: "image", image: imageData.buffer, mimeType: imageData.mimeType },
+        { type: "text", text: query || "Что на этом изображении?" },
+      ],
+    };
+  } else {
+    lastUserMessage = { role: "user", content: query };
+  }
+
+  const messages = [...historyMessages, lastUserMessage];
+  const chatModels = imageData ? await getChatVisionModels() : await getChatModels();
 
   const { text } = await generateWithFallback(
     chatModels,

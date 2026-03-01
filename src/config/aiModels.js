@@ -41,6 +41,12 @@ const MODEL_ROLES = {
     default: { provider: "google", modelId: "gemini-2.5-flash-lite" },
     requirements: { supportsToolCalling: true },
   },
+  chatVision: {
+    label: "👁️ AI-чат (с фото)",
+    description: "AI-чат с поддержкой изображений",
+    default: { provider: "google", modelId: "gemini-2.5-flash" },
+    requirements: { supportsVision: true, supportsToolCalling: true },
+  },
   solveText: {
     label: "🤖 Авторешение (текст)",
     description: "Решение текстовых задач",

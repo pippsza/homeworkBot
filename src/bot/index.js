@@ -8,6 +8,7 @@ const aiHandler = require("./handlers/ai");
 const { setupHomeworkHandler } = require("./handlers/homework");
 const textHandler = require("./handlers/text");
 const mediaHandler = require("./handlers/media");
+const scheduleHandler = require("./handlers/schedule");
 const groupMemberService = require("../services/groupMemberService");
 
 function setupBot(bot) {
@@ -27,6 +28,7 @@ function setupBot(bot) {
   toolsHandler(bot);
   aiHandler(bot);
   setupHomeworkHandler(bot);
+  scheduleHandler(bot);
   textHandler(bot);
   mediaHandler(bot);
 }

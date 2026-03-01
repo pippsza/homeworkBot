@@ -67,9 +67,10 @@ function aiHandler(bot) {
           role: "student",
         },
       });
+      const replyText = text || "Готово!";
 
       // Edit the "thinking" message with the answer
-      const htmlText = mdToHtml(text).slice(0, 4096);
+      const htmlText = mdToHtml(replyText).slice(0, 4096);
       await ctx.telegram
         .editMessageText(
           ctx.chat.id,
@@ -84,7 +85,7 @@ function aiHandler(bot) {
             ctx.chat.id,
             thinking.message_id,
             null,
-            text.slice(0, 4096)
+            replyText.slice(0, 4096)
           )
         );
 
@@ -96,7 +97,7 @@ function aiHandler(bot) {
             messages: {
               $each: [
                 { role: "user", content: question },
-                { role: "assistant", content: text },
+                { role: "assistant", content: replyText },
               ],
             },
           },
