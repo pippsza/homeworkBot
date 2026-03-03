@@ -44,9 +44,11 @@ function aiHandler(bot) {
       );
     }
 
-    const thinking = await ctx.reply("Думаю...", {
-      disable_notification: !isPrivate(ctx),
-    });
+    const thinking = await trackSend(ctx, () =>
+      ctx.reply("Думаю...", {
+        disable_notification: !isPrivate(ctx),
+      })
+    );
 
     try {
       // Load recent history
@@ -60,6 +62,8 @@ function aiHandler(bot) {
       // Process through orchestrator (decides if RAG is needed)
       const text = await processQuery(question, recentMessages, {
         userId: String(ctx.from.id),
+        chatId: ctx.chat.id,
+        username: ctx.from.username ? `@${ctx.from.username}` : null,
         operationType: "chat",
         feature: "bot-chat",
         user: {

@@ -76,4 +76,19 @@ module.exports = {
     await subject.save();
     return { subject, task };
   },
+
+  async setSubmission(taskId, username, submitted) {
+    const subject = await this.getByTaskId(taskId);
+    if (!subject) return { subject: null, task: null };
+    const task = subject.tasks.id(taskId);
+    if (!task) return { subject: null, task: null };
+    const existing = task.submissions.find((s) => s.username === username);
+    if (existing) {
+      existing.submitted = submitted;
+    } else {
+      task.submissions.push({ username, submitted });
+    }
+    await subject.save();
+    return { subject, task };
+  },
 };

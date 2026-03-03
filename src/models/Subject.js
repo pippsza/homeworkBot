@@ -17,6 +17,14 @@ const answerSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const submissionSchema = new mongoose.Schema(
+  {
+    username: { type: String, required: true },
+    submitted: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
@@ -31,6 +39,8 @@ const taskSchema = new mongoose.Schema(
       filename: String,
     }],
     autoSolve: { type: Boolean, default: false },
+    deadline: { type: Date, default: null },
+    submissions: [submissionSchema],
   },
   { _id: true, timestamps: true }
 );

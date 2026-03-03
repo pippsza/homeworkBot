@@ -1,5 +1,5 @@
 const { generateText, streamText, convertToModelMessages } = require("ai");
-const { getChatModels, getChatVisionModels, getSolveModels } = require("./modelResolverService");
+const { getChatModels, getChatVisionModels, getSolveModels, getProSolveModels } = require("./modelResolverService");
 const promptService = require("./promptService");
 const embeddingService = require("./embeddingService");
 const qdrantService = require("./qdrantService");
@@ -344,7 +344,10 @@ async function processQuery(query, historyMessages = [], tracking, imageData = n
 
   // Add assistant tools
   const { buildAssistantTools } = require("./aiToolsService");
-  const { tools, systemPromptAddition, maxSteps } = await buildAssistantTools();
+  const { tools, systemPromptAddition, maxSteps } = await buildAssistantTools({
+    chatId: tracking?.chatId,
+    username: tracking?.username,
+  });
   enhancedSystem += systemPromptAddition;
 
   // Build last user message (with or without image)
@@ -386,7 +389,7 @@ async function processQuery(query, historyMessages = [], tracking, imageData = n
  * @param {object} subject
  * @param {object} [tracking] - optional tracking context
  */
-async function solveTask(task, subject, tracking) {
+async function solveTask(task, subject, tracking, { usePro = false } = {}) {
   const autoSolvePrompt = await promptService.getPrompt("auto-solve");
   if (!autoSolvePrompt) {
     throw new Error("auto-solve prompt not found");
@@ -427,7 +430,9 @@ async function solveTask(task, subject, tracking) {
 
   // Determine if task has images (check attachments)
   const hasImages = task.attachments?.some((a) => a.type === "photo") || false;
-  const solveModels = await getSolveModels(hasImages);
+  const solveModels = usePro
+    ? await getProSolveModels(hasImages)
+    : await getSolveModels(hasImages);
 
   const { text: raw } = await generateWithFallback(
     solveModels,

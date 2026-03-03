@@ -33,11 +33,21 @@ async function main() {
   startTracking();
 
   const bot = new Telegraf(BOT_TOKEN);
+  const { setBot } = require("./src/lib/bot");
+  setBot(bot);
   setupBot(bot);
 
   // Start schedule notifications
   const { startScheduleNotifier } = require("./src/services/scheduleNotificationService");
   startScheduleNotifier(bot);
+
+  // Start deadline notifications
+  const { startDeadlineNotifier } = require("./src/services/deadlineNotificationService");
+  startDeadlineNotifier(bot);
+
+  // Start weekly digest
+  const { startWeeklyDigest } = require("./src/services/weeklyDigestService");
+  startWeeklyDigest(bot);
 
   const app = express();
   app.use(cors());

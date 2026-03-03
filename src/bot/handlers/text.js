@@ -84,6 +84,11 @@ function textHandler(bot) {
       return;
     }
 
+    // /noai — send message without AI processing, stay in ai_chat mode
+    if (ctx.message.text.startsWith("/noai")) {
+      return;
+    }
+
     // AI conversation: reply to bot message OR ai_chat mode
     const state = inputState.get(ctx.from.id);
     const isAiReply =
@@ -95,9 +100,11 @@ function textHandler(bot) {
       const question = ctx.message.text.trim();
       if (!question) return;
 
-      const thinking = await ctx.reply("Думаю...", {
-        disable_notification: !isPrivate(ctx),
-      });
+      const thinking = await trackSend(ctx, () =>
+        ctx.reply("Думаю...", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
 
       try {
         const history = await ChatHistory.findOne({ telegramUserId: ctx.from.id });
@@ -107,6 +114,8 @@ function textHandler(bot) {
 
         const text = await processQuery(question, recentMessages, {
           userId: String(ctx.from.id),
+          chatId: ctx.chat.id,
+          username: ctx.from.username ? `@${ctx.from.username}` : null,
           operationType: "chat",
           feature: "bot-chat-continue",
           user: {
