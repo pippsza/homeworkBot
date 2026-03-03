@@ -71,7 +71,7 @@ function aiHandler(bot) {
           role: "student",
         },
       });
-      const replyText = text || "Готово!";
+      const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
 
       // Edit the "thinking" message with the answer
       const htmlText = mdToHtml(replyText).slice(0, 4096);

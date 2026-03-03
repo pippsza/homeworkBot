@@ -5,6 +5,29 @@ const infoService = require("./infoService");
 const scheduleService = require("./scheduleService");
 
 /**
+ * Wrap a tool execute function with try/catch + debug logging.
+ * On error, returns { error: "..." } instead of throwing.
+ */
+function safeTool(toolName, definition) {
+  const originalExecute = definition.execute;
+  return tool({
+    ...definition,
+    execute: async (args) => {
+      try {
+        return await originalExecute(args);
+      } catch (e) {
+        console.error(`[ai tool] ${toolName} ERROR:`, e);
+        try {
+          const { debugLog } = require("../lib/debugLog");
+          debugLog("tool-error", `Tool ${toolName} failed: ${e.message}`, JSON.stringify(args).slice(0, 500));
+        } catch {}
+        return { error: `Ошибка при выполнении ${toolName}: ${e.message}` };
+      }
+    },
+  });
+}
+
+/**
  * Build assistant tools and system prompt addition for AI chat.
  * Used by both web API (streaming) and bot (non-streaming).
  * @returns {{ tools: object, systemPromptAddition: string, maxSteps: number }}
@@ -113,7 +136,7 @@ ${scheduleContext}
 - Еженедельный дайджест по понедельникам в 08:00`;
 
   const tools = {
-    createSubject: tool({
+    createSubject: safeTool("createSubject", {
       description: "Создать новый предмет. Используй когда пользователь просит добавить предмет или когда настраиваешь расписание и нужного предмета нет в списке.",
       inputSchema: z.object({
         name: z.string().describe("Название предмета"),
@@ -136,7 +159,7 @@ ${scheduleContext}
       },
     }),
 
-    createHomework: tool({
+    createHomework: safeTool("createHomework", {
       description: "Создать домашнее задание. Используй когда пользователь просит создать, добавить домашку или задание.",
       inputSchema: z.object({
         subjectId: z.string().describe("ID предмета из списка доступных предметов"),
@@ -163,7 +186,7 @@ ${scheduleContext}
       },
     }),
 
-    rememberInfo: tool({
+    rememberInfo: safeTool("rememberInfo", {
       description: "Запомнить информацию. Используй когда пользователь просит запомнить, сохранить, записать какую-то информацию или факт.",
       inputSchema: z.object({
         title: z.string().describe("Краткий заголовок (3-10 слов)"),
@@ -186,7 +209,7 @@ ${scheduleContext}
       },
     }),
 
-    updateSubject: tool({
+    updateSubject: safeTool("updateSubject", {
       description: "Обновить данные предмета: название, эмодзи, ФИО/контакты лектора или практика. Используй когда пользователь сообщает ФИО преподавателя, меняет название предмета и т.д.",
       inputSchema: z.object({
         subjectId: z.string().describe("ID предмета из списка"),
@@ -223,7 +246,7 @@ ${scheduleContext}
       },
     }),
 
-    updateTask: tool({
+    updateTask: safeTool("updateTask", {
       description: "Обновить существующее задание: название, описание, эмодзи. Используй когда пользователь просит изменить/отредактировать задание.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания"),
@@ -252,7 +275,7 @@ ${scheduleContext}
       },
     }),
 
-    listTasks: tool({
+    listTasks: safeTool("listTasks", {
       description: "Получить список заданий предмета. Используй чтобы узнать ID задания перед добавлением ответа, решением или обновлением. Если subjectId не указан — выводит задания ВСЕХ предметов.",
       inputSchema: z.object({
         subjectId: z.string().optional().describe("ID предмета из списка (если не указан — все предметы)"),
@@ -306,7 +329,7 @@ ${scheduleContext}
       },
     }),
 
-    getTaskDetails: tool({
+    getTaskDetails: safeTool("getTaskDetails", {
       description: "Получить полную информацию о задании: описание, AI-решение, ответы пользователей. Используй когда пользователь просит показать задание, решение, ответы на домашку.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -335,7 +358,7 @@ ${scheduleContext}
       },
     }),
 
-    addTaskAnswer: tool({
+    addTaskAnswer: safeTool("addTaskAnswer", {
       description: "Добавить текстовый ответ к заданию. Используй когда пользователь присылает решение/ответ на домашку текстом.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -356,7 +379,7 @@ ${scheduleContext}
       },
     }),
 
-    attachFileToTask: tool({
+    attachFileToTask: safeTool("attachFileToTask", {
       description: "Прикрепить файл (document/photo) к условию задания. Используй когда пользователь просит прикрепить файл к заданию/условию. file_id берётся из метаданных [Прикреплённый файл] в сообщении.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -377,7 +400,7 @@ ${scheduleContext}
       },
     }),
 
-    addFileAnswer: tool({
+    addFileAnswer: safeTool("addFileAnswer", {
       description: "Добавить файл (document/photo) как ответ/решение к заданию. Используй когда пользователь просит прикрепить файл как ответ или решение. file_id берётся из метаданных [Прикреплённый файл] в сообщении.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -399,7 +422,7 @@ ${scheduleContext}
       },
     }),
 
-    solveHomework: tool({
+    solveHomework: safeTool("solveHomework", {
       description: "Решить домашнее задание с помощью AI. Сначала вызови listTasks чтобы показать пользователю список заданий и спросить какое решить и какой режим (обычный или PRO). usePro=true для сложных задач (медленнее, но точнее).",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -435,7 +458,7 @@ ${scheduleContext}
       },
     }),
 
-    getSchedule: tool({
+    getSchedule: safeTool("getSchedule", {
       description: "Получить расписание на определённую дату. Используй когда пользователь спрашивает о расписании на завтра, послезавтра, конкретную дату и т.д. Для сегодняшнего расписания НЕ нужно вызывать — оно уже есть в контексте.",
       inputSchema: z.object({
         date: z.string().describe("Дата в формате YYYY-MM-DD"),
@@ -458,7 +481,7 @@ ${scheduleContext}
       },
     }),
 
-    setTimeSlots: tool({
+    setTimeSlots: safeTool("setTimeSlots", {
       description: "Установить тайм-слоты (время начала и конца каждой пары). Вызывай ПЕРВЫМ при настройке расписания. Перезаписывает все слоты.",
       inputSchema: z.object({
         timeSlots: z.array(z.object({
@@ -474,7 +497,7 @@ ${scheduleContext}
       },
     }),
 
-    setDaySchedule: tool({
+    setDaySchedule: safeTool("setDaySchedule", {
       description: "Установить расписание на один день недели (Пн=1, Вт=2, Ср=3, Чт=4, Пт=5). Привязывает предметы к тайм-слотам. Для мигалок: isAlternating=true, subjectId — нечётная неделя, subjectIdEven — чётная неделя. Пустой слот — не включай в массив.",
       inputSchema: z.object({
         dayOfWeek: z.number().min(1).max(5).describe("День недели: 1=Пн, 2=Вт, 3=Ср, 4=Чт, 5=Пт"),
@@ -493,7 +516,7 @@ ${scheduleContext}
       },
     }),
 
-    setSaturdayMappings: tool({
+    setSaturdayMappings: safeTool("setSaturdayMappings", {
       description: "Установить расписание суббот. Каждая суббота (по номеру недели семестра) копирует расписание указанного дня.",
       inputSchema: z.object({
         mappings: z.array(z.object({
@@ -510,7 +533,7 @@ ${scheduleContext}
 
     // --- Трекинг сдачи ---
 
-    markSubmission: tool({
+    markSubmission: safeTool("markSubmission", {
       description: "Отметить сдачу задания (сдал/не сдал). Если targetUsername не указан — отмечает для текущего пользователя.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -529,7 +552,7 @@ ${scheduleContext}
       },
     }),
 
-    getMySubmissions: tool({
+    getMySubmissions: safeTool("getMySubmissions", {
       description: "Показать прогресс текущего пользователя: какие задания сдал, какие нет.",
       inputSchema: z.object({
         subjectId: z.string().optional().describe("ID предмета (если не указан — все предметы)"),
@@ -560,7 +583,7 @@ ${scheduleContext}
       },
     }),
 
-    getTaskSubmissions: tool({
+    getTaskSubmissions: safeTool("getTaskSubmissions", {
       description: "Показать статус сдачи задания по всем студентам.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -582,7 +605,7 @@ ${scheduleContext}
 
     // --- Контакты преподавателей ---
 
-    getTeacherInfo: tool({
+    getTeacherInfo: safeTool("getTeacherInfo", {
       description: "Получить контактную информацию преподавателей.",
       inputSchema: z.object({
         subjectId: z.string().optional().describe("ID предмета. Если не указан — все предметы."),
@@ -611,7 +634,7 @@ ${scheduleContext}
 
     // --- Дедлайны ---
 
-    setTaskDeadline: tool({
+    setTaskDeadline: safeTool("setTaskDeadline", {
       description: "Установить дедлайн для задания.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
@@ -629,7 +652,7 @@ ${scheduleContext}
 
     // --- Голосования ---
 
-    createPoll: tool({
+    createPoll: safeTool("createPoll", {
       description: "Создать голосование/опрос в чате группы.",
       inputSchema: z.object({
         question: z.string().describe("Вопрос голосования"),

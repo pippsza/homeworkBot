@@ -30,8 +30,8 @@ function createTrackedAI(tracker) {
         tracker.record({
           ...mapCtx(ctx),
           model,
-          inputTokens: result.usage?.promptTokens ?? 0,
-          outputTokens: result.usage?.completionTokens ?? 0,
+          inputTokens: result.usage?.inputTokens ?? result.usage?.promptTokens ?? 0,
+          outputTokens: result.usage?.outputTokens ?? result.usage?.completionTokens ?? 0,
           totalTokens: result.usage?.totalTokens ?? 0,
           cachedTokens: result.usage?.cachedTokens,
           reasoningTokens: result.usage?.reasoningTokens,
@@ -76,8 +76,8 @@ function createTrackedAI(tracker) {
         tracker.record({
           ...mapCtx(ctx),
           model,
-          inputTokens: usage?.promptTokens ?? 0,
-          outputTokens: usage?.completionTokens ?? 0,
+          inputTokens: usage?.inputTokens ?? usage?.promptTokens ?? 0,
+          outputTokens: usage?.outputTokens ?? usage?.completionTokens ?? 0,
           totalTokens: usage?.totalTokens ?? 0,
           cachedTokens: usage?.cachedTokens,
           reasoningTokens: usage?.reasoningTokens,

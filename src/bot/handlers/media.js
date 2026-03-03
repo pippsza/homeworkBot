@@ -90,7 +90,9 @@ async function handleAiDocument(ctx) {
 
     inputState.set(ctx.from.id, { mode: "ai_chat" });
 
-    const historyContent = caption ? `[файл: ${filename}] ${caption}` : `[файл: ${filename}]`;
+    const historyContent = caption
+      ? `${caption}\n\n[Прикреплённый файл — Telegram file_id: ${doc.file_id}, тип: document, имя: ${filename}]`
+      : `Пользователь прислал файл "${filename}".\n\n[Прикреплённый файл — Telegram file_id: ${doc.file_id}, тип: document, имя: ${filename}]`;
     await ChatHistory.findOneAndUpdate(
       { telegramUserId: ctx.from.id },
       {
@@ -251,7 +253,9 @@ function mediaHandler(bot) {
 
         inputState.set(ctx.from.id, { mode: "ai_chat" });
 
-        const historyContent = caption ? `[фото] ${caption}` : "[фото]";
+        const historyContent = caption
+          ? `${caption}\n\n[Прикреплённое фото — Telegram file_id: ${fileId}, тип: photo]`
+          : `Пользователь прислал фото.\n\n[Прикреплённое фото — Telegram file_id: ${fileId}, тип: photo]`;
         await ChatHistory.findOneAndUpdate(
           { telegramUserId: ctx.from.id },
           {

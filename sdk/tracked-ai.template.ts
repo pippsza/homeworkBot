@@ -1,33 +1,33 @@
 /**
- * Шаблон ініціалізації Usage Tracker.
+ * Usage Tracker initialization template.
  *
- * 1. Скопіюй цей файл в src/lib/tracked-ai.ts
- * 2. Заміни TODO на реальні дані проєкту
- * 3. Імпортуй { ai } з цього файлу в ендпоінтах
+ * 1. Copy this file to src/lib/tracked-ai.ts
+ * 2. Replace TODOs with your project data
+ * 3. Import { ai } from this file in your endpoints
  */
 
 import { createUsageTracker, createTrackedAI } from './usage-tracker'
 
-// ── Ініціалізація трекера ──────────────────────────────────────────
+// ── Tracker initialization ───────────────────────────────────────────
 
 export const usageTracker = createUsageTracker({
-  projectId: 'TODO-project-id', // TODO: унікальний ID проєкту (kebab-case)
+  projectId: 'TODO-project-id', // TODO: unique project ID (kebab-case)
   environment: (process.env.NODE_ENV as 'production' | 'staging' | 'development') ?? 'development',
   project: {
-    name: 'TODO Project Name', // TODO: людиночитабельна назва
-    description: '',           // TODO: опис проєкту (опціонально)
-    url: '',                   // TODO: URL проєкту (опціонально)
-    techStack: '',             // TODO: стек технологій (опціонально)
+    name: 'TODO Project Name', // TODO: human-readable name
+    description: '',           // TODO: project description (optional)
+    url: '',                   // TODO: project URL (optional)
+    techStack: '',             // TODO: tech stack (optional)
   },
 })
 
 export const ai = createTrackedAI(usageTracker)
 
-// ── Graceful shutdown ──────────────────────────────────────────────
+// ── Graceful shutdown ────────────────────────────────────────────────
 
 process.on('beforeExit', () => usageTracker.shutdown())
 
-// ── Приклади використання ──────────────────────────────────────────
+// ── Usage examples ───────────────────────────────────────────────────
 //
 // import { generateObject, streamText } from 'ai'
 // import { openai } from '@ai-sdk/openai'

@@ -410,22 +410,51 @@ async function processQuery(query, historyMessages = [], tracking, imageData = n
       debugLog("processQuery", "Recovered text from earlier steps", text.slice(0, 500));
     }
 
-    // 2. Still empty? Build summary from tool results
+    // 2. Still empty? Always try re-generation — ask AI to respond based on context
     if (!text) {
       const allToolResults = steps.flatMap((s) => s.toolResults || []);
-      if (allToolResults.length > 0) {
-        const summary = allToolResults
-          .map((tr) => {
-            const r = tr.result;
-            if (r?.error) return `Ошибка: ${r.error}`;
-            if (r?.success) return JSON.stringify(r, null, 2);
-            return JSON.stringify(r, null, 2);
-          })
-          .join("\n\n");
-        text = `Результат:\n\`\`\`\n${summary.slice(0, 3000)}\n\`\`\``;
-        debugLog("processQuery", "Built text from tool results (AI didn't generate response)", text.slice(0, 500));
+      const toolCalls = steps.flatMap((s) => s.toolCalls || []).map((tc) => tc.toolName);
+      const validResults = allToolResults.filter((tr) => tr.result != null);
+      const errorResults = allToolResults.filter((tr) => tr.result?.error);
+
+      let regenPrompt;
+      if (errorResults.length > 0) {
+        const errors = errorResults.map((tr) => `${tr.toolName}: ${tr.result.error}`).join("\n");
+        regenPrompt = `Ты пытался выполнить действия (${toolCalls.join(", ")}), но произошли ошибки:\n${errors}\n\nСообщи пользователю об ошибках и предложи что делать.`;
+      } else if (validResults.length > 0) {
+        const summary = validResults.map((tr) => `${tr.toolName}: ${JSON.stringify(tr.result)}`).join("\n");
+        regenPrompt = `Вот результаты вызванных инструментов:\n${summary}\n\nОпиши пользователю что было сделано. Не используй JSON.`;
+      } else {
+        regenPrompt = `Ты попытался вызвать инструменты (${toolCalls.join(", ") || "неизвестно"}), но они не вернули результатов. Объясни пользователю что произошла ошибка и предложи переформулировать запрос.`;
+      }
+
+      try {
+        const regenResult = await generateWithFallback(
+          chatModels,
+          {
+            system: "Ты помощник учебного бота. Отвечай на русском языке. Кратко и по делу. Не используй JSON или блоки кода.",
+            messages: [
+              ...messages.slice(-3),
+              { role: "user", content: regenPrompt },
+            ],
+            maxOutputTokens: 512,
+          },
+          tracking ? { ...tracking, operationType: "regen", feature: "tool-result-summary" } : undefined
+        );
+        if (regenResult.text) {
+          text = regenResult.text;
+          debugLog("processQuery", "Re-generated response", text.slice(0, 500));
+        }
+      } catch (regenErr) {
+        console.error("[processQuery] re-generation failed:", regenErr.message);
       }
     }
+  }
+
+  // Guarantee non-empty response
+  if (!text) {
+    text = "Не удалось обработать запрос. Попробуйте переформулировать или повторить позже.";
+    debugLog("processQuery", "Used absolute fallback — no text generated at all", query?.slice(0, 200));
   }
 
   return text;

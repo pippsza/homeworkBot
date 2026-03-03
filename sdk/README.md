@@ -1,50 +1,50 @@
 # Usage Tracker SDK — Quick Start
 
-Трекінг токенів AI-викликів з автоматичним розрахунком вартості.
+AI token tracking with automatic cost calculation.
 
-Дані збираються в центральну MongoDB → дашборд UsageHub.
+Data is collected into a central MongoDB → UsageHub dashboard.
 
 ---
 
-## Встановлення (3 хвилини)
+## Installation (3 minutes)
 
-### 1. Скопіюй `usage-tracker/` в проєкт
+### 1. Copy `usage-tracker/` into your project
 
 ```bash
 cp -r usage-tracker/ <your-project>/src/lib/usage-tracker/
 ```
 
-### 2. Додай mongoose (якщо ще немає)
+### 2. Add mongoose (if not already installed)
 
 ```bash
 pnpm add mongoose
 ```
 
-### 3. Додай env-змінну
+### 3. Add env variable
 
 ```env
 # .env
 USAGE_DATABASE_URI=mongodb://user:pass@host:27017/api_tokens_usage
 ```
 
-URI має вказувати на **ту саму БД**, що й UsageHub.
+The URI must point to the **same database** as UsageHub.
 
-### 4. Створи файл ініціалізації
+### 4. Create initialization file
 
-Скопіюй шаблон і заповни TODO:
+Copy the template and fill in the TODOs:
 
 ```bash
 cp tracked-ai.template.ts <your-project>/src/lib/tracked-ai.ts
 ```
 
-Відредагуй `tracked-ai.ts`:
+Edit `tracked-ai.ts`:
 
 ```typescript
 export const usageTracker = createUsageTracker({
-  projectId: 'my-project',              // ← твій ID
+  projectId: 'my-project',              // ← your ID
   environment: process.env.NODE_ENV as 'production' | 'development',
   project: {
-    name: 'My Project',                 // ← назва для дашборду
+    name: 'My Project',                 // ← display name for dashboard
   },
 })
 
@@ -52,7 +52,7 @@ export const ai = createTrackedAI(usageTracker)
 process.on('beforeExit', () => usageTracker.shutdown())
 ```
 
-### 5. Обгорни AI-виклики
+### 5. Wrap AI calls
 
 **generateObject / generateText:**
 
@@ -94,32 +94,51 @@ const result = streamText({
 
 ---
 
-## Що трекається автоматично
+## What gets tracked automatically
 
-| Поле | Джерело |
-|------|---------|
-| Токени (input, output, cached, reasoning) | AI SDK `usage` |
-| Вартість (USD) | `modelPricing` колекція (fallback на хардкод) |
-| Latency | Автоматичний замір |
-| Статус (success/error) | Try-catch обгортка |
-| Проєкт | `projectId` з конфігу |
-| Юзер (email, name, role) | `TrackingContext.user` |
+| Field | Source |
+|-------|--------|
+| Tokens (input, output, cached, reasoning) | AI SDK `usage` object |
+| Cost (USD) | `modelPricing` collection (fallback to hardcoded) |
+| Latency | Automatic measurement |
+| Status (success/error) | Try-catch wrapper |
+| Project | `projectId` from config |
+| User (email, name, role) | `TrackingContext.user` |
 
 ---
 
-## TrackingContext — всі поля
+## AI SDK compatibility
+
+The SDK supports both **Vercel AI SDK v5** and **v6** field names:
+
+| Field | v5 (old) | v6 (current) |
+|-------|----------|--------------|
+| Input tokens | `usage.promptTokens` | `usage.inputTokens` |
+| Output tokens | `usage.completionTokens` | `usage.outputTokens` |
+| Total tokens | `usage.totalTokens` | `usage.totalTokens` |
+
+The wrapper reads v6 names first, falling back to v5 names for backward compatibility.
+
+> **Important:** If you see `$0.00` cost in the dashboard but token counts are correct,
+> check that `inputTokens` and `outputTokens` are non-zero in the raw events.
+> A mismatch between SDK version and field names causes `inputTokens: 0, outputTokens: 0`
+> while `totalTokens` is populated — resulting in zero cost calculation.
+
+---
+
+## TrackingContext — all fields
 
 ```typescript
 {
-  userId: string           // Обов'язково
-  operationType: string    // Обов'язково: "chat", "generation", "embedding"
-  feature?: string         // Фіча: "question-gen", "search"
-  endpoint?: string        // Ендпоінт: "/api/chat"
-  entityType?: string      // Бізнес-сутність: "test", "document"
-  entityId?: string        // ID сутності
-  traceId?: string         // Для групування викликів (auto-generated)
-  promptSummary?: string   // Опис промпту (~500 символів)
-  user?: {                 // Довідникові дані юзера
+  userId: string           // Required
+  operationType: string    // Required: "chat", "generation", "embedding"
+  feature?: string         // Feature: "question-gen", "search"
+  endpoint?: string        // Endpoint: "/api/chat"
+  entityType?: string      // Business entity: "test", "document"
+  entityId?: string        // Entity ID
+  traceId?: string         // For grouping calls (auto-generated)
+  promptSummary?: string   // Prompt description (~500 chars)
+  user?: {                 // User reference data
     email?: string
     name?: string
     role?: string          // "student", "teacher", "admin"
@@ -131,41 +150,41 @@ const result = streamText({
 
 ---
 
-## Як працює під капотом
+## How it works under the hood
 
 ```
 ai.generateObject(fn, model, ctx)
     │
-    ├─ fn() → оригінальний AI-виклик
-    ├─ tracker.record(event) → буфер (до 50 подій)
-    │     └─ maybeSyncUser() → оновлення колекції users (debounce 60с)
+    ├─ fn() → original AI call
+    ├─ tracker.record(event) → buffer (up to 50 events)
+    │     └─ maybeSyncUser() → update users collection (debounce 60s)
     │
-    └─ flush() (кожні 5с або при заповненні буфера)
-          ├─ loadPricingFromDb() → ціни з БД
-          ├─ calculateCost() → вартість кожного евента
-          └─ insertMany() → batch-запис в tokenUsageEvents
+    └─ flush() (every 5s or when buffer is full)
+          ├─ loadPricingFromDb() → prices from DB
+          ├─ calculateCost() → cost for each event
+          └─ insertMany() → batch write to tokenUsageEvents
 ```
 
-- Буфер: **50 подій** або **5 секунд** (що раніше)
-- Вартість рахується при flush (одне завантаження цін на батч)
-- Якщо DB цін недоступна → fallback pricing (хардкод)
-- Якщо flush впав → події повертаються в буфер
-- TTL: сирі події видаляються через **90 днів**
+- Buffer: **50 events** or **5 seconds** (whichever comes first)
+- Cost is calculated at flush time (one pricing load per batch)
+- If pricing DB is unavailable → fallback pricing (hardcoded)
+- If flush fails → events are returned to buffer
+- TTL: raw events are deleted after **90 days**
 
 ---
 
-## Конфігурація
+## Configuration
 
 ```typescript
 createUsageTracker({
-  projectId: string                    // Унікальний ID (kebab-case)
+  projectId: string                    // Unique ID (kebab-case)
   environment: 'production' | 'staging' | 'development'
   buffer?: {
     maxSize?: number                   // Default: 50
     flushIntervalMs?: number           // Default: 5000
   }
   project?: {
-    name: string                       // Назва для дашборду
+    name: string                       // Display name for dashboard
     description?: string
     url?: string
     techStack?: string
@@ -177,35 +196,36 @@ createUsageTracker({
 
 ---
 
-## Чек-лист
+## Checklist
 
-- [ ] `src/lib/usage-tracker/` скопійовано
-- [ ] `mongoose` встановлено
-- [ ] `USAGE_DATABASE_URI` в `.env`
-- [ ] `src/lib/tracked-ai.ts` створено з `projectId`
-- [ ] AI-виклики обгорнуті через `ai.generateObject()` / `ai.onStreamFinish()`
-- [ ] `userId` передається в кожному виклику
-- [ ] Graceful shutdown підключено
-- [ ] Перевірено в дашборді UsageHub
+- [ ] `src/lib/usage-tracker/` copied
+- [ ] `mongoose` installed
+- [ ] `USAGE_DATABASE_URI` in `.env`
+- [ ] `src/lib/tracked-ai.ts` created with `projectId`
+- [ ] AI calls wrapped via `ai.generateObject()` / `ai.onStreamFinish()`
+- [ ] `userId` passed in every call
+- [ ] Graceful shutdown connected
+- [ ] Verified in UsageHub dashboard
 
 ---
 
 ## Troubleshooting
 
-| Проблема | Рішення |
-|----------|---------|
-| Проєкт не з'являється в дашборді | Перевір `USAGE_DATABASE_URI`, `projectId`, логи `[UsageTracker]` |
-| Вартість $0.00 | Назва моделі в коді має збігатися з `modelPricing`. Sync через UsageHub |
-| Events не пишуться | Перевір write-права MongoDB-юзера, `tracker.shutdown()` при зупинці |
+| Problem | Solution |
+|---------|----------|
+| Project not appearing in dashboard | Check `USAGE_DATABASE_URI`, `projectId`, `[UsageTracker]` logs |
+| Cost $0.00 | Model name must match `modelPricing`. Verify `inputTokens`/`outputTokens` are non-zero (see AI SDK compatibility) |
+| Events not writing | Check MongoDB user write permissions, ensure `tracker.shutdown()` on exit |
+| Tokens correct but cost zero | AI SDK version mismatch — SDK reads `inputTokens`/`outputTokens` (v6). Older versions use `promptTokens`/`completionTokens` |
 
 ---
 
-## Структура файлів після інтеграції
+## File structure after integration
 
 ```
 src/lib/
-├── tracked-ai.ts              ← твій файл (з projectId)
-└── usage-tracker/             ← SDK (скопійовано)
+├── tracked-ai.ts              ← your file (with projectId)
+└── usage-tracker/             ← SDK (copied)
     ├── index.ts
     ├── tracker.ts
     ├── tool.ts
