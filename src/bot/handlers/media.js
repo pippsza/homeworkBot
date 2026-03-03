@@ -5,7 +5,7 @@ const { isStudent } = require("../middleware/auth");
 const { processQuery } = require("../../services/orchestratorService");
 const ChatHistory = require("../../models/ChatHistory");
 const { mdToHtml } = require("./ai");
-const { parseFile } = require("../../services/chunkingService");
+
 
 async function deleteUserMsg(ctx) {
   await ctx
@@ -30,14 +30,12 @@ async function handleAiDocument(ctx) {
   const isImage = mimetype.startsWith("image/");
 
   const thinking = await trackSend(ctx, () =>
-    ctx.reply("📄 Анализирую файл...", {
+    ctx.reply(isImage ? "🖼 Анализирую изображение..." : "📄 Обрабатываю файл...", {
       disable_notification: !isPrivate(ctx),
     })
   );
 
   try {
-    const buffer = await downloadFile(ctx, doc.file_id);
-
     const history = await ChatHistory.findOne({ telegramUserId: ctx.from.id });
     const recentMessages = (history?.messages || [])
       .slice(-10)
@@ -59,24 +57,16 @@ async function handleAiDocument(ctx) {
 
     let text;
     if (isImage) {
-      // Image document → vision model
+      // Image document → download + vision model
+      const buffer = await downloadFile(ctx, doc.file_id);
       const query = (caption || "") + fileMeta;
       text = await processQuery(query, recentMessages, tracking, { buffer, mimeType: mimetype });
     } else {
-      // PDF/Word/text → try to parse, fallback to metadata-only query
-      let parsed = null;
-      try {
-        parsed = await parseFile(buffer, mimetype, filename);
-      } catch {
-        // Unsupported format — still send to AI with file metadata so it can attach
-      }
-      const query = parsed
-        ? caption
-          ? `${caption}\n\nСодержимое файла "${filename}":\n${parsed}${fileMeta}`
-          : `Пользователь прислал файл "${filename}":\n${parsed}${fileMeta}`
-        : caption
-          ? `${caption}${fileMeta}`
-          : `Пользователь прислал файл "${filename}".${fileMeta}`;
+      // Documents: just send file_id metadata to AI — no parsing, no downloading.
+      // AI decides what to do: attach to task, add as answer, etc.
+      const query = caption
+        ? `${caption}${fileMeta}`
+        : `Пользователь прислал файл "${filename}".${fileMeta}`;
       text = await processQuery(query, recentMessages, tracking);
     }
 
@@ -194,40 +184,57 @@ function mediaHandler(bot) {
       const caption = ctx.message.caption || "";
       const photoMeta = `\n\n[Прикреплённое фото — Telegram file_id: ${fileId}, тип: photo]`;
 
+      const history = await ChatHistory.findOne({ telegramUserId: ctx.from.id });
+      const recentMessages = (history?.messages || [])
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      // Check if user wants to attach (not analyze) the photo
+      const attachPattern = /прикреп|закин|добав.*(?:файл|фото|к задан|к ответ|к решени)|к условию|как ответ|как решение/i;
+      const wantsAttach = attachPattern.test(caption) ||
+        recentMessages.slice(-2).some((m) => m.role === "user" && attachPattern.test(m.content));
+
       const thinking = await trackSend(ctx, () =>
-        ctx.reply("🖼 Анализирую изображение...", {
+        ctx.reply(wantsAttach ? "📎 Прикрепляю..." : "🖼 Анализирую изображение...", {
           disable_notification: !isPrivate(ctx),
         })
       );
 
       try {
-        const buffer = await downloadFile(ctx, fileId);
-
-        const history = await ChatHistory.findOne({ telegramUserId: ctx.from.id });
-        const recentMessages = (history?.messages || [])
-          .slice(-10)
-          .map((m) => ({ role: m.role, content: m.content }));
-
-        const text = await processQuery(
-          (caption || "") + photoMeta,
-          recentMessages,
-          {
-            userId: String(ctx.from.id),
-            chatId: ctx.chat.id,
-            username: ctx.from.username ? `@${ctx.from.username}` : null,
-            operationType: "chat",
-            feature: "bot-chat-vision",
-            user: {
-              name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
-              role: "student",
-            },
+        const tracking = {
+          userId: String(ctx.from.id),
+          chatId: ctx.chat.id,
+          username: ctx.from.username ? `@${ctx.from.username}` : null,
+          operationType: "chat",
+          feature: wantsAttach ? "bot-chat-photo-attach" : "bot-chat-vision",
+          user: {
+            name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
+            role: "student",
           },
-          { buffer, mimeType: "image/jpeg" }
-        );
+        };
+
+        let text;
+        if (wantsAttach) {
+          // Just send metadata — AI will attach via tools, no vision needed
+          const query = caption
+            ? `${caption}${photoMeta}`
+            : `Пользователь прислал фото.${photoMeta}`;
+          text = await processQuery(query, recentMessages, tracking);
+        } else {
+          // Download + vision for analysis
+          const buffer = await downloadFile(ctx, fileId);
+          text = await processQuery(
+            (caption || "") + photoMeta,
+            recentMessages,
+            tracking,
+            { buffer, mimeType: "image/jpeg" }
+          );
+        }
+
         if (!text) {
-          console.warn("[ai vision] empty text response — AI may have ended on a tool call without generating text");
+          console.warn("[ai photo] empty text response — AI may have ended on a tool call without generating text");
           const { debugLog } = require("../../lib/debugLog");
-          debugLog("vision-handler", "Empty AI response for photo");
+          debugLog("photo-handler", `Empty AI response | attach=${wantsAttach}`);
         }
         const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
         const htmlText = mdToHtml(replyText).slice(0, 4096);

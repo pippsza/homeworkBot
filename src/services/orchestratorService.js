@@ -397,7 +397,8 @@ async function processQuery(query, historyMessages = [], tracking, imageData = n
         resultKeys: tr.result ? Object.keys(tr.result) : [],
       })),
     }));
-    debugLog("processQuery", `Query: "${(query || "").slice(0, 100)}" | Steps: ${steps.length} | Final text length: ${(text || "").length}`, stepsInfo);
+    const usageInfo = result.usage ? { prompt: result.usage.promptTokens, completion: result.usage.completionTokens, total: result.usage.totalTokens } : "no usage";
+    debugLog("processQuery", `Query: "${(query || "").slice(0, 100)}" | Steps: ${steps.length} | Text: ${(text || "").length} chars | Usage: ${JSON.stringify(usageInfo)}`, stepsInfo);
   }
 
   // If text is empty, try to recover from steps
