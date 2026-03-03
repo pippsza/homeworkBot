@@ -367,7 +367,9 @@ async function processQuery(query, historyMessages = [], tracking, imageData = n
   const messages = [...historyMessages, lastUserMessage];
   const chatModels = imageData ? await getChatVisionModels() : await getChatModels();
 
-  const { text } = await generateWithFallback(
+  const { debugLog } = require("../lib/debugLog");
+
+  const result = await generateWithFallback(
     chatModels,
     {
       system: enhancedSystem,
@@ -379,6 +381,51 @@ async function processQuery(query, historyMessages = [], tracking, imageData = n
     },
     tracking || { operationType: "chat", feature: "bot-chat" }
   );
+
+  let text = result.text;
+
+  // Debug: log steps info
+  const steps = result.steps || [];
+  if (steps.length > 0) {
+    const stepsInfo = steps.map((s, i) => ({
+      step: i,
+      hasText: !!s.text,
+      textLen: (s.text || "").length,
+      toolCalls: (s.toolCalls || []).map((tc) => tc.toolName),
+      toolResults: (s.toolResults || []).map((tr) => ({
+        tool: tr.toolName,
+        resultKeys: tr.result ? Object.keys(tr.result) : [],
+      })),
+    }));
+    debugLog("processQuery", `Query: "${(query || "").slice(0, 100)}" | Steps: ${steps.length} | Final text length: ${(text || "").length}`, stepsInfo);
+  }
+
+  // If text is empty, try to recover from steps
+  if (!text && steps.length > 0) {
+    // 1. Try to get text from any step
+    const stepTexts = steps.map((s) => s.text).filter(Boolean);
+    if (stepTexts.length) {
+      text = stepTexts.join("\n");
+      debugLog("processQuery", "Recovered text from earlier steps", text.slice(0, 500));
+    }
+
+    // 2. Still empty? Build summary from tool results
+    if (!text) {
+      const allToolResults = steps.flatMap((s) => s.toolResults || []);
+      if (allToolResults.length > 0) {
+        const summary = allToolResults
+          .map((tr) => {
+            const r = tr.result;
+            if (r?.error) return `Ошибка: ${r.error}`;
+            if (r?.success) return JSON.stringify(r, null, 2);
+            return JSON.stringify(r, null, 2);
+          })
+          .join("\n\n");
+        text = `Результат:\n\`\`\`\n${summary.slice(0, 3000)}\n\`\`\``;
+        debugLog("processQuery", "Built text from tool results (AI didn't generate response)", text.slice(0, 500));
+      }
+    }
+  }
 
   return text;
 }

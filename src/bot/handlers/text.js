@@ -123,7 +123,11 @@ function textHandler(bot) {
             role: "student",
           },
         });
-        if (!text) console.warn("[ai reply] empty text response — AI may have ended on a tool call without generating text");
+        if (!text) {
+          console.warn("[ai reply] empty text response — AI may have ended on a tool call without generating text");
+          const { debugLog } = require("../../lib/debugLog");
+          debugLog("text-handler", `Empty AI response for query: "${question.slice(0, 200)}"`);
+        }
         const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
         const htmlText = mdToHtml(replyText).slice(0, 4096);
 
@@ -156,6 +160,8 @@ function textHandler(bot) {
         ).catch((e) => console.error("[ai reply] history save error:", e.message));
       } catch (e) {
         console.error("[ai reply] error:", e);
+        const { debugLog } = require("../../lib/debugLog");
+        debugLog("text-handler-error", `Query: "${question.slice(0, 200)}"`, e.message || String(e));
         await ctx.telegram
           .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка AI. Попробуйте позже.")
           .catch(() => {});

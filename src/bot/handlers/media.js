@@ -80,7 +80,11 @@ async function handleAiDocument(ctx) {
       text = await processQuery(query, recentMessages, tracking);
     }
 
-    if (!text) console.warn("[ai document] empty text response — AI may have ended on a tool call without generating text");
+    if (!text) {
+      console.warn("[ai document] empty text response — AI may have ended on a tool call without generating text");
+      const { debugLog } = require("../../lib/debugLog");
+      debugLog("media-handler", `Empty AI response for document: ${filename}`);
+    }
     const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
     const htmlText = mdToHtml(replyText).slice(0, 4096);
 
@@ -113,6 +117,8 @@ async function handleAiDocument(ctx) {
     ).catch((e) => console.error("[ai document] history save error:", e.message));
   } catch (e) {
     console.error("[ai document] error:", e);
+    const { debugLog } = require("../../lib/debugLog");
+    debugLog("media-handler-error", `Document: ${filename}`, e.message || String(e));
     await ctx.telegram
       .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка обработки файла. Попробуйте позже.")
       .catch(() => {});
@@ -218,7 +224,11 @@ function mediaHandler(bot) {
           },
           { buffer, mimeType: "image/jpeg" }
         );
-        if (!text) console.warn("[ai vision] empty text response — AI may have ended on a tool call without generating text");
+        if (!text) {
+          console.warn("[ai vision] empty text response — AI may have ended on a tool call without generating text");
+          const { debugLog } = require("../../lib/debugLog");
+          debugLog("vision-handler", "Empty AI response for photo");
+        }
         const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
         const htmlText = mdToHtml(replyText).slice(0, 4096);
 
@@ -251,6 +261,8 @@ function mediaHandler(bot) {
         ).catch((e) => console.error("[ai vision] history save error:", e.message));
       } catch (e) {
         console.error("[ai vision] error:", e);
+        const { debugLog } = require("../../lib/debugLog");
+        debugLog("vision-handler-error", "Photo processing error", e.message || String(e));
         await ctx.telegram
           .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка AI. Попробуйте позже.")
           .catch(() => {});
