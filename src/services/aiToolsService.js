@@ -42,15 +42,40 @@ ${subjectsList}
 ${scheduleContext}
 
 ПРАВИЛА ИСПОЛЬЗОВАНИЯ ИНСТРУМЕНТОВ:
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ СОЗДАТЬ/ДОБАВИТЬ ПРЕДМЕТ — ВЫЗОВИ createSubject.
 - КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ СОЗДАТЬ ДОМАШКУ/ЗАДАНИЕ — ВЫЗОВИ createHomework.
 - КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ЗАПОМНИТЬ/СОХРАНИТЬ ИНФОРМАЦИЮ — ВЫЗОВИ rememberInfo.
 - КОГДА ПОЛЬЗОВАТЕЛЬ ГОВОРИТ ФИО ПРЕПОДАВАТЕЛЯ/ПРАКТИКА ИЛИ ПРОСИТ ОБНОВИТЬ ПРЕДМЕТ — ВЫЗОВИ updateSubject.
 - КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ИЗМЕНИТЬ ЗАДАНИЕ — ВЫЗОВИ updateTask.
 - КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ О РАСПИСАНИИ НА ДРУГУЮ ДАТУ — ВЫЗОВИ getSchedule.
 - КОГДА ПОЛЬЗОВАТЕЛЬ ПРИСЫЛАЕТ РАСПИСАНИЕ ИЛИ ПРОСИТ НАСТРОИТЬ РАСПИСАНИЕ — ВЫЗОВИ setTimeSlots (время пар), затем setDaySchedule для каждого дня (Пн-Пт). Используй ID предметов из списка выше. Для мигалок (чередование по неделям) установи isAlternating: true и укажи subjectId (нечётная) и subjectIdEven (чётная).
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРИСЫЛАЕТ ОТВЕТ НА ЗАДАНИЕ — сначала вызови listTasks чтобы найти ID задания, затем addTaskAnswer.
 - НИКОГДА не отвечай текстом "я сделал" без реального вызова инструмента.`;
 
   const tools = {
+    createSubject: tool({
+      description: "Создать новый предмет. Используй когда пользователь просит добавить предмет или когда настраиваешь расписание и нужного предмета нет в списке.",
+      inputSchema: z.object({
+        name: z.string().describe("Название предмета"),
+        emoji: z.string().optional().describe("Эмодзи для предмета (по умолчанию 📚)"),
+        lecturerName: z.string().optional().describe("ФИО лектора"),
+        practitionerName: z.string().optional().describe("ФИО практика"),
+      }),
+      execute: async ({ name, emoji, lecturerName, practitionerName }) => {
+        console.log("[ai tool] createSubject:", { name });
+        const data = { name, emoji: emoji || "📚" };
+        if (lecturerName) data.lecturerName = lecturerName;
+        if (practitionerName) data.practitionerName = practitionerName;
+        const subject = await subjectService.create(data);
+        return {
+          success: true,
+          subjectId: subject._id.toString(),
+          subjectName: subject.name,
+          subjectEmoji: subject.emoji,
+        };
+      },
+    }),
+
     createHomework: tool({
       description: "Создать домашнее задание. Используй когда пользователь просит создать, добавить домашку или задание.",
       inputSchema: z.object({
@@ -163,6 +188,47 @@ ${scheduleContext}
           success: true,
           taskTitle: result.task.title,
           updatedFields: Object.keys(updates),
+        };
+      },
+    }),
+
+    listTasks: tool({
+      description: "Получить список заданий предмета. Используй чтобы узнать ID задания перед добавлением ответа или обновлением.",
+      inputSchema: z.object({
+        subjectId: z.string().describe("ID предмета из списка"),
+      }),
+      execute: async ({ subjectId }) => {
+        console.log("[ai tool] listTasks:", { subjectId });
+        const subject = await subjectService.getById(subjectId);
+        if (!subject) return { error: "Предмет не найден" };
+        return {
+          tasks: (subject.tasks || []).map((t) => ({
+            id: t._id.toString(),
+            title: t.title,
+            emoji: t.emoji || "📄",
+            answersCount: t.answers?.length || 0,
+          })),
+        };
+      },
+    }),
+
+    addTaskAnswer: tool({
+      description: "Добавить текстовый ответ к заданию. Используй когда пользователь присылает решение/ответ на домашку.",
+      inputSchema: z.object({
+        taskId: z.string().describe("ID задания (получи через listTasks)"),
+        content: z.string().describe("Текст ответа"),
+      }),
+      execute: async ({ taskId, content }) => {
+        console.log("[ai tool] addTaskAnswer:", { taskId, contentLength: content.length });
+        const result = await subjectService.addAnswer(taskId, {
+          type: "text",
+          content,
+        });
+        if (!result) return { error: "Задание не найдено" };
+        return {
+          success: true,
+          taskTitle: result.task.title,
+          answersCount: result.task.answers.length,
         };
       },
     }),
