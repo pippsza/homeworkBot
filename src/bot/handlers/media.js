@@ -63,11 +63,20 @@ async function handleAiDocument(ctx) {
       const query = (caption || "") + fileMeta;
       text = await processQuery(query, recentMessages, tracking, { buffer, mimeType: mimetype });
     } else {
-      // PDF/Word/text → parse to text, send as regular query
-      const parsed = await parseFile(buffer, mimetype, filename);
-      const query = caption
-        ? `${caption}\n\nСодержимое файла "${filename}":\n${parsed}${fileMeta}`
-        : `Пользователь прислал файл "${filename}":\n${parsed}${fileMeta}`;
+      // PDF/Word/text → try to parse, fallback to metadata-only query
+      let parsed = null;
+      try {
+        parsed = await parseFile(buffer, mimetype, filename);
+      } catch {
+        // Unsupported format — still send to AI with file metadata so it can attach
+      }
+      const query = parsed
+        ? caption
+          ? `${caption}\n\nСодержимое файла "${filename}":\n${parsed}${fileMeta}`
+          : `Пользователь прислал файл "${filename}":\n${parsed}${fileMeta}`
+        : caption
+          ? `${caption}${fileMeta}`
+          : `Пользователь прислал файл "${filename}".${fileMeta}`;
       text = await processQuery(query, recentMessages, tracking);
     }
 
