@@ -80,7 +80,8 @@ async function handleAiDocument(ctx) {
       text = await processQuery(query, recentMessages, tracking);
     }
 
-    const replyText = text || "Готово!";
+    if (!text) console.warn("[ai document] empty text response — AI may have ended on a tool call without generating text");
+    const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
     const htmlText = mdToHtml(replyText).slice(0, 4096);
 
     await ctx.telegram
@@ -217,7 +218,8 @@ function mediaHandler(bot) {
           },
           { buffer, mimeType: "image/jpeg" }
         );
-        const replyText = text || "Готово!";
+        if (!text) console.warn("[ai vision] empty text response — AI may have ended on a tool call without generating text");
+        const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
         const htmlText = mdToHtml(replyText).slice(0, 4096);
 
         await ctx.telegram

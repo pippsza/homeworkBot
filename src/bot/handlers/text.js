@@ -123,7 +123,8 @@ function textHandler(bot) {
             role: "student",
           },
         });
-        const replyText = text || "Готово!";
+        if (!text) console.warn("[ai reply] empty text response — AI may have ended on a tool call without generating text");
+        const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
         const htmlText = mdToHtml(replyText).slice(0, 4096);
 
         await ctx.telegram
