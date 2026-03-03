@@ -1,6 +1,6 @@
 const { randomUUID } = require("crypto");
 const { getTokenUsageEventModel } = require("./connection");
-const { calculateCost } = require("./pricing");
+const { calculateCost, loadPricingFromDb } = require("./pricing");
 const { registerProject, syncUser } = require("./registry");
 
 class UsageTracker {
@@ -37,7 +37,7 @@ class UsageTracker {
   }
 
   /**
-   * Record a usage event. Automatically enriches with project info and cost.
+   * Record a usage event. Cost is calculated later in flush() with fresh DB pricing.
    */
   record(event) {
     if (!this._started) return;
@@ -50,15 +50,8 @@ class UsageTracker {
       traceId: event.traceId || randomUUID(),
       projectId: this.config.projectId,
       environment: this.config.environment,
-      provider: event.provider ?? "openrouter",
+      provider: event.provider ?? "google",
       isStreaming: event.isStreaming ?? false,
-      estimatedCostUsd: calculateCost(
-        event.model,
-        event.inputTokens,
-        event.outputTokens,
-        event.cachedTokens,
-        event.reasoningTokens
-      ),
     };
 
     // Remove userInfo from the event (it's only for user sync)
@@ -93,6 +86,7 @@ class UsageTracker {
 
   /**
    * Flush buffered events to MongoDB.
+   * Loads fresh pricing from DB before calculating costs.
    */
   async flush() {
     if (this.buffer.length === 0) return;
@@ -101,6 +95,26 @@ class UsageTracker {
     this.buffer = [];
 
     try {
+      // Load fresh pricing from DB (falls back to FALLBACK_PRICING if unavailable)
+      let pricingMap;
+      try {
+        pricingMap = await loadPricingFromDb();
+      } catch {
+        // DB pricing unavailable — calculateCost will use FALLBACK_PRICING
+      }
+
+      // Calculate cost for each event before saving
+      for (const event of events) {
+        event.estimatedCostUsd = calculateCost(
+          event.model,
+          event.inputTokens,
+          event.outputTokens,
+          event.cachedTokens,
+          event.reasoningTokens,
+          pricingMap
+        );
+      }
+
       const Model = getTokenUsageEventModel();
       await Model.insertMany(events, { ordered: false });
     } catch (error) {

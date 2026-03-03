@@ -21,8 +21,8 @@ const tokenUsageEventSchema = new Schema(
     provider: {
       type: String,
       required: true,
-      enum: ["openrouter", "openai", "anthropic", "google", "custom"],
-      default: "openrouter",
+      enum: ["openai", "anthropic", "google", "custom"],
+      default: "openai",
     },
     model: { type: String, required: true, index: true },
     modelGroup: String,

@@ -1,6 +1,17 @@
+const { getModelPricingModel } = require("./connection");
+
 // Fallback pricing table (USD per 1M tokens)
 // Used when modelPricing collection is not available
 const FALLBACK_PRICING = {
+  // OpenAI models
+  "gpt-4.1": { input: 2.0, output: 8.0, cached: 0.5 },
+  "gpt-4.1-mini": { input: 0.4, output: 1.6, cached: 0.1 },
+  "gpt-4.1-nano": { input: 0.1, output: 0.4, cached: 0.025 },
+  "gpt-4o": { input: 2.5, output: 10.0, cached: 1.25 },
+  "gpt-4o-mini": { input: 0.15, output: 0.6, cached: 0.075 },
+  o3: { input: 2.0, output: 8.0, reasoning: 8.0 },
+  "o3-mini": { input: 1.1, output: 4.4, reasoning: 4.4 },
+  "o4-mini": { input: 1.1, output: 4.4, reasoning: 4.4 },
   // OpenRouter models
   "openai/gpt-4o-mini": { input: 0.15, output: 0.60 },
   "openai/gpt-4o": { input: 2.50, output: 10.00, cached: 1.25 },
@@ -13,7 +24,7 @@ const FALLBACK_PRICING = {
   "google/gemini-2.5-flash": { input: 0.15, output: 0.60 },
   "google/gemini-2.5-pro": { input: 1.25, output: 10.00 },
   "google/gemini-2.0-flash": { input: 0.10, output: 0.40 },
-  // Google direct (actual rates — free tier has quotas, but token value is real)
+  // Google direct
   "gemini-2.5-flash-lite": { input: 0.075, output: 0.30 },
   "gemini-2.5-flash": { input: 0.15, output: 0.60 },
   "gemini-2.5-pro": { input: 1.25, output: 10.00 },
@@ -25,17 +36,55 @@ const FALLBACK_PRICING = {
 };
 
 /**
- * Calculate estimated cost for a request.
- * Uses fallback hardcoded prices. Hub will fill modelPricing collection later.
+ * Load pricing from modelPricing DB collection.
+ * Returns a Map of model → { input, output, cached?, reasoning? }.
+ * Falls through to FALLBACK_PRICING if DB is unavailable.
+ */
+async function loadPricingFromDb() {
+  const Model = getModelPricingModel();
+  const now = new Date();
+
+  const docs = await Model.find({
+    effectiveFrom: { $lte: now },
+    $or: [
+      { effectiveTo: null },
+      { effectiveTo: { $exists: false } },
+      { effectiveTo: { $gt: now } },
+    ],
+  })
+    .sort({ effectiveFrom: -1 })
+    .lean();
+
+  const map = new Map();
+
+  for (const doc of docs) {
+    const key = String(doc.model);
+    if (map.has(key)) continue;
+
+    map.set(key, {
+      input: doc.inputPricePerMillionTokens,
+      output: doc.outputPricePerMillionTokens,
+      cached: doc.cachedInputPricePerMillionTokens ?? undefined,
+      reasoning: doc.reasoningPricePerMillionTokens ?? undefined,
+    });
+  }
+
+  return map;
+}
+
+/**
+ * Calculate estimated cost for a request in USD.
+ * @param {Map} [pricingMap] - DB pricing (takes priority over FALLBACK_PRICING)
  */
 function calculateCost(
   model,
   inputTokens,
   outputTokens,
   cachedTokens = 0,
-  reasoningTokens = 0
+  reasoningTokens = 0,
+  pricingMap
 ) {
-  const pricing = FALLBACK_PRICING[model];
+  const pricing = pricingMap?.get(model) ?? FALLBACK_PRICING[model];
   if (!pricing) return 0;
 
   let cost = 0;
@@ -51,4 +100,4 @@ function calculateCost(
   return Math.round(cost * 1_000_000) / 1_000_000;
 }
 
-module.exports = { calculateCost, FALLBACK_PRICING };
+module.exports = { calculateCost, loadPricingFromDb, FALLBACK_PRICING };

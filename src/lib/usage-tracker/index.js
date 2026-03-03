@@ -3,7 +3,7 @@
 
 const { createUsageTracker } = require("./tracker");
 const { createTrackedAI } = require("./tool");
-const { calculateCost, FALLBACK_PRICING } = require("./pricing");
+const { calculateCost, loadPricingFromDb, FALLBACK_PRICING } = require("./pricing");
 const { registerProject, syncUser } = require("./registry");
 const {
   getUsageConnection,
@@ -21,6 +21,7 @@ module.exports = {
 
   // Pricing
   calculateCost,
+  loadPricingFromDb,
   FALLBACK_PRICING,
 
   // Registry
