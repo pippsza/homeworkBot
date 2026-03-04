@@ -166,10 +166,37 @@ ai.generateObject(fn, model, ctx)
 ```
 
 - Buffer: **50 events** or **5 seconds** (whichever comes first)
+- Buffer overflow protection: trimmed to 10,000 events if DB is consistently unavailable
 - Cost is calculated at flush time (one pricing load per batch)
 - If pricing DB is unavailable → fallback pricing (hardcoded)
 - If flush fails → events are returned to buffer
 - TTL: raw events are deleted after **90 days**
+
+---
+
+## Pricing — how cost is calculated
+
+The SDK **does not hardcode prices**. On each flush it:
+
+1. Loads current prices from `modelPricing` collection in the same MongoDB
+2. If model found in DB → uses that price
+3. If model **not found** → falls back to hardcoded pricing (only basic OpenAI models)
+
+```
+flush() → loadPricingFromDb() → calculateCost(model, tokens, pricingMap)
+                │                        │
+                ▼                        ▼
+         modelPricing collection    pricingMap ?? FALLBACK_PRICING
+         (shared with UsageHub)     (only gpt-4.1, o3, o4-mini)
+```
+
+**To keep prices accurate:**
+
+1. Open UsageHub → Models
+2. Click **Sync** — this loads current prices from OpenRouter API into `modelPricing`
+3. SDK automatically picks them up on next flush
+
+> Fallback covers only: `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `o3`, `o3-mini`, `o4-mini`. For **any other models** (Claude, Gemini, DeepSeek, Llama, etc.) — sync via UsageHub is required, otherwise cost will be $0.00.
 
 ---
 
