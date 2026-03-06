@@ -1,6 +1,6 @@
 const { getBot } = require("./bot");
 
-const ADMIN_USER_ID = 1256707116;
+const ADMIN_USER_ID = process.env.ADMIN_TELEGRAM_ID ? Number(process.env.ADMIN_TELEGRAM_ID) : 1256707116;
 
 /**
  * Send a debug log message to the admin via Telegram.

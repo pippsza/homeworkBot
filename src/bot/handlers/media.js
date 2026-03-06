@@ -2,10 +2,11 @@ const { trackSend, isPrivate } = require("../helpers/editOrSend");
 const inputState = require("../helpers/inputState");
 const { updateCollectMessage } = require("./homework");
 const { isStudent } = require("../middleware/auth");
-const { processQuery } = require("../../services/orchestratorService");
+const { processQuery, processQueryMultiImage } = require("../../services/orchestratorService");
 const ChatHistory = require("../../models/ChatHistory");
 const { mdToHtml } = require("./ai");
-
+const { collect: collectMediaGroup } = require("../helpers/mediaGroupCollector");
+const { checkRateLimit } = require("../helpers/rateLimit");
 
 async function deleteUserMsg(ctx) {
   await ctx
@@ -16,23 +17,102 @@ async function deleteUserMsg(ctx) {
 async function downloadFile(ctx, fileId) {
   const url = await ctx.telegram.getFileLink(fileId);
   const res = await fetch(url.href);
-  const buffer = Buffer.from(await res.arrayBuffer());
-  return buffer;
+  return Buffer.from(await res.arrayBuffer());
 }
 
-async function handleAiDocument(ctx) {
-  const doc = ctx.message.document;
-  if (!doc) return;
+/**
+ * Send a potentially long AI response, splitting into multiple messages if needed.
+ * First message edits the "thinking" message; subsequent ones are new messages.
+ */
+async function sendLongResponse(ctx, thinkingMsgId, replyText) {
+  const MAX_LEN = 4096;
+  if (replyText.length <= MAX_LEN) {
+    const htmlText = mdToHtml(replyText);
+    await ctx.telegram
+      .editMessageText(ctx.chat.id, thinkingMsgId, null, htmlText.slice(0, MAX_LEN), {
+        parse_mode: "HTML",
+      })
+      .catch(() =>
+        ctx.telegram.editMessageText(
+          ctx.chat.id, thinkingMsgId, null, replyText.slice(0, MAX_LEN)
+        )
+      );
+    return;
+  }
 
-  const caption = ctx.message.caption || "";
-  const mimetype = doc.mime_type || "application/octet-stream";
-  const filename = doc.file_name || "file";
-  const isImage = mimetype.startsWith("image/");
+  // Split on paragraph boundaries
+  const chunks = splitTextSmart(replyText, MAX_LEN);
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const htmlChunk = mdToHtml(chunk).slice(0, MAX_LEN);
+    if (i === 0) {
+      await ctx.telegram
+        .editMessageText(ctx.chat.id, thinkingMsgId, null, htmlChunk, {
+          parse_mode: "HTML",
+        })
+        .catch(() =>
+          ctx.telegram.editMessageText(
+            ctx.chat.id, thinkingMsgId, null, chunk.slice(0, MAX_LEN)
+          )
+        );
+    } else {
+      await ctx.reply(htmlChunk, {
+        parse_mode: "HTML",
+        disable_notification: true,
+      }).catch(() =>
+        ctx.reply(chunk.slice(0, MAX_LEN), { disable_notification: true })
+      );
+    }
+  }
+}
+
+function splitTextSmart(text, maxLen) {
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > maxLen) {
+    let splitAt = remaining.lastIndexOf("\n\n", maxLen);
+    if (splitAt < maxLen * 0.3) splitAt = remaining.lastIndexOf("\n", maxLen);
+    if (splitAt < maxLen * 0.3) splitAt = remaining.lastIndexOf(". ", maxLen);
+    if (splitAt < maxLen * 0.3) splitAt = maxLen;
+    chunks.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+function buildTracking(ctx, feature) {
+  return {
+    userId: String(ctx.from.id),
+    chatId: ctx.chat.id,
+    username: ctx.from.username ? `@${ctx.from.username}` : null,
+    operationType: "chat",
+    feature,
+    user: {
+      name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
+      role: "student",
+    },
+  };
+}
+
+// ── Handle a batch of AI media (photos/documents grouped together) ──
+
+async function handleAiBatch(ctx, items, caption) {
+  if (!checkRateLimit(ctx.from.id)) {
+    return trackSend(ctx, () =>
+      ctx.reply("Слишком много запросов. Подождите минуту.", {
+        disable_notification: !isPrivate(ctx),
+      })
+    );
+  }
+
+  const hasImages = items.some((i) => i.type === "photo" || (i.mimeType && i.mimeType.startsWith("image/")));
+  const thinkingText = hasImages
+    ? `🖼 Анализирую ${items.length > 1 ? items.length + " файлов" : "изображение"}...`
+    : `📄 Обрабатываю ${items.length > 1 ? items.length + " файлов" : "файл"}...`;
 
   const thinking = await trackSend(ctx, () =>
-    ctx.reply(isImage ? "🖼 Анализирую изображение..." : "📄 Обрабатываю файл...", {
-      disable_notification: !isPrivate(ctx),
-    })
+    ctx.reply(thinkingText, { disable_notification: !isPrivate(ctx) })
   );
 
   try {
@@ -41,100 +121,144 @@ async function handleAiDocument(ctx) {
       .slice(-10)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    const tracking = {
-      userId: String(ctx.from.id),
-      chatId: ctx.chat.id,
-      username: ctx.from.username ? `@${ctx.from.username}` : null,
-      operationType: "chat",
-      feature: isImage ? "bot-chat-vision" : "bot-chat-document",
-      user: {
-        name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
-        role: "student",
-      },
-    };
+    // Check if user wants to attach (not analyze)
+    const attachPattern = /прикреп|закин|добав.*(?:файл|фото|к задан|к ответ|к решени)|к условию|как ответ|как решение/i;
+    const wantsAttach = attachPattern.test(caption) ||
+      recentMessages.slice(-2).some((m) => m.role === "user" && attachPattern.test(m.content));
 
-    const fileMeta = `\n\n[Прикреплённый файл — Telegram file_id: ${doc.file_id}, тип: document, имя: ${filename}]`;
+    // Build metadata for all files
+    const metaParts = items.map((item) => {
+      if (item.type === "photo") {
+        return `[Прикреплённое фото — Telegram file_id: ${item.fileId}, тип: photo]`;
+      }
+      return `[Прикреплённый файл — Telegram file_id: ${item.fileId}, тип: document, имя: ${item.fileName || "file"}]`;
+    });
+    const allMeta = "\n\n" + metaParts.join("\n");
 
-    let text;
-    if (isImage) {
-      // Image document → download + vision model
-      const buffer = await downloadFile(ctx, doc.file_id);
-      const query = (caption || "") + fileMeta;
-      text = await processQuery(query, recentMessages, tracking, { buffer, mimeType: mimetype });
+    const tracking = buildTracking(ctx, wantsAttach ? "bot-chat-media-attach" : "bot-chat-media");
+    let result;
+
+    if (wantsAttach) {
+      const query = caption ? `${caption}${allMeta}` : `Пользователь прислал ${items.length} файлов.${allMeta}`;
+      result = await processQuery(query, recentMessages, tracking);
     } else {
-      // Documents: just send file_id metadata to AI — no parsing, no downloading.
-      // AI decides what to do: attach to task, add as answer, etc.
-      const query = caption
-        ? `${caption}${fileMeta}`
-        : `Пользователь прислал файл "${filename}".${fileMeta}`;
-      text = await processQuery(query, recentMessages, tracking);
+      const imageBuffers = [];
+      const nonImageMeta = [];
+
+      await Promise.all(items.map(async (item) => {
+        const isImage = item.type === "photo" || (item.mimeType && item.mimeType.startsWith("image/"));
+        if (isImage) {
+          const buffer = await downloadFile(ctx, item.fileId);
+          imageBuffers.push({ buffer, mimeType: item.mimeType || "image/jpeg" });
+        } else {
+          nonImageMeta.push(`[Прикреплённый файл — Telegram file_id: ${item.fileId}, тип: document, имя: ${item.fileName || "file"}]`);
+        }
+      }));
+
+      const queryText = (caption || "") + (nonImageMeta.length ? "\n\n" + nonImageMeta.join("\n") : "") + allMeta;
+
+      if (imageBuffers.length > 1) {
+        // processQueryMultiImage returns plain text (no extraHistoryContext)
+        const text = await processQueryMultiImage(queryText, recentMessages, tracking, imageBuffers);
+        result = { text, extraHistoryContext: "" };
+      } else if (imageBuffers.length === 1) {
+        result = await processQuery(queryText, recentMessages, tracking, imageBuffers[0]);
+      } else {
+        result = await processQuery(queryText, recentMessages, tracking);
+      }
     }
 
-    if (!text) {
-      console.warn("[ai document] empty text response — AI may have ended on a tool call without generating text");
-      const { debugLog } = require("../../lib/debugLog");
-      debugLog("media-handler", `Empty AI response for document: ${filename}`);
-    }
-    const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
-    const htmlText = mdToHtml(replyText).slice(0, 4096);
-
-    await ctx.telegram
-      .editMessageText(ctx.chat.id, thinking.message_id, null, htmlText, {
-        parse_mode: "HTML",
-      })
-      .catch(() =>
-        ctx.telegram.editMessageText(
-          ctx.chat.id, thinking.message_id, null, replyText.slice(0, 4096)
-        )
-      );
+    const replyText = result.text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
+    await sendLongResponse(ctx, thinking.message_id, replyText);
 
     inputState.set(ctx.from.id, { mode: "ai_chat" });
 
+    // Save history
     const historyContent = caption
-      ? `${caption}\n\n[Прикреплённый файл — Telegram file_id: ${doc.file_id}, тип: document, имя: ${filename}]`
-      : `Пользователь прислал файл "${filename}".\n\n[Прикреплённый файл — Telegram file_id: ${doc.file_id}, тип: document, имя: ${filename}]`;
+      ? `${caption}${allMeta}`
+      : `Пользователь прислал ${items.length} файлов.${allMeta}`;
     await ChatHistory.findOneAndUpdate(
       { telegramUserId: ctx.from.id },
       {
         $push: {
           messages: {
             $each: [
-              { role: "user", content: historyContent },
+              { role: "user", content: historyContent + (result.extraHistoryContext || "") },
               { role: "assistant", content: replyText },
             ],
+            $slice: -50,
           },
         },
       },
       { upsert: true }
-    ).catch((e) => console.error("[ai document] history save error:", e.message));
+    ).catch((e) => console.error("[ai media batch] history save error:", e.message));
   } catch (e) {
-    console.error("[ai document] error:", e);
-    const { debugLog } = require("../../lib/debugLog");
-    debugLog("media-handler-error", `Document: ${filename}`, e.message || String(e));
+    console.error("[ai media batch] error:", e);
     await ctx.telegram
-      .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка обработки файла. Попробуйте позже.")
+      .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка обработки. Попробуйте позже.")
       .catch(() => {});
   }
 }
 
+// ── Handle single AI document (no media group) ──
+
+async function handleAiDocument(ctx) {
+  const doc = ctx.message.document;
+  if (!doc) return;
+  const item = {
+    type: "document",
+    fileId: doc.file_id,
+    mimeType: doc.mime_type || "application/octet-stream",
+    fileName: doc.file_name || "file",
+  };
+  await handleAiBatch(ctx, [item], ctx.message.caption || "");
+}
+
+// ── Handle single AI photo (no media group) ──
+
+async function handleAiPhoto(ctx) {
+  const photo = ctx.message.photo;
+  if (!photo || !photo.length) return;
+  const item = {
+    type: "photo",
+    fileId: photo[photo.length - 1].file_id,
+    mimeType: "image/jpeg",
+  };
+  await handleAiBatch(ctx, [item], ctx.message.caption || "");
+}
+
 function mediaHandler(bot) {
+  // ── DOCUMENT handler ──
   bot.on("document", async (ctx) => {
-    // AI chat: document as reply to bot OR in ai_chat mode
     const aiState = inputState.get(ctx.from.id);
-    const isAiReply =
-      !aiState &&
-      ctx.message.reply_to_message?.from?.id === ctx.botInfo.id;
+    const isAiReply = !aiState && ctx.message.reply_to_message?.from?.id === ctx.botInfo.id;
     const isAiChat = aiState?.mode === "ai_chat";
 
     if ((isAiReply || isAiChat) && (await isStudent(ctx))) {
-      await handleAiDocument(ctx);
+      const mediaGroupId = ctx.message.media_group_id;
+
+      if (mediaGroupId) {
+        const doc = ctx.message.document;
+        const item = {
+          type: "document",
+          fileId: doc.file_id,
+          mimeType: doc.mime_type || "application/octet-stream",
+          fileName: doc.file_name || "file",
+        };
+        const batchPromise = collectMediaGroup(mediaGroupId, item, ctx.message.caption);
+        if (batchPromise) {
+          const batch = await batchPromise;
+          await handleAiBatch(ctx, batch.items, batch.caption);
+        }
+      } else {
+        await handleAiDocument(ctx);
+      }
       return;
     }
 
     const state = inputState.get(ctx.from.id);
     if (!state) return;
     try {
-      // Collect documents for homework creation
       if (state.mode === "collect_hw") {
         const file_id = ctx.message.document.file_id;
         state.attachments.push({ type: "document", file_id });
@@ -148,10 +272,9 @@ function mediaHandler(bot) {
         const file_id = ctx.message.document.file_id;
         state.attachments.push({ type: "document", file_id });
         await trackSend(ctx, () =>
-          ctx.reply(
-            "✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'.",
-            { disable_notification: !isPrivate(ctx) }
-          )
+          ctx.reply("✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'.", {
+            disable_notification: !isPrivate(ctx),
+          })
         );
       }
       if (state.mode === "add_answer" && state.step === "answer") {
@@ -170,113 +293,30 @@ function mediaHandler(bot) {
     }
   });
 
+  // ── PHOTO handler ──
   bot.on("photo", async (ctx) => {
-    // AI vision: photo as reply to bot OR in ai_chat mode
     const aiState = inputState.get(ctx.from.id);
-    const isAiReply =
-      !aiState &&
-      ctx.message.reply_to_message?.from?.id === ctx.botInfo.id;
+    const isAiReply = !aiState && ctx.message.reply_to_message?.from?.id === ctx.botInfo.id;
     const isAiChat = aiState?.mode === "ai_chat";
 
     if ((isAiReply || isAiChat) && (await isStudent(ctx))) {
-      const photo = ctx.message.photo;
-      if (!photo || !photo.length) return;
+      const mediaGroupId = ctx.message.media_group_id;
 
-      const fileId = photo[photo.length - 1].file_id;
-      const caption = ctx.message.caption || "";
-      const photoMeta = `\n\n[Прикреплённое фото — Telegram file_id: ${fileId}, тип: photo]`;
-
-      const history = await ChatHistory.findOne({ telegramUserId: ctx.from.id });
-      const recentMessages = (history?.messages || [])
-        .slice(-10)
-        .map((m) => ({ role: m.role, content: m.content }));
-
-      // Check if user wants to attach (not analyze) the photo
-      const attachPattern = /прикреп|закин|добав.*(?:файл|фото|к задан|к ответ|к решени)|к условию|как ответ|как решение/i;
-      const wantsAttach = attachPattern.test(caption) ||
-        recentMessages.slice(-2).some((m) => m.role === "user" && attachPattern.test(m.content));
-
-      const thinking = await trackSend(ctx, () =>
-        ctx.reply(wantsAttach ? "📎 Прикрепляю..." : "🖼 Анализирую изображение...", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
-
-      try {
-        const tracking = {
-          userId: String(ctx.from.id),
-          chatId: ctx.chat.id,
-          username: ctx.from.username ? `@${ctx.from.username}` : null,
-          operationType: "chat",
-          feature: wantsAttach ? "bot-chat-photo-attach" : "bot-chat-vision",
-          user: {
-            name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || undefined,
-            role: "student",
-          },
+      if (mediaGroupId) {
+        const photo = ctx.message.photo;
+        if (!photo || !photo.length) return;
+        const item = {
+          type: "photo",
+          fileId: photo[photo.length - 1].file_id,
+          mimeType: "image/jpeg",
         };
-
-        let text;
-        if (wantsAttach) {
-          // Just send metadata — AI will attach via tools, no vision needed
-          const query = caption
-            ? `${caption}${photoMeta}`
-            : `Пользователь прислал фото.${photoMeta}`;
-          text = await processQuery(query, recentMessages, tracking);
-        } else {
-          // Download + vision for analysis
-          const buffer = await downloadFile(ctx, fileId);
-          text = await processQuery(
-            (caption || "") + photoMeta,
-            recentMessages,
-            tracking,
-            { buffer, mimeType: "image/jpeg" }
-          );
+        const batchPromise = collectMediaGroup(mediaGroupId, item, ctx.message.caption);
+        if (batchPromise) {
+          const batch = await batchPromise;
+          await handleAiBatch(ctx, batch.items, batch.caption);
         }
-
-        if (!text) {
-          console.warn("[ai photo] empty text response — AI may have ended on a tool call without generating text");
-          const { debugLog } = require("../../lib/debugLog");
-          debugLog("photo-handler", `Empty AI response | attach=${wantsAttach}`);
-        }
-        const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
-        const htmlText = mdToHtml(replyText).slice(0, 4096);
-
-        await ctx.telegram
-          .editMessageText(ctx.chat.id, thinking.message_id, null, htmlText, {
-            parse_mode: "HTML",
-          })
-          .catch(() =>
-            ctx.telegram.editMessageText(
-              ctx.chat.id, thinking.message_id, null, replyText.slice(0, 4096)
-            )
-          );
-
-        inputState.set(ctx.from.id, { mode: "ai_chat" });
-
-        const historyContent = caption
-          ? `${caption}\n\n[Прикреплённое фото — Telegram file_id: ${fileId}, тип: photo]`
-          : `Пользователь прислал фото.\n\n[Прикреплённое фото — Telegram file_id: ${fileId}, тип: photo]`;
-        await ChatHistory.findOneAndUpdate(
-          { telegramUserId: ctx.from.id },
-          {
-            $push: {
-              messages: {
-                $each: [
-                  { role: "user", content: historyContent },
-                  { role: "assistant", content: replyText },
-                ],
-              },
-            },
-          },
-          { upsert: true }
-        ).catch((e) => console.error("[ai vision] history save error:", e.message));
-      } catch (e) {
-        console.error("[ai vision] error:", e);
-        const { debugLog } = require("../../lib/debugLog");
-        debugLog("vision-handler-error", "Photo processing error", e.message || String(e));
-        await ctx.telegram
-          .editMessageText(ctx.chat.id, thinking.message_id, null, "Ошибка AI. Попробуйте позже.")
-          .catch(() => {});
+      } else {
+        await handleAiPhoto(ctx);
       }
       return;
     }
@@ -284,7 +324,6 @@ function mediaHandler(bot) {
     const state = inputState.get(ctx.from.id);
     if (!state) return;
     try {
-      // Collect photos for homework creation
       if (state.mode === "collect_hw") {
         const photo = ctx.message.photo;
         if (photo && photo.length) {
@@ -303,10 +342,9 @@ function mediaHandler(bot) {
           const file_id = photo[photo.length - 1].file_id;
           state.attachments.push({ type: "photo", file_id });
           await trackSend(ctx, () =>
-            ctx.reply(
-              "✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'.",
-              { disable_notification: !isPrivate(ctx) }
-            )
+            ctx.reply("✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'.", {
+              disable_notification: !isPrivate(ctx),
+            })
           );
         }
       }
@@ -343,3 +381,4 @@ function mediaHandler(bot) {
 }
 
 module.exports = mediaHandler;
+module.exports.sendLongResponse = sendLongResponse;

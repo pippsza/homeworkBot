@@ -89,7 +89,7 @@ async function getScheduleForDate(date) {
   let targetDay;
   if (jsDay === 6) {
     // Saturday — find mapping
-    const mapping = doc.saturdayMappings.find((m) => m.weekNumber === weekNum);
+    const mapping = (doc.saturdayMappings || []).find((m) => m.weekNumber === weekNum);
     if (!mapping) return { classes: [], dayName: "Суббота", weekNumber: weekNum, isOdd: odd, isSaturday: true, noMapping: true };
     targetDay = mapping.followsDay;
   } else {

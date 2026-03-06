@@ -59,8 +59,12 @@ router.post("/chat", requireStudent, rateLimit, async (req, res) => {
 
     // Add assistant tools for students
     const username = `@${req.telegramUser?.username}`;
+    const chatId = req.telegramUser?.id ? Number(req.telegramUser.id) : null;
     if (await userService.isStudent(username)) {
-      const { tools, systemPromptAddition, maxSteps } = await buildAssistantTools();
+      const { tools, systemPromptAddition, maxSteps } = await buildAssistantTools({
+        chatId,
+        username,
+      });
       systemPrompt += systemPromptAddition;
       extras.tools = tools;
       extras.maxSteps = maxSteps;
@@ -70,6 +74,8 @@ router.post("/chat", requireStudent, rateLimit, async (req, res) => {
     // Pass tracking context for usage tracking
     extras.tracking = {
       userId: String(req.telegramUser?.id || "anon"),
+      chatId,
+      username,
       operationType: "chat",
       feature: "web-chat",
       endpoint: "/api/ai/chat",
@@ -109,6 +115,7 @@ router.post("/chat", requireStudent, rateLimit, async (req, res) => {
                 { role: "user", content: userContent },
                 { role: "assistant", content: text },
               ],
+              $slice: -50,
             },
           },
         },

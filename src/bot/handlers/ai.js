@@ -3,22 +3,47 @@ const { trackSend, isPrivate } = require("../helpers/editOrSend");
 const { processQuery } = require("../../services/orchestratorService");
 const ChatHistory = require("../../models/ChatHistory");
 const inputState = require("../helpers/inputState");
+const { checkRateLimit } = require("../helpers/rateLimit");
 
 function mdToHtml(text) {
-  // Escape HTML entities first
-  let html = text
+  // Extract code blocks first to protect them from formatting
+  const codeBlocks = [];
+  let html = text.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+    const i = codeBlocks.length;
+    codeBlocks.push(code);
+    return `\x00CB${i}\x00`;
+  });
+
+  // Extract inline code
+  const inlineCodes = [];
+  html = html.replace(/`([^`]+)`/g, (_, code) => {
+    const i = inlineCodes.length;
+    inlineCodes.push(code);
+    return `\x00IC${i}\x00`;
+  });
+
+  // Escape HTML entities in remaining text
+  html = html
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // Code blocks: ```lang\n...\n```
-  html = html.replace(/```[\w]*\n([\s\S]*?)```/g, "<pre>$1</pre>");
-  // Inline code: `...`
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
   // Bold: **...**
   html = html.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
   // Italic: *...*
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
+
+  // Restore inline code (escape entities inside)
+  html = html.replace(/\x00IC(\d+)\x00/g, (_, i) => {
+    const code = inlineCodes[i].replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<code>${code}</code>`;
+  });
+
+  // Restore code blocks (escape entities inside)
+  html = html.replace(/\x00CB(\d+)\x00/g, (_, i) => {
+    const code = codeBlocks[i].replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<pre>${code}</pre>`;
+  });
 
   return html;
 }
@@ -26,10 +51,28 @@ function mdToHtml(text) {
 const MAX_HISTORY = 10;
 
 function aiHandler(bot) {
+  bot.command("clear", async (ctx) => {
+    await ChatHistory.deleteOne({ telegramUserId: ctx.from.id }).catch(() => {});
+    inputState.delete(ctx.from.id);
+    await trackSend(ctx, () =>
+      ctx.reply("🗑 История AI-чата очищена. Начните новый диалог с /ai или просто напишите.", {
+        disable_notification: !isPrivate(ctx),
+      })
+    );
+  });
+
   bot.command("ai", async (ctx) => {
     if (!(await isStudent(ctx))) {
       return trackSend(ctx, () =>
         ctx.reply("Нет доступа к AI.", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
+    }
+
+    if (!checkRateLimit(ctx.from.id)) {
+      return trackSend(ctx, () =>
+        ctx.reply("Слишком много запросов. Подождите минуту.", {
           disable_notification: !isPrivate(ctx),
         })
       );
@@ -60,7 +103,7 @@ function aiHandler(bot) {
         .map((m) => ({ role: m.role, content: m.content }));
 
       // Process through orchestrator (decides if RAG is needed)
-      const text = await processQuery(question, recentMessages, {
+      const result = await processQuery(question, recentMessages, {
         userId: String(ctx.from.id),
         chatId: ctx.chat.id,
         username: ctx.from.username ? `@${ctx.from.username}` : null,
@@ -71,27 +114,11 @@ function aiHandler(bot) {
           role: "student",
         },
       });
-      const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
+      const replyText = result.text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
 
-      // Edit the "thinking" message with the answer
-      const htmlText = mdToHtml(replyText).slice(0, 4096);
-      await ctx.telegram
-        .editMessageText(
-          ctx.chat.id,
-          thinking.message_id,
-          null,
-          htmlText,
-          { parse_mode: "HTML" }
-        )
-        .catch(() =>
-          // Fallback without formatting if parsing fails
-          ctx.telegram.editMessageText(
-            ctx.chat.id,
-            thinking.message_id,
-            null,
-            replyText.slice(0, 4096)
-          )
-        );
+      // Send response (splits long messages automatically)
+      const { sendLongResponse } = require("./media");
+      await sendLongResponse(ctx, thinking.message_id, replyText);
 
       // Save to history
       await ChatHistory.findOneAndUpdate(
@@ -100,9 +127,10 @@ function aiHandler(bot) {
           $push: {
             messages: {
               $each: [
-                { role: "user", content: question },
+                { role: "user", content: question + (result.extraHistoryContext || "") },
                 { role: "assistant", content: replyText },
               ],
+              $slice: -50,
             },
           },
         },

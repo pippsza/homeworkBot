@@ -457,7 +457,18 @@ async function processQuery(query, historyMessages = [], tracking, imageData = n
     debugLog("processQuery", "Used absolute fallback — no text generated at all", query?.slice(0, 200));
   }
 
-  return text;
+  // Collect parsed document content from tool results for history context
+  let extraHistoryContext = "";
+  for (const step of steps) {
+    for (const tr of step.toolResults || []) {
+      if (tr.toolName === "parseDocument" && tr.result?.text) {
+        const docText = tr.result.text.slice(0, 3000);
+        extraHistoryContext += `\n[Содержимое файла "${tr.result.fileName || "file"}":\n${docText}${tr.result.truncated ? "\n...(обрезано)" : ""}]`;
+      }
+    }
+  }
+
+  return { text, extraHistoryContext };
 }
 
 /**
@@ -505,16 +516,42 @@ async function solveTask(task, subject, tracking, { usePro = false } = {}) {
     .replace("{description}", taskDescription)
     .replace("{context}", context);
 
-  // Determine if task has images (check attachments)
-  const hasImages = task.attachments?.some((a) => a.type === "photo") || false;
+  // Download photo attachments for vision
+  const photoAttachments = (task.attachments || []).filter((a) => a.type === "photo");
+  const hasImages = photoAttachments.length > 0;
   const solveModels = usePro
     ? await getProSolveModels(hasImages)
     : await getSolveModels(hasImages);
 
+  let userMessage;
+  if (hasImages) {
+    // Download all task photos and include in the message
+    const { getBot } = require("../lib/bot");
+    const bot = getBot();
+    const contentParts = [];
+
+    if (bot) {
+      for (const att of photoAttachments) {
+        try {
+          const url = await bot.telegram.getFileLink(att.file_id);
+          const res = await fetch(url.href);
+          const buffer = Buffer.from(await res.arrayBuffer());
+          contentParts.push({ type: "image", image: buffer, mimeType: "image/jpeg" });
+        } catch (e) {
+          console.error("[solveTask] failed to download photo:", e.message);
+        }
+      }
+    }
+    contentParts.push({ type: "text", text: prompt });
+    userMessage = { role: "user", content: contentParts };
+  } else {
+    userMessage = { role: "user", content: prompt };
+  }
+
   const { text: raw } = await generateWithFallback(
     solveModels,
     {
-      messages: [{ role: "user", content: prompt }],
+      messages: [userMessage],
       maxOutputTokens: SAFETY.maxOutputTokens.solve,
     },
     tracking || {
@@ -543,4 +580,125 @@ async function solveTask(task, subject, tracking, { usePro = false } = {}) {
   return { text, files };
 }
 
-module.exports = { processQueryStream, processQuery, solveTask };
+/**
+ * Process a chat query with multiple images (non-streaming, for bot).
+ * @param {string} query
+ * @param {Array} historyMessages
+ * @param {object} [tracking]
+ * @param {Array<{buffer: Buffer, mimeType: string}>} images
+ */
+async function processQueryMultiImage(query, historyMessages = [], tracking, images = []) {
+  console.log("[processQueryMultiImage] query:", (query || "").slice(0, 100), "| images:", images.length);
+
+  let systemPrompt = await promptService.getPrompt("chat-system");
+  const decision = await orchestrate(query || "изображение");
+
+  let context = "";
+  if (decision.needsSearch && decision.subjectId && decision.searchQuery) {
+    context = await searchKnowledge(decision.subjectId, decision.searchQuery);
+  }
+  if (decision.searchGeneral && decision.searchQuery) {
+    const generalContext = await searchGeneralKnowledge(decision.searchQuery);
+    if (generalContext) {
+      context = context
+        ? context + "\n\n---\nОбщая информация:\n" + generalContext
+        : generalContext;
+    }
+  }
+  if (!decision.searchGeneral) {
+    const infoChunkedCount = await Info.countDocuments({ chunkCount: { $gt: 0 } }).limit(1);
+    if (infoChunkedCount > 0) {
+      const searchQuery = decision.searchQuery || query || "изображение";
+      const generalContext = await searchGeneralKnowledge(searchQuery);
+      if (generalContext) {
+        context = context
+          ? context + "\n\n---\nОбщая информация:\n" + generalContext
+          : generalContext;
+      }
+    }
+  }
+
+  let enhancedSystem = systemPrompt || "You are a helpful assistant.";
+  if (context) {
+    enhancedSystem += `\n\nRelated information from knowledge base:\n${context}`;
+  }
+
+  const { buildAssistantTools } = require("./aiToolsService");
+  const { tools, systemPromptAddition, maxSteps } = await buildAssistantTools({
+    chatId: tracking?.chatId,
+    username: tracking?.username,
+  });
+  enhancedSystem += systemPromptAddition;
+
+  // Build content array with all images + text
+  const contentParts = images.map((img) => ({
+    type: "image",
+    image: img.buffer,
+    mimeType: img.mimeType,
+  }));
+  contentParts.push({
+    type: "text",
+    text: query || `На этих ${images.length} изображениях:`,
+  });
+
+  const lastUserMessage = { role: "user", content: contentParts };
+  const messages = [...historyMessages, lastUserMessage];
+  const chatModels = await getChatVisionModels();
+
+  const { debugLog } = require("../lib/debugLog");
+
+  const result = await generateWithFallback(
+    chatModels,
+    {
+      system: enhancedSystem,
+      messages,
+      tools,
+      maxSteps,
+      toolChoice: "auto",
+      maxOutputTokens: SAFETY.maxOutputTokens.chat,
+    },
+    tracking || { operationType: "chat", feature: "bot-chat-multi-image" }
+  );
+
+  let text = result.text;
+
+  const steps = result.steps || [];
+  if (!text && steps.length > 0) {
+    const stepTexts = steps.map((s) => s.text).filter(Boolean);
+    if (stepTexts.length) {
+      text = stepTexts.join("\n");
+    }
+    if (!text) {
+      const allToolResults = steps.flatMap((s) => s.toolResults || []);
+      const toolCalls = steps.flatMap((s) => s.toolCalls || []).map((tc) => tc.toolName);
+      const validResults = allToolResults.filter((tr) => tr.result != null);
+      let regenPrompt;
+      if (validResults.length > 0) {
+        const summary = validResults.map((tr) => `${tr.toolName}: ${JSON.stringify(tr.result)}`).join("\n");
+        regenPrompt = `Вот результаты вызванных инструментов:\n${summary}\n\nОпиши пользователю что было сделано.`;
+      } else {
+        regenPrompt = `Инструменты (${toolCalls.join(", ") || "неизвестно"}) не вернули результатов. Объясни ошибку.`;
+      }
+      try {
+        const regenResult = await generateWithFallback(
+          chatModels,
+          {
+            system: "Ты помощник учебного бота. Отвечай на русском. Кратко и по делу.",
+            messages: [{ role: "user", content: regenPrompt }],
+            maxOutputTokens: 512,
+          },
+          tracking ? { ...tracking, operationType: "regen", feature: "tool-result-summary" } : undefined
+        );
+        if (regenResult.text) text = regenResult.text;
+      } catch {}
+    }
+  }
+
+  if (!text) {
+    text = "Не удалось обработать запрос. Попробуйте переформулировать или повторить позже.";
+  }
+
+  return text;
+}
+
+module.exports = { processQueryStream, processQuery, processQueryMultiImage, solveTask };

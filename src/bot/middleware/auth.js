@@ -1,7 +1,8 @@
 const userService = require("../../services/userService");
 
 function getUsername(ctx) {
-  return ctx.from ? `@${ctx.from.username}` : null;
+  if (!ctx.from || !ctx.from.username) return null;
+  return `@${ctx.from.username}`;
 }
 
 async function isStudent(ctx) {

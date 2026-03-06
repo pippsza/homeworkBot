@@ -62,9 +62,19 @@ async function editOrSend(ctx, text, keyboard) {
     }
     console.error("[editOrSend] edit failed:", e.message || e, "— sending new msg");
     if (e.response && e.response.error_code === 429) {
-      const retryAfter = e.response.parameters.retry_after;
+      const retryAfter = Math.min(e.response.parameters?.retry_after || 1, 5);
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
-      await editOrSend(ctx, text, keyboard);
+      // Send new message instead of recursing to avoid infinite loop
+      try {
+        const sent = await trackSend(ctx, () =>
+          ctx.reply(text, {
+            ...keyboard,
+            parse_mode: "HTML",
+            disable_notification: !isPrivate(ctx),
+          })
+        );
+        interactiveMessageId.set(chatId, sent.message_id);
+      } catch {}
     } else {
       try {
         const sent = await trackSend(ctx, () =>

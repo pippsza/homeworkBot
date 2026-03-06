@@ -3,6 +3,7 @@ const { z } = require("zod");
 const subjectService = require("./subjectService");
 const infoService = require("./infoService");
 const scheduleService = require("./scheduleService");
+const Info = require("../models/Info");
 
 /**
  * Wrap a tool execute function with try/catch + debug logging.
@@ -84,9 +85,23 @@ ${scheduleContext}
 - КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ "КАКИЕ ЗАДАНИЯ Я СДАЛ" / "МОЙ ПРОГРЕСС" — вызови getMySubmissions.
 - КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ "КТО СДАЛ задание X" — вызови getTaskSubmissions.
 - КОГДА ПОЛЬЗОВАТЕЛЬ ОТМЕЧАЕТ СДАЧУ ЗА ДРУГОГО (напр. "@ivan сдал") — вызови markSubmission с targetUsername.
-- КОГДА СПРАШИВАЮТ О ПРЕПОДАВАТЕЛЕ / КОНТАКТАХ — вызови getTeacherInfo.
+- КОГДА СПРАШИВАЮТ О ПРЕПОДАВАТЕЛЕ / КОНТАКТАХ / НОМЕРЕ ТЕЛЕФОНА — вызови getTeacherInfo БЕЗ subjectId чтобы получить ВСЕХ преподавателей, затем найди нужного по ФИО (даже частичному совпадению). Если пользователь спрашивает "номер Иванова" — найди среди всех преподавателей кто подходит.
 - КОГДА ПОЛЬЗОВАТЕЛЬ УСТАНАВЛИВАЕТ ДЕДЛАЙН — вызови setTaskDeadline. При создании задания спроси есть ли дедлайн.
 - КОГДА ПРОСЯТ СОЗДАТЬ ГОЛОСОВАНИЕ/ОПРОС — вызови createPoll. Спроси вопрос и варианты, если не указаны.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРИСЫЛАЕТ ФАЙЛ (PDF, DOCX, TXT) И ПРОСИТ РЕШИТЬ/ПРОАНАЛИЗИРОВАТЬ — вызови parseDocument чтобы прочитать содержимое, затем реши задание.
+- КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ ПО УЧЕБНЫМ МАТЕРИАЛАМ / КОНСПЕКТАМ — вызови searchKnowledgeBase для поиска по базе знаний.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ УДАЛИТЬ ЗАДАНИЕ — вызови deleteTask. ПРЕДУПРЕДИ перед удалением.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ УДАЛИТЬ ПРЕДМЕТ — вызови deleteSubject. ОБЯЗАТЕЛЬНО ПРЕДУПРЕДИ что все задания будут удалены.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ПОКАЗАТЬ ВСЕ ЗАМЕТКИ/ИНФОРМАЦИЮ — вызови listInfos.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ПОКАЗАТЬ ДЕТАЛИ ЗАМЕТКИ — вызови getInfoDetails.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ИЗМЕНИТЬ ЗАМЕТКУ — вызови updateInfo.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ УДАЛИТЬ ЗАМЕТКУ — вызови deleteInfo.
+- КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ О ЧЁМ-ТО ЧТО БЫЛО ЗАПОМНЕНО — сначала вызови listInfos, потом getInfoDetails для нужной заметки.
+- КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ НОМЕР ТЕЛЕФОНА/КОНТАКТ ПРЕПОДАВАТЕЛЯ — вызови getTeacherInfo. Если контакт не указан, так и скажи.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ПРОВЕРИТЬ РАСПИСАНИЕ НА КОНФЛИКТЫ/ОШИБКИ — вызови checkScheduleConflicts.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРИСЫЛАЕТ СПИСОК ЗАДАНИЙ (из файла или текстом) И ПРОСИТ СОЗДАТЬ ИХ ВСЕ — сначала parseDocument (если файл), затем вызови bulkCreateTasks с массивом заданий. Не создавай по одному через createHomework.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ЗАГРУЖАЕТ ФАЙЛ С РАСПИСАНИЕМ — вызови parseDocument, разбери структуру (дни, пары, предметы, время), затем вызови importScheduleFromText. Предметы которых нет в списке будут созданы автоматически.
+- КОГДА ПОЛЬЗОВАТЕЛЬ ПРОСИТ ЗАПОЛНИТЬ/НАСТРОИТЬ РАСПИСАНИЕ ТЕКСТОМ — вызови importScheduleFromText. Не нужно вызывать setTimeSlots + setDaySchedule по отдельности.
 - НИКОГДА не отвечай текстом "я сделал" без реального вызова инструмента.
 - ПОСЛЕ КАЖДОГО ВЫЗОВА ИНСТРУМЕНТА ОБЯЗАТЕЛЬНО напиши текстовый ответ пользователю с результатами. НИКОГДА не завершай ответ только вызовом инструмента без текста.
   Примеры правильных ответов после вызова инструмента:
@@ -125,10 +140,16 @@ ${scheduleContext}
 - Отметка сдачи: "я сдал матан" / "какие задания я сдал?" / "кто сдал физику?"
 - Установка дедлайнов: "дедлайн по матану — завтра"
 - Контакты преподавателей: "кто преподаёт физику?"
-- Расписание: "какое расписание на завтра?" / настройка расписания через чат
+- Расписание: "какое расписание на завтра?" / настройка расписания через чат / импорт из файла
+- Проверка конфликтов расписания: "проверь расписание на ошибки"
+- Массовое создание заданий: отправить список → AI создаст все задания сразу
+- Импорт расписания: отправить PDF/фото расписания → AI заполнит всё автоматически
 - Создание голосований: "создай опрос: куда идём на обед?"
-- Анализ фото и документов: отправить фото/файл → AI проанализирует содержимое
-- Поиск по базе знаний: AI автоматически ищет релевантную информацию
+- Анализ фото и документов: отправить фото/файл → AI проанализирует содержимое (поддержка нескольких фото сразу)
+- Парсинг документов: PDF, DOCX, TXT файлы автоматически читаются и анализируются
+- Поиск по базе знаний: AI ищет релевантную информацию в векторной БД
+- Управление заметками: просмотр, обновление, удаление сохранённой информации
+- Удаление заданий и предметов через чат
 
 АВТОМАТИЧЕСКИЕ УВЕДОМЛЕНИЯ:
 - Напоминания о дедлайнах (за 24ч и 1ч)
@@ -672,9 +693,418 @@ ${scheduleContext}
         return { success: true, pollId: msg.poll.id };
       },
     }),
+
+    // --- Парсинг документов ---
+
+    parseDocument: safeTool("parseDocument", {
+      description: "Скачать и распарсить файл по Telegram file_id. Поддерживает PDF, DOCX, TXT и другие текстовые файлы. Используй когда нужно прочитать содержимое файла — например для решения задания из файла.",
+      inputSchema: z.object({
+        fileId: z.string().describe("Telegram file_id из метаданных [Прикреплённый файл]"),
+        fileName: z.string().optional().describe("Имя файла (для определения типа)"),
+      }),
+      execute: async ({ fileId, fileName }) => {
+        console.log("[ai tool] parseDocument:", { fileId, fileName });
+        const { getBot } = require("../lib/bot");
+        const bot = getBot();
+        if (!bot) return { error: "Нет доступа к боту" };
+
+        const url = await bot.telegram.getFileLink(fileId);
+        const res = await fetch(url.href);
+        const buffer = Buffer.from(await res.arrayBuffer());
+
+        const ext = (fileName || "").split(".").pop()?.toLowerCase() || "";
+        const binaryExts = new Set(["zip", "rar", "7z", "gz", "tar", "exe", "dll", "bin", "iso", "img", "mp3", "mp4", "avi", "mov", "wav", "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "psd", "ai", "sketch", "xls", "xlsx", "ppt", "pptx", "odt", "ods"]);
+
+        if (binaryExts.has(ext)) {
+          return { error: `Файл "${fileName}" имеет формат .${ext}, который не поддерживается для текстового парсинга. Поддерживаемые форматы: PDF, DOCX, TXT и другие текстовые файлы.` };
+        }
+
+        let text = "";
+
+        if (ext === "pdf") {
+          const pdfParse = require("pdf-parse");
+          const data = await pdfParse(buffer);
+          text = data.text;
+        } else if (ext === "docx") {
+          const mammoth = require("mammoth");
+          const result = await mammoth.extractRawText({ buffer });
+          text = result.value;
+        } else {
+          // Try as plain text — check for binary content
+          text = buffer.toString("utf-8");
+          const nullBytes = (text.match(/\0/g) || []).length;
+          if (nullBytes > text.length * 0.01) {
+            return { error: `Файл "${fileName}" содержит бинарные данные и не может быть прочитан как текст.` };
+          }
+        }
+
+        // Truncate if very long
+        const maxChars = 15000;
+        const truncated = text.length > maxChars;
+        return {
+          success: true,
+          text: truncated ? text.slice(0, maxChars) : text,
+          truncated,
+          totalLength: text.length,
+          fileName: fileName || "file",
+        };
+      },
+    }),
+
+    // --- Поиск по базе знаний ---
+
+    searchKnowledgeBase: safeTool("searchKnowledgeBase", {
+      description: "Поиск по векторной базе знаний (Qdrant). Ищет релевантные материалы по запросу. Используй когда пользователь спрашивает по учебным материалам, конспектам и т.д.",
+      inputSchema: z.object({
+        query: z.string().describe("Поисковый запрос"),
+        subjectId: z.string().optional().describe("ID предмета (если не указан — ищет по общей базе)"),
+      }),
+      execute: async ({ query, subjectId }) => {
+        console.log("[ai tool] searchKnowledgeBase:", { query, subjectId });
+        const embeddingService = require("./embeddingService");
+        const qdrantService = require("./qdrantService");
+
+        const embedding = await embeddingService.embedText(query);
+        let results = [];
+
+        if (subjectId) {
+          results = await qdrantService.search(subjectId, embedding, 5);
+        }
+        const generalResults = await qdrantService.searchGeneral(embedding, 5);
+        const allResults = [...results, ...generalResults]
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 7);
+
+        if (allResults.length === 0) {
+          return { found: false, message: "Ничего не найдено в базе знаний" };
+        }
+
+        return {
+          found: true,
+          results: allResults.map((r) => ({
+            text: r.text,
+            score: r.score,
+          })),
+        };
+      },
+    }),
+
+    // --- Удаление ---
+
+    deleteTask: safeTool("deleteTask", {
+      description: "Удалить задание. Используй ТОЛЬКО когда пользователь ЯВНО просит удалить задание.",
+      inputSchema: z.object({
+        taskId: z.string().describe("ID задания (получи через listTasks)"),
+      }),
+      execute: async ({ taskId }) => {
+        console.log("[ai tool] deleteTask:", { taskId });
+        const result = await subjectService.deleteTask(taskId);
+        if (!result) return { error: "Задание не найдено" };
+        return { success: true, deletedTitle: result.title, subjectName: result.subject.name };
+      },
+    }),
+
+    deleteSubject: safeTool("deleteSubject", {
+      description: "Удалить предмет со ВСЕМИ заданиями. Используй ТОЛЬКО когда пользователь ЯВНО просит удалить предмет. Предупреди что все задания будут потеряны.",
+      inputSchema: z.object({
+        subjectId: z.string().describe("ID предмета"),
+      }),
+      execute: async ({ subjectId }) => {
+        console.log("[ai tool] deleteSubject:", { subjectId });
+        const subject = await subjectService.getById(subjectId);
+        if (!subject) return { error: "Предмет не найден" };
+        const tasksCount = subject.tasks?.length || 0;
+        await subjectService.delete(subjectId);
+        return { success: true, deletedName: subject.name, tasksDeleted: tasksCount };
+      },
+    }),
+
+    // --- Информация ---
+
+    listInfos: safeTool("listInfos", {
+      description: "Показать все сохранённые заметки/информацию.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        console.log("[ai tool] listInfos");
+        const infos = await infoService.getAll();
+        return {
+          infos: infos.map((i) => ({
+            id: i._id.toString(),
+            title: i.title,
+            emoji: i.emoji || "ℹ️",
+            description: (i.description || "").slice(0, 200),
+            hasAttachments: (i.attachments?.length || 0) > 0,
+          })),
+        };
+      },
+    }),
+
+    getInfoDetails: safeTool("getInfoDetails", {
+      description: "Получить полную информацию о заметке по ID.",
+      inputSchema: z.object({
+        infoId: z.string().describe("ID заметки (получи через listInfos)"),
+      }),
+      execute: async ({ infoId }) => {
+        console.log("[ai tool] getInfoDetails:", { infoId });
+        const info = await infoService.getById(infoId);
+        if (!info) return { error: "Заметка не найдена" };
+        return {
+          title: info.title,
+          emoji: info.emoji || "ℹ️",
+          description: info.description || "(пусто)",
+          attachmentsCount: info.attachments?.length || 0,
+        };
+      },
+    }),
+
+    updateInfo: safeTool("updateInfo", {
+      description: "Обновить существующую заметку.",
+      inputSchema: z.object({
+        infoId: z.string().describe("ID заметки"),
+        title: z.string().optional().describe("Новый заголовок"),
+        emoji: z.string().optional().describe("Новый эмодзи"),
+        description: z.string().optional().describe("Новое описание"),
+      }),
+      execute: async ({ infoId, title, emoji, description }) => {
+        console.log("[ai tool] updateInfo:", { infoId });
+        const updates = {};
+        if (title) updates.title = title;
+        if (emoji) updates.emoji = emoji;
+        if (description) updates.description = description;
+        if (Object.keys(updates).length === 0) return { error: "Нет данных для обновления" };
+        const info = await infoService.update(infoId, updates);
+        if (!info) return { error: "Заметка не найдена" };
+        return { success: true, infoTitle: info.title };
+      },
+    }),
+
+    deleteInfo: safeTool("deleteInfo", {
+      description: "Удалить заметку. Используй ТОЛЬКО когда пользователь ЯВНО просит удалить.",
+      inputSchema: z.object({
+        infoId: z.string().describe("ID заметки"),
+      }),
+      execute: async ({ infoId }) => {
+        console.log("[ai tool] deleteInfo:", { infoId });
+        const info = await infoService.getById(infoId);
+        if (!info) return { error: "Заметка не найдена" };
+        await infoService.delete(infoId);
+        return { success: true, deletedTitle: info.title };
+      },
+    }),
+
+    // --- Проверка конфликтов расписания ---
+
+    checkScheduleConflicts: safeTool("checkScheduleConflicts", {
+      description: "Проверить конфликты в расписании: пересечения пар, дублирование предметов в одном слоте. Вызывай когда пользователь просит проверить расписание на ошибки или конфликты.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        console.log("[ai tool] checkScheduleConflicts");
+        const doc = await scheduleService.get();
+        const conflicts = [];
+
+        // Check each day for duplicate slot numbers
+        const dayNames = ["", "Пн", "Вт", "Ср", "Чт", "Пт"];
+        for (const day of doc.days || []) {
+          const slotNums = day.slots.map((s) => s.slotNumber);
+          const dups = slotNums.filter((n, i) => slotNums.indexOf(n) !== i);
+          if (dups.length > 0) {
+            conflicts.push(`${dayNames[day.dayOfWeek]}: дублирующиеся слоты #${[...new Set(dups)].join(", #")}`);
+          }
+        }
+
+        // Check time slots for overlaps
+        const sorted = [...(doc.timeSlots || [])].sort((a, b) => a.startTime.localeCompare(b.startTime));
+        for (let i = 0; i < sorted.length - 1; i++) {
+          if (sorted[i].endTime > sorted[i + 1].startTime) {
+            conflicts.push(`Тайм-слоты #${sorted[i].number} (${sorted[i].startTime}-${sorted[i].endTime}) и #${sorted[i + 1].number} (${sorted[i + 1].startTime}-${sorted[i + 1].endTime}) пересекаются`);
+          }
+        }
+
+        // Check for slots referencing non-existent time slots
+        const validSlotNums = new Set((doc.timeSlots || []).map((t) => t.number));
+        for (const day of doc.days || []) {
+          for (const slot of day.slots) {
+            if (!validSlotNums.has(slot.slotNumber)) {
+              conflicts.push(`${dayNames[day.dayOfWeek]}: слот #${slot.slotNumber} не имеет тайм-слота`);
+            }
+          }
+        }
+
+        // Check for alternating slots missing even subject
+        for (const day of doc.days || []) {
+          for (const slot of day.slots) {
+            if (slot.isAlternating && !slot.subjectIdEven) {
+              conflicts.push(`${dayNames[day.dayOfWeek]}: слот #${slot.slotNumber} — мигалка без предмета для чётной недели`);
+            }
+          }
+        }
+
+        if (conflicts.length === 0) {
+          return { hasConflicts: false, message: "Конфликтов не найдено. Расписание корректно." };
+        }
+        return { hasConflicts: true, conflicts };
+      },
+    }),
+
+    // --- Массовое создание заданий ---
+
+    bulkCreateTasks: safeTool("bulkCreateTasks", {
+      description: "Создать несколько заданий сразу для одного предмета. Используй когда пользователь присылает список заданий (из файла или текстом) и просит создать их все. Сначала распарси документ через parseDocument если задания в файле.",
+      inputSchema: z.object({
+        subjectId: z.string().describe("ID предмета"),
+        tasks: z.array(z.object({
+          title: z.string().describe("Название задания"),
+          emoji: z.string().optional().describe("Эмодзи"),
+          description: z.string().optional().describe("Описание задания"),
+          deadline: z.string().optional().describe("Дедлайн (YYYY-MM-DD)"),
+        })).describe("Массив заданий для создания"),
+      }),
+      execute: async ({ subjectId, tasks }) => {
+        console.log("[ai tool] bulkCreateTasks:", { subjectId, count: tasks.length });
+        const subject = await subjectService.getById(subjectId);
+        if (!subject) return { error: "Предмет не найден" };
+
+        const created = [];
+        for (const t of tasks) {
+          const task = await subjectService.addTask(subjectId, {
+            title: t.title,
+            emoji: t.emoji || "📄",
+            description: t.description || "",
+          });
+          if (t.deadline) {
+            const date = new Date(t.deadline);
+            if (!isNaN(date.getTime())) {
+              await subjectService.updateTask(task._id.toString(), { deadline: date });
+            }
+          }
+          created.push({ id: task._id.toString(), title: t.title });
+        }
+
+        return {
+          success: true,
+          subjectName: subject.name,
+          createdCount: created.length,
+          tasks: created,
+        };
+      },
+    }),
+
+    // --- Импорт расписания из текста ---
+
+    importScheduleFromText: safeTool("importScheduleFromText", {
+      description: "Импортировать расписание из структурированного текста. Парсит тайм-слоты и расписание по дням. Используй после parseDocument когда пользователь загружает файл с расписанием. Передай ВЕСЬ текст расписания — инструмент сам разберёт структуру и заполнит расписание. Предметы будут автоматически созданы если их нет в списке.",
+      inputSchema: z.object({
+        timeSlots: z.array(z.object({
+          number: z.number().describe("Номер пары"),
+          startTime: z.string().describe("Время начала (HH:MM)"),
+          endTime: z.string().describe("Время конца (HH:MM)"),
+        })).optional().describe("Тайм-слоты (если известны). Если не указаны — текущие сохранятся."),
+        days: z.array(z.object({
+          dayOfWeek: z.number().min(1).max(5).describe("1=Пн, 2=Вт, 3=Ср, 4=Чт, 5=Пт"),
+          slots: z.array(z.object({
+            slotNumber: z.number().describe("Номер пары"),
+            subjectName: z.string().describe("Название предмета"),
+            subjectNameEven: z.string().optional().describe("Предмет для чётной недели (если мигалка)"),
+          })),
+        })).describe("Расписание по дням"),
+      }),
+      execute: async ({ timeSlots, days }) => {
+        console.log("[ai tool] importScheduleFromText:", { timeSlotsCount: timeSlots?.length, daysCount: days.length });
+
+        // Set time slots if provided
+        if (timeSlots && timeSlots.length > 0) {
+          await scheduleService.setTimeSlots(timeSlots);
+        }
+
+        // Resolve subject names to IDs, creating new subjects if needed
+        const allSubjects = await subjectService.getAll();
+        const nameToId = new Map();
+        for (const s of allSubjects) {
+          nameToId.set(s.name.toLowerCase(), s._id.toString());
+        }
+
+        const createdSubjects = [];
+
+        async function resolveSubjectId(name) {
+          if (!name) return null;
+          const lower = name.toLowerCase();
+          if (nameToId.has(lower)) return nameToId.get(lower);
+          // Create new subject
+          const newSubject = await subjectService.create({ name, emoji: "📚" });
+          const id = newSubject._id.toString();
+          nameToId.set(lower, id);
+          createdSubjects.push(name);
+          return id;
+        }
+
+        const dayNames = ["", "Пн", "Вт", "Ср", "Чт", "Пт"];
+        const results = [];
+
+        for (const day of days) {
+          const slots = [];
+          for (const slot of day.slots) {
+            const subjectId = await resolveSubjectId(slot.subjectName);
+            if (!subjectId) continue;
+
+            const entry = { slotNumber: slot.slotNumber, subjectId };
+            if (slot.subjectNameEven) {
+              entry.subjectIdEven = await resolveSubjectId(slot.subjectNameEven);
+              entry.isAlternating = true;
+            }
+            slots.push(entry);
+          }
+          await scheduleService.setDaySchedule(day.dayOfWeek, slots);
+          results.push({ day: dayNames[day.dayOfWeek], slotsCount: slots.length });
+        }
+
+        return {
+          success: true,
+          daysSet: results,
+          createdSubjects: createdSubjects.length > 0 ? createdSubjects : undefined,
+        };
+      },
+    }),
+
+    // --- Отправка файлов в чат ---
+
+    sendMessageToChat: safeTool("sendMessageToChat", {
+      description: "Отправить сообщение в чат группы (не текущему пользователю, а именно в чат группы). Используй для уведомлений, напоминаний группе.",
+      inputSchema: z.object({
+        text: z.string().describe("Текст сообщения"),
+      }),
+      execute: async ({ text }) => {
+        const { getBot } = require("../lib/bot");
+        const bot = getBot();
+        if (!bot || !chatId) return { error: "Нет доступа к чату" };
+        console.log("[ai tool] sendMessageToChat:", text.slice(0, 50));
+        await bot.telegram.sendMessage(chatId, text);
+        return { success: true };
+      },
+    }),
+
+    forwardFileToChat: safeTool("forwardFileToChat", {
+      description: "Переслать файл/фото в чат по file_id. Используй когда нужно отправить файл из задания в чат.",
+      inputSchema: z.object({
+        fileId: z.string().describe("Telegram file_id"),
+        fileType: z.enum(["document", "photo"]).describe("Тип: document или photo"),
+        caption: z.string().optional().describe("Подпись к файлу"),
+      }),
+      execute: async ({ fileId, fileType, caption }) => {
+        const { getBot } = require("../lib/bot");
+        const bot = getBot();
+        if (!bot || !chatId) return { error: "Нет доступа к чату" };
+        console.log("[ai tool] forwardFileToChat:", { fileType });
+        if (fileType === "photo") {
+          await bot.telegram.sendPhoto(chatId, fileId, { caption });
+        } else {
+          await bot.telegram.sendDocument(chatId, fileId, { caption });
+        }
+        return { success: true };
+      },
+    }),
   };
 
-  return { tools, systemPromptAddition, maxSteps: 10 };
+  return { tools, systemPromptAddition, maxSteps: 15 };
 }
 
 module.exports = { buildAssistantTools };

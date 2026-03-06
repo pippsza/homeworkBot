@@ -27,7 +27,7 @@ router.get("/", async (req, res) => {
 });
 
 // Full update
-router.put("/", requireStudent, async (req, res) => {
+router.put("/", requireSuperadmin, async (req, res) => {
   const schedule = await scheduleService.update(req.body);
   res.json(schedule);
 });
@@ -49,7 +49,7 @@ router.get("/date/:date", async (req, res) => {
 });
 
 // Update time slots
-router.put("/timeslots", requireStudent, async (req, res) => {
+router.put("/timeslots", requireSuperadmin, async (req, res) => {
   const { timeSlots } = req.body;
   if (!Array.isArray(timeSlots)) {
     return res.status(400).json({ error: "timeSlots must be an array" });
@@ -59,7 +59,7 @@ router.put("/timeslots", requireStudent, async (req, res) => {
 });
 
 // Update day schedule
-router.put("/days/:day", requireStudent, async (req, res) => {
+router.put("/days/:day", requireSuperadmin, async (req, res) => {
   const dayOfWeek = parseInt(req.params.day);
   if (dayOfWeek < 1 || dayOfWeek > 5) {
     return res.status(400).json({ error: "Day must be 1-5" });
@@ -73,7 +73,7 @@ router.put("/days/:day", requireStudent, async (req, res) => {
 });
 
 // Update saturday mappings
-router.put("/saturday", requireStudent, async (req, res) => {
+router.put("/saturday", requireSuperadmin, async (req, res) => {
   const { mappings } = req.body;
   if (!Array.isArray(mappings)) {
     return res.status(400).json({ error: "mappings must be an array" });

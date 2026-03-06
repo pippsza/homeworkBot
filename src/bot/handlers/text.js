@@ -14,6 +14,8 @@ const { processQuery } = require("../../services/orchestratorService");
 const ChatHistory = require("../../models/ChatHistory");
 const { mdToHtml } = require("./ai");
 const { isForwarded, getMessageText: getHwMsgText, updateCollectMessage } = require("./homework");
+const { sendLongResponse } = require("./media");
+const { checkRateLimit } = require("../helpers/rateLimit");
 
 async function deleteUserMsg(ctx) {
   await ctx
@@ -86,6 +88,12 @@ function textHandler(bot) {
 
     // /noai — send message without AI processing, stay in ai_chat mode
     if (ctx.message.text.startsWith("/noai")) {
+      const noaiText = ctx.message.text.slice(5).trim();
+      if (noaiText) {
+        await trackSend(ctx, () =>
+          ctx.reply(noaiText, { disable_notification: !isPrivate(ctx) })
+        );
+      }
       return;
     }
 
@@ -100,6 +108,14 @@ function textHandler(bot) {
       const question = ctx.message.text.trim();
       if (!question) return;
 
+      if (!checkRateLimit(ctx.from.id)) {
+        return trackSend(ctx, () =>
+          ctx.reply("Слишком много запросов. Подождите минуту.", {
+            disable_notification: !isPrivate(ctx),
+          })
+        );
+      }
+
       const thinking = await trackSend(ctx, () =>
         ctx.reply("Думаю...", {
           disable_notification: !isPrivate(ctx),
@@ -112,7 +128,7 @@ function textHandler(bot) {
           .slice(-10)
           .map((m) => ({ role: m.role, content: m.content }));
 
-        const text = await processQuery(question, recentMessages, {
+        const result = await processQuery(question, recentMessages, {
           userId: String(ctx.from.id),
           chatId: ctx.chat.id,
           username: ctx.from.username ? `@${ctx.from.username}` : null,
@@ -123,23 +139,8 @@ function textHandler(bot) {
             role: "student",
           },
         });
-        if (!text) {
-          console.warn("[ai reply] empty text response — AI may have ended on a tool call without generating text");
-          const { debugLog } = require("../../lib/debugLog");
-          debugLog("text-handler", `Empty AI response for query: "${question.slice(0, 200)}"`);
-        }
-        const replyText = text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
-        const htmlText = mdToHtml(replyText).slice(0, 4096);
-
-        await ctx.telegram
-          .editMessageText(ctx.chat.id, thinking.message_id, null, htmlText, {
-            parse_mode: "HTML",
-          })
-          .catch(() =>
-            ctx.telegram.editMessageText(
-              ctx.chat.id, thinking.message_id, null, replyText.slice(0, 4096)
-            )
-          );
+        const replyText = result.text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
+        await sendLongResponse(ctx, thinking.message_id, replyText);
 
         // Keep user in ai_chat mode
         inputState.set(ctx.from.id, { mode: "ai_chat" });
@@ -150,9 +151,10 @@ function textHandler(bot) {
             $push: {
               messages: {
                 $each: [
-                  { role: "user", content: question },
+                  { role: "user", content: question + (result.extraHistoryContext || "") },
                   { role: "assistant", content: replyText },
                 ],
+                $slice: -50,
               },
             },
           },
