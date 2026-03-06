@@ -1,31 +1,47 @@
-import { Schema, type InferSchemaType } from 'mongoose'
+import { Schema, Document } from "mongoose";
 
-const providerCostSchema = new Schema(
+export interface IProviderCost extends Document {
+  provider: "openrouter" | "openai" | "anthropic" | "google";
+  periodStart: Date;
+  periodEnd: Date;
+  internalTotalTokens: number;
+  internalEstimatedCostUsd: number;
+  internalRequestCount: number;
+  providerReportedCostUsd?: number;
+  providerReportedTokens?: number;
+  discrepancyUsd?: number;
+  discrepancyPercent?: number;
+  discrepancyStatus: "within_threshold" | "warning" | "critical" | "pending";
+  notes?: string;
+  importedBy?: string;
+}
+
+export const providerCostSchema = new Schema<IProviderCost>(
   {
     provider: {
       type: String,
       required: true,
-      enum: ['openai', 'anthropic', 'google'],
+      enum: ["openrouter", "openai", "anthropic", "google"],
     },
     periodStart: { type: Date, required: true },
     periodEnd: { type: Date, required: true },
 
-    // Наші дані
+    // Internal data
     internalTotalTokens: { type: Number, required: true, min: 0 },
     internalEstimatedCostUsd: { type: Number, required: true, min: 0 },
     internalRequestCount: { type: Number, required: true, min: 0 },
 
-    // Дані провайдера
+    // Provider data
     providerReportedCostUsd: { type: Number, min: 0 },
     providerReportedTokens: { type: Number, min: 0 },
 
-    // Розбіжність
+    // Discrepancy
     discrepancyUsd: Number,
     discrepancyPercent: Number,
     discrepancyStatus: {
       type: String,
-      enum: ['within_threshold', 'warning', 'critical', 'pending'],
-      default: 'pending',
+      enum: ["within_threshold", "warning", "critical", "pending"],
+      default: "pending",
     },
 
     notes: String,
@@ -33,9 +49,6 @@ const providerCostSchema = new Schema(
   },
   {
     timestamps: true,
-    collection: 'providerCosts',
-  },
-)
-
-export type ProviderCostDoc = InferSchemaType<typeof providerCostSchema>
-export { providerCostSchema }
+    collection: "providerCosts",
+  }
+);

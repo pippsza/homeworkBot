@@ -1,11 +1,13 @@
 {
   "name": "homework-bot",
   "scripts": {
-    "start": "node index.js",
-    "dev": "concurrently -n server,client -c blue,green \"node index.js\" \"cd client && npx vite\"",
-    "dev:server": "node index.js",
+    "start": "tsx index.ts",
+    "dev": "concurrently -n server,client -c blue,green \"tsx watch index.ts\" \"cd client && npx vite\"",
+    "dev:server": "tsx watch index.ts",
     "dev:client": "cd client && npx vite",
-    "migrate": "node src/migrate.js"
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.29",
@@ -23,6 +25,12 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.3.5",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,109 +1,114 @@
-import { Schema, type InferSchemaType } from 'mongoose'
+import { Schema } from "mongoose";
 
-const tokenUsageEventSchema = new Schema(
+export interface ITokenUsageEvent {
+  traceId: string;
+  projectId: string;
+  environment: "production" | "staging" | "development";
+  serverInstanceId?: string;
+  userId: string;
+  provider: "openai" | "anthropic" | "google" | "custom";
+  model: string;
+  modelGroup?: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
+  estimatedCostUsd: number;
+  pricingVersion?: string;
+  operationType: string;
+  feature?: string;
+  endpoint?: string;
+  latencyMs: number;
+  isStreaming: boolean;
+  status: "success" | "error" | "timeout" | "rate_limited";
+  errorCode?: string;
+  errorMessage?: string;
+  entityType?: string;
+  entityId?: string;
+  requestedAt: Date;
+  completedAt: Date;
+}
+
+export const tokenUsageEventSchema = new Schema<ITokenUsageEvent>(
   {
-    // ── Ідентифікація ──
-    traceId: {
-      type: String,
-      required: true,
-      index: true,
-    },
+    traceId: { type: String, required: true, index: true },
 
-    // ── Джерело ──
-    projectId: {
-      type: String,
-      required: true,
-      index: true,
-    },
+    // Source
+    projectId: { type: String, required: true, index: true },
     environment: {
       type: String,
       required: true,
-      enum: ['production', 'staging', 'development'],
-      default: 'production',
+      enum: ["production", "staging", "development"],
+      default: "production",
     },
     serverInstanceId: String,
 
-    // ── Користувач ──
-    // Людиночитабельні дані (email, name, role) — в колекції `users`
-    userId: {
-      type: String,
-      required: true,
-      index: true,
-    },
+    // User
+    userId: { type: String, required: true, index: true },
 
-    // ── AI-провайдер ──
+    // AI provider
     provider: {
       type: String,
       required: true,
-      enum: ['openai', 'anthropic', 'google', 'custom'],
-      default: 'openai',
+      enum: ["openai", "anthropic", "google", "custom"],
+      default: "openai",
     },
-    model: {
-      type: String,
-      required: true,
-      index: true,
-    },
+    model: { type: String, required: true, index: true },
     modelGroup: String,
 
-    // ── Токени ──
+    // Tokens
     inputTokens: { type: Number, required: true, min: 0 },
     outputTokens: { type: Number, required: true, min: 0 },
     totalTokens: { type: Number, required: true, min: 0 },
     cachedTokens: { type: Number, min: 0 },
     reasoningTokens: { type: Number, min: 0 },
 
-    // ── Вартість ──
+    // Cost
     estimatedCostUsd: { type: Number, required: true, min: 0 },
     pricingVersion: String,
 
-    // ── Метадані запиту (довільні, визначає проєкт) ──
-    operationType: {
-      type: String,
-      required: true,
-    },
+    // Request metadata
+    operationType: { type: String, required: true },
     feature: String,
     endpoint: String,
 
-    // ── Продуктивність ──
+    // Performance
     latencyMs: { type: Number, required: true, min: 0 },
     isStreaming: { type: Boolean, default: false },
 
-    // ── Статус ──
+    // Status
     status: {
       type: String,
       required: true,
-      enum: ['success', 'error', 'timeout', 'rate_limited'],
-      default: 'success',
+      enum: ["success", "error", "timeout", "rate_limited"],
+      default: "success",
     },
     errorCode: String,
     errorMessage: String,
 
-    // ── Контекст промпту (опціонально, визначає проєкт) ──
-    promptSummary: String,   // перші ~500 символів промпту або опис задачі
-    responseSummary: String, // перші ~500 символів відповіді або опис результату
-
-    // ── Контекст сутності (довільний, визначає проєкт) ──
+    // Entity context
     entityType: String,
     entityId: String,
 
-    // ── Часові мітки запиту ──
+    // Request timestamps
     requestedAt: { type: Date, required: true },
     completedAt: { type: Date, required: true },
   },
   {
     timestamps: true,
-    collection: 'tokenUsageEvents',
-  },
-)
+    collection: "tokenUsageEvents",
+  }
+);
 
-// Складені індекси для типових запитів дашборду
-tokenUsageEventSchema.index({ projectId: 1, createdAt: -1 })
-tokenUsageEventSchema.index({ userId: 1, createdAt: -1 })
-tokenUsageEventSchema.index({ projectId: 1, userId: 1, createdAt: -1 })
-tokenUsageEventSchema.index({ model: 1, createdAt: -1 })
+// Compound indexes for dashboard queries
+tokenUsageEventSchema.index({ projectId: 1, createdAt: -1 });
+tokenUsageEventSchema.index({ userId: 1, createdAt: -1 });
+tokenUsageEventSchema.index({ projectId: 1, userId: 1, createdAt: -1 });
+tokenUsageEventSchema.index({ model: 1, createdAt: -1 });
 
-// TTL: автоматичне видалення сирих подій через 90 днів
-tokenUsageEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 })
-
-export type TokenUsageEventDoc = InferSchemaType<typeof tokenUsageEventSchema>
-export { tokenUsageEventSchema }
+// TTL: auto-delete raw events after 90 days
+tokenUsageEventSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 90 * 24 * 60 * 60 }
+);

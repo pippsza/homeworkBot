@@ -1,6 +1,23 @@
-import { Schema, type InferSchemaType } from 'mongoose'
+import { Schema } from "mongoose";
 
-const modelPricingSchema = new Schema(
+export interface IModelPricing {
+  provider: string;
+  model: string;
+  inputPricePerMillionTokens: number;
+  outputPricePerMillionTokens: number;
+  cachedInputPricePerMillionTokens?: number;
+  reasoningPricePerMillionTokens?: number;
+  effectiveFrom: Date;
+  effectiveTo?: Date;
+  source?: string;
+  displayName?: string;
+  contextLength?: number;
+  supportsVision: boolean;
+  supportsToolCalling: boolean;
+  supportsReasoning: boolean;
+}
+
+export const modelPricingSchema = new Schema<IModelPricing>(
   {
     provider: { type: String, required: true },
     model: { type: String, required: true, index: true },
@@ -15,18 +32,15 @@ const modelPricingSchema = new Schema(
 
     source: String,
 
-    displayName: String,
-    description: String,
-    contextLength: Number,
+    // Model capabilities (for UI filtering)
+    displayName: { type: String },
+    contextLength: { type: Number },
     supportsVision: { type: Boolean, default: false },
     supportsToolCalling: { type: Boolean, default: false },
     supportsReasoning: { type: Boolean, default: false },
   },
   {
     timestamps: true,
-    collection: 'modelPricing',
-  },
-)
-
-export type ModelPricingDoc = InferSchemaType<typeof modelPricingSchema>
-export { modelPricingSchema }
+    collection: "modelPricing",
+  }
+);

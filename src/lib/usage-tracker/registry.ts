@@ -1,33 +1,26 @@
-import { getProjectModel, getUserModel } from './connection'
+import { getProjectModel, getUserModel } from "./connection";
 
 interface ProjectInfo {
-  projectId: string
-  name: string
-  description?: string
-  url?: string
-  environment?: 'production' | 'staging' | 'development'
-  techStack?: string
-  team?: string
-  contactEmail?: string
+  projectId: string;
+  environment?: string;
+  name?: string;
+  description?: string;
+  techStack?: string;
+  [key: string]: unknown;
 }
 
 interface UserInfo {
-  userId: string
-  email?: string
-  name?: string
-  role?: string
-  avatarUrl?: string
-  meta?: Record<string, unknown>
+  userId: string;
+  [key: string]: unknown;
 }
 
 /**
- * Реєструє проєкт у довіднику.
- * Викликається один раз при ініціалізації SDK.
- * Upsert по projectId — безпечно викликати повторно.
+ * Register a project in the directory.
+ * Called once at SDK initialization. Upsert by projectId.
  */
 export async function registerProject(info: ProjectInfo): Promise<void> {
   try {
-    const Project = getProjectModel()
+    const Project = getProjectModel();
     await Project.updateOne(
       { projectId: info.projectId },
       {
@@ -41,21 +34,24 @@ export async function registerProject(info: ProjectInfo): Promise<void> {
           totalCostAllTimeUsd: 0,
         },
       },
-      { upsert: true },
-    )
-  } catch (error) {
-    console.error('[UsageTracker] Failed to register project:', (error as Error).message)
+      { upsert: true }
+    );
+  } catch (error: unknown) {
+    console.error(
+      "[UsageTracker] Failed to register project:",
+      (error as Error).message
+    );
   }
 }
 
 /**
- * Оновлює дані юзера в довіднику.
- * Викликається SDK при кожному AI-виклику (debounce в tracker).
- * Upsert по userId + projectId.
+ * Sync user data in the directory.
+ * Called by SDK on each AI call (debounced in tracker).
+ * Upsert by userId + projectId.
  */
 export async function syncUser(projectId: string, info: UserInfo): Promise<void> {
   try {
-    const User = getUserModel()
+    const User = getUserModel();
     await User.updateOne(
       { userId: info.userId, projectId },
       {
@@ -71,9 +67,9 @@ export async function syncUser(projectId: string, info: UserInfo): Promise<void>
           totalCostUsd: 0,
         },
       },
-      { upsert: true },
-    )
-  } catch (error) {
-    console.error('[UsageTracker] Failed to sync user:', (error as Error).message)
+      { upsert: true }
+    );
+  } catch (error: unknown) {
+    console.error("[UsageTracker] Failed to sync user:", (error as Error).message);
   }
 }

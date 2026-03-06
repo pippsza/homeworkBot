@@ -1,22 +1,44 @@
-import { Schema, type InferSchemaType } from 'mongoose'
+import { Schema } from "mongoose";
 
-const usageSummarySchema = new Schema(
+export interface IUsageSummary {
+  periodType: "hourly" | "daily" | "weekly" | "monthly";
+  periodStart: Date;
+  periodEnd: Date;
+  projectId: string;
+  userId?: string;
+  model?: string;
+  operationType?: string;
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalCachedTokens: number;
+  totalReasoningTokens: number;
+  totalEstimatedCostUsd: number;
+  avgLatencyMs?: number;
+  p95LatencyMs?: number;
+  maxLatencyMs?: number;
+}
+
+export const usageSummarySchema = new Schema<IUsageSummary>(
   {
     periodType: {
       type: String,
       required: true,
-      enum: ['hourly', 'daily', 'weekly', 'monthly'],
+      enum: ["hourly", "daily", "weekly", "monthly"],
     },
     periodStart: { type: Date, required: true },
     periodEnd: { type: Date, required: true },
 
-    // Виміри
+    // Dimensions
     projectId: { type: String, required: true, index: true },
     userId: String,
     model: String,
     operationType: String,
 
-    // Метрики
+    // Metrics
     totalRequests: { type: Number, required: true, min: 0 },
     successfulRequests: { type: Number, required: true, min: 0 },
     failedRequests: { type: Number, required: true, min: 0 },
@@ -35,12 +57,9 @@ const usageSummarySchema = new Schema(
   },
   {
     timestamps: true,
-    collection: 'usageSummaries',
-  },
-)
+    collection: "usageSummaries",
+  }
+);
 
-usageSummarySchema.index({ periodType: 1, periodStart: -1, projectId: 1 })
-usageSummarySchema.index({ periodType: 1, periodStart: -1, userId: 1 })
-
-export type UsageSummaryDoc = InferSchemaType<typeof usageSummarySchema>
-export { usageSummarySchema }
+usageSummarySchema.index({ periodType: 1, periodStart: -1, projectId: 1 });
+usageSummarySchema.index({ periodType: 1, periodStart: -1, userId: 1 });
