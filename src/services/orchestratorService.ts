@@ -1,4 +1,4 @@
-import { generateText, streamText, convertToModelMessages, LanguageModel } from "ai";
+import { generateText, streamText, convertToModelMessages, LanguageModel, stepCountIs } from "ai";
 import { getChatModels, getChatVisionModels, getSolveModels, getProSolveModels, ResolvedModels } from "./modelResolverService";
 import KnowledgeDocument from "../models/KnowledgeDocument";
 import Info from "../models/Info";
@@ -320,7 +320,7 @@ async function processQueryStream(messages: any[], systemPrompt: string, extras:
   };
 
   if (extras.tools) streamOpts.tools = extras.tools;
-  if (extras.maxSteps) streamOpts.maxSteps = extras.maxSteps;
+  if (extras.maxSteps) streamOpts.stopWhen = stepCountIs(extras.maxSteps);
   if (extras.toolChoice) streamOpts.toolChoice = extras.toolChoice;
   if (extras.onFinish) streamOpts.onFinish = extras.onFinish;
 
@@ -413,7 +413,7 @@ async function processQuery(
       system: enhancedSystem,
       messages,
       tools,
-      maxSteps,
+      stopWhen: stepCountIs(maxSteps),
       toolChoice: "auto",
       maxOutputTokens: SAFETY.maxOutputTokens.chat,
     },
@@ -694,7 +694,7 @@ async function processQueryMultiImage(
       system: enhancedSystem,
       messages,
       tools,
-      maxSteps,
+      stopWhen: stepCountIs(maxSteps),
       toolChoice: "auto",
       maxOutputTokens: SAFETY.maxOutputTokens.chat,
     },
