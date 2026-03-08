@@ -3,7 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY src/ ./src/
-COPY index.js ./
+COPY index.ts ./
+COPY tsconfig.json ./
 
 EXPOSE 3000
-CMD ["node", "index.js"]
+CMD ["npx", "tsx", "index.ts"]
