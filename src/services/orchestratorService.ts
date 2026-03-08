@@ -3,6 +3,7 @@ import { getChatModels, getChatVisionModels, getSolveModels, getProSolveModels, 
 import KnowledgeDocument from "../models/KnowledgeDocument";
 import Info from "../models/Info";
 import { ai } from "../lib/tracked-ai";
+import { debugLog } from "../lib/debugLog";
 
 const promptService = require("./promptService");
 const embeddingService = require("./embeddingService");
@@ -98,7 +99,7 @@ async function generateWithFallback(models: ResolvedModels, opts: Record<string,
       );
     } catch (e: any) {
       if (models.fallback && isRateLimitError(e)) {
-        console.log(`[fallback] Primary model rate-limited, trying fallback: ${models.fallbackId}`);
+        debugLog("fallback", `Primary model rate-limited, trying fallback: ${models.fallbackId}`);
         return await (ai as any).generateObject(
           () => doGenerate(models.fallback!),
           models.fallbackId!,
@@ -114,7 +115,7 @@ async function generateWithFallback(models: ResolvedModels, opts: Record<string,
     return await doGenerate(models.primary);
   } catch (e: any) {
     if (models.fallback && isRateLimitError(e)) {
-      console.log(`[fallback] Primary model rate-limited, trying fallback: ${models.fallbackId}`);
+      debugLog("fallback", `Primary model rate-limited, trying fallback: ${models.fallbackId}`);
       return await doGenerate(models.fallback);
     }
     throw e;
@@ -151,7 +152,7 @@ async function streamWithFallback(models: ResolvedModels, opts: Record<string, a
     return streamText({ ...safeOpts, model: models.primary } as any);
   } catch (e: any) {
     if (models.fallback && isRateLimitError(e)) {
-      console.log(`[fallback] Primary model rate-limited, trying fallback: ${models.fallbackId}`);
+      debugLog("fallback", `Primary model rate-limited, trying fallback: ${models.fallbackId}`);
 
       // Re-create tracking onFinish for fallback model
       if (tracking) {
@@ -186,13 +187,13 @@ function isRateLimitError(e: any): boolean {
 
 async function searchGeneralKnowledge(searchQuery: string): Promise<string> {
   try {
-    console.log(`[orchestrator] searching general knowledge: "${searchQuery}"`);
+    debugLog("orchestrator", `Searching general knowledge: "${searchQuery}"`);
     const embedding = await embeddingService.embedText(searchQuery);
     const results = await qdrantService.searchGeneral(embedding, 5);
-    console.log(`[orchestrator] found ${results.length} general chunks`);
+    debugLog("orchestrator", `Found ${results.length} general chunks`);
     return results.map((r: any) => r.text).join("\n\n---\n\n");
   } catch (e: any) {
-    console.error("[orchestrator] general search error:", e.message);
+    debugLog("orchestrator-error", `General search error: ${e.message}`);
     return "";
   }
 }
@@ -204,7 +205,7 @@ async function orchestrate(query: string): Promise<OrchestratorDecision> {
   ]);
 
   if (knowledgeCount === 0 && infoChunkedCount === 0) {
-    console.log("[orchestrator] skipping — no knowledge documents or chunked infos");
+    debugLog("orchestrator", "Skipping — no knowledge documents or chunked infos");
     return { needsSearch: false, subjectId: null, searchQuery: null, searchGeneral: false };
   }
 
@@ -223,7 +224,7 @@ async function orchestrate(query: string): Promise<OrchestratorDecision> {
   );
 
   try {
-    console.log("[orchestrator] query:", query);
+    debugLog("orchestrator", `Query: ${query}`);
     const chatModels = await getChatModels();
 
     const { text } = await generateWithFallback(
@@ -236,17 +237,17 @@ async function orchestrate(query: string): Promise<OrchestratorDecision> {
       { operationType: "orchestrator", feature: "rag-routing" }
     );
 
-    console.log("[orchestrator] raw response:", text);
+    debugLog("orchestrator", `Raw response: ${text}`);
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const decision: OrchestratorDecision = JSON.parse(jsonMatch[0]);
-      console.log("[orchestrator] decision:", JSON.stringify(decision));
+      debugLog("orchestrator", `Decision: ${JSON.stringify(decision)}`);
       return decision;
     }
-    console.log("[orchestrator] no JSON found in response");
+    debugLog("orchestrator", "No JSON found in response");
   } catch (e: any) {
-    console.error("[orchestrator] error:", e.message);
+    debugLog("orchestrator-error", e.message);
   }
 
   return { needsSearch: false, subjectId: null, searchQuery: null };
@@ -254,13 +255,13 @@ async function orchestrate(query: string): Promise<OrchestratorDecision> {
 
 async function searchKnowledge(subjectId: string, searchQuery: string): Promise<string> {
   try {
-    console.log(`[orchestrator] searching knowledge for subject ${subjectId}: "${searchQuery}"`);
+    debugLog("orchestrator", `Searching knowledge for subject ${subjectId}: "${searchQuery}"`);
     const embedding = await embeddingService.embedText(searchQuery);
     const results = await qdrantService.search(subjectId, embedding, 5);
-    console.log(`[orchestrator] found ${results.length} chunks`);
+    debugLog("orchestrator", `Found ${results.length} chunks`);
     return results.map((r: any) => r.text).join("\n\n---\n\n");
   } catch (e: any) {
-    console.error("[orchestrator] search error:", e.message);
+    debugLog("orchestrator-error", `Search error: ${e.message}`);
     return "";
   }
 }
@@ -276,13 +277,13 @@ async function processQueryStream(messages: any[], systemPrompt: string, extras:
     lastMsg?.content ||
     "";
 
-  console.log("[processQueryStream] user query:", query);
+  debugLog("processQueryStream", `User query: ${query}`);
   const decision = await orchestrate(query);
 
   let context = "";
   if (decision.needsSearch && decision.subjectId && decision.searchQuery) {
     context = await searchKnowledge(decision.subjectId, decision.searchQuery);
-    console.log("[processQueryStream] subject RAG context length:", context.length);
+    debugLog("processQueryStream", `Subject RAG context length: ${context.length}`);
   }
   if (decision.searchGeneral && decision.searchQuery) {
     const generalContext = await searchGeneralKnowledge(decision.searchQuery);
@@ -343,7 +344,7 @@ async function processQuery(
   tracking?: TrackingContext,
   imageData: ImageData | null = null
 ): Promise<{ text: string; extraHistoryContext: string }> {
-  console.log("[processQuery] user query:", query, "| history:", historyMessages.length, "msgs", imageData ? "| with image" : "");
+  debugLog("processQuery", `User query: ${(query || "").slice(0, 150)} | history: ${historyMessages.length} msgs${imageData ? " | with image" : ""}`);
   let systemPrompt: string | null = await promptService.getPrompt("chat-system");
 
   const decision = await orchestrate(query || "изображение");
@@ -405,7 +406,8 @@ async function processQuery(
   const messages = [...historyMessages, lastUserMessage];
   const chatModels = imageData ? await getChatVisionModels() : await getChatModels();
 
-  const { debugLog } = require("../lib/debugLog");
+
+  debugLog("processQuery-setup", `Tools: ${Object.keys(tools).length} | ToolNames: ${Object.keys(tools).join(", ")} | MaxSteps: ${maxSteps} | Messages: ${messages.length} | SystemLen: ${enhancedSystem.length}`);
 
   const result = await generateWithFallback(
     chatModels,
@@ -427,15 +429,18 @@ async function processQuery(
   if (steps.length > 0) {
     const stepsInfo = steps.map((s: any, i: number) => ({
       step: i,
+      finishReason: s.finishReason,
       hasText: !!s.text,
       textLen: (s.text || "").length,
       toolCalls: (s.toolCalls || []).map((tc: any) => tc.toolName),
       toolResults: (s.toolResults || []).map((tr: any) => ({
         tool: tr.toolName,
         resultKeys: tr.output ? Object.keys(tr.output) : [],
+        outputPreview: JSON.stringify(tr.output)?.slice(0, 200),
       })),
+      contentTypes: (s.content || []).map((c: any) => c.type),
     }));
-    const usageInfo = result.usage ? { prompt: result.usage.promptTokens, completion: result.usage.completionTokens, total: result.usage.totalTokens } : "no usage";
+    const usageInfo = result.usage ? { input: result.usage.inputTokens, output: result.usage.outputTokens, total: result.usage.totalTokens } : "no usage";
     debugLog("processQuery", `Query: "${(query || "").slice(0, 100)}" | Steps: ${steps.length} | Text: ${(text || "").length} chars | Usage: ${JSON.stringify(usageInfo)}`, stepsInfo);
   }
 
@@ -484,7 +489,7 @@ async function processQuery(
           debugLog("processQuery", "Re-generated response", text.slice(0, 500));
         }
       } catch (regenErr: any) {
-        console.error("[processQuery] re-generation failed:", regenErr.message);
+        debugLog("processQuery-error", `Re-generation failed: ${regenErr.message}`);
       }
     }
   }
@@ -578,7 +583,7 @@ async function solveTask(
           const buffer = Buffer.from(await res.arrayBuffer());
           contentParts.push({ type: "image", image: buffer, mimeType: "image/jpeg" });
         } catch (e: any) {
-          console.error("[solveTask] failed to download photo:", e.message);
+          debugLog("solveTask-error", `Failed to download photo: ${e.message}`);
         }
       }
     }
@@ -614,7 +619,7 @@ async function solveTask(
       content: latexMatch[1].trim(),
       filename: `${safeTitle || "solution"}.tex`,
     });
-    console.log("[auto-solve] LaTeX file generated:", files[0].filename);
+    debugLog("auto-solve", `LaTeX file generated: ${files[0].filename}`);
   }
 
   return { text, files };
@@ -629,7 +634,7 @@ async function processQueryMultiImage(
   tracking?: TrackingContext,
   images: ImageData[] = []
 ): Promise<string> {
-  console.log("[processQueryMultiImage] query:", (query || "").slice(0, 100), "| images:", images.length);
+  debugLog("processQueryMultiImage", `Query: ${(query || "").slice(0, 100)} | images: ${images.length}`);
 
   let systemPrompt: string | null = await promptService.getPrompt("chat-system");
   const decision = await orchestrate(query || "изображение");
@@ -686,7 +691,6 @@ async function processQueryMultiImage(
   const messages = [...historyMessages, lastUserMessage];
   const chatModels = await getChatVisionModels();
 
-  const { debugLog } = require("../lib/debugLog");
 
   const result = await generateWithFallback(
     chatModels,
