@@ -20,7 +20,7 @@ import { checkRateLimit } from "../helpers/rateLimit";
 async function deleteUserMsg(ctx: Context): Promise<void> {
   await ctx
     .deleteMessage((ctx.message as any).message_id)
-    .catch((e: Error) => console.error("Delete user msg error", e));
+    .catch(() => {});
 }
 
 export function textHandler(bot: Telegraf): void {
@@ -159,9 +159,11 @@ export function textHandler(bot: Telegraf): void {
             },
           },
           { upsert: true }
-        ).catch((e: Error) => console.error("[ai reply] history save error:", e.message));
+        ).catch((e: Error) => {
+          const { debugLog } = require("../../lib/debugLog");
+          debugLog("history-error", `History save failed: ${e.message}`);
+        });
       } catch (e: any) {
-        console.error("[ai reply] error:", e);
         const { debugLog } = require("../../lib/debugLog");
         debugLog("text-handler-error", `Query: "${question.slice(0, 200)}"`, e.message || String(e));
         await ctx.telegram
@@ -638,7 +640,8 @@ export function textHandler(bot: Telegraf): void {
       }
     }
     } catch (e) {
-      console.error("[text handler error]", e);
+      const { debugLog: dbg } = require("../../lib/debugLog");
+      dbg("text-handler-error", `Unhandled error`, (e as Error).message || String(e));
       await trackSend(ctx, () =>
         ctx.reply("❌ Произошла ошибка. Попробуйте снова или /cancel.", {
           disable_notification: !isPrivate(ctx),

@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import Info from "../models/Info";
+import { debugLog } from "../lib/debugLog";
 
 const subjectService = require("./subjectService");
 const infoService = require("./infoService");
@@ -35,11 +36,7 @@ function safeTool(toolName: string, definition: ToolDefinition): any {
       try {
         return await originalExecute(args);
       } catch (e: any) {
-        console.error(`[ai tool] ${toolName} ERROR:`, e);
-        try {
-          const { debugLog } = require("../lib/debugLog");
-          debugLog("tool-error", `Tool ${toolName} failed: ${e.message}`, JSON.stringify(args).slice(0, 500));
-        } catch {}
+        debugLog("tool-error", `Tool ${toolName} failed: ${e.message}`, JSON.stringify(args).slice(0, 500));
         return { error: `Ошибка при выполнении ${toolName}: ${e.message}` };
       }
     },
@@ -74,7 +71,7 @@ async function buildAssistantTools({ chatId, username }: BuildAssistantToolsPara
       scheduleContext = `\nСегодня (${todaySchedule.dayName}) нет занятий.`;
     }
   } catch (e: any) {
-    console.error("[aiTools] schedule context error:", e.message);
+    debugLog("aiTools-error", `Schedule context error: ${e.message}`);
   }
 
   const systemPromptAddition = `\n\nТы — полноценный AI-ассистент для учебного бота. У тебя есть инструменты для управления данными.
@@ -168,7 +165,7 @@ ${scheduleContext}
         practitionerName: z.string().optional().describe("ФИО практика"),
       }),
       execute: async ({ name, emoji, lecturerName, practitionerName }: { name: string; emoji?: string; lecturerName?: string; practitionerName?: string }) => {
-        console.log("[ai tool] createSubject:", { name });
+        debugLog("tool", `createSubject: ${name}`);
         const data: Record<string, string> = { name, emoji: emoji || "📚" };
         if (lecturerName) data.lecturerName = lecturerName;
         if (practitionerName) data.practitionerName = practitionerName;
@@ -191,7 +188,7 @@ ${scheduleContext}
         description: z.string().describe("Полное описание задания"),
       }),
       execute: async ({ subjectId, title, emoji, description }: { subjectId: string; title: string; emoji?: string; description: string }) => {
-        console.log("[ai tool] createHomework:", { subjectId, title });
+        debugLog("tool", `createHomework: ${title} (subject: ${subjectId})`);
         const subject = await subjectService.getById(subjectId);
         if (!subject) return { error: "Предмет не найден" };
         const task = await subjectService.addTask(subjectId, {
@@ -217,7 +214,7 @@ ${scheduleContext}
         description: z.string().describe("Полный текст информации для запоминания"),
       }),
       execute: async ({ title, emoji, description }: { title: string; emoji?: string; description: string }) => {
-        console.log("[ai tool] rememberInfo:", { title });
+        debugLog("tool", `rememberInfo: ${title}`);
         const info = await infoService.create({
           title,
           emoji: emoji || "ℹ️",
@@ -244,7 +241,7 @@ ${scheduleContext}
         practitionerContact: z.string().optional().describe("Контакт практика"),
       }),
       execute: async ({ subjectId, name, emoji, lecturerName, lecturerContact, practitionerName, practitionerContact }: { subjectId: string; name?: string; emoji?: string; lecturerName?: string; lecturerContact?: string; practitionerName?: string; practitionerContact?: string }) => {
-        console.log("[ai tool] updateSubject:", { subjectId, name, lecturerName, practitionerName });
+        debugLog("tool", `updateSubject: ${subjectId}`, { name, lecturerName, practitionerName });
         const subject = await subjectService.getById(subjectId);
         if (!subject) return { error: "Предмет не найден" };
 
@@ -278,7 +275,7 @@ ${scheduleContext}
         description: z.string().optional().describe("Новое описание"),
       }),
       execute: async ({ taskId, title, emoji, description }: { taskId: string; title?: string; emoji?: string; description?: string }) => {
-        console.log("[ai tool] updateTask:", { taskId, title });
+        debugLog("tool", `updateTask: ${taskId}`, { title });
         const updates: Record<string, string> = {};
         if (title) updates.title = title;
         if (emoji) updates.emoji = emoji;
@@ -304,7 +301,7 @@ ${scheduleContext}
         subjectId: z.string().optional().describe("ID предмета из списка (если не указан — все предметы)"),
       }),
       execute: async ({ subjectId }: { subjectId?: string }) => {
-        console.log("[ai tool] listTasks:", { subjectId });
+        debugLog("tool", `listTasks: subjectId=${subjectId || "all"}`);
         if (subjectId) {
           const subject = await subjectService.getById(subjectId);
           if (!subject) return { error: "Предмет не найден" };
@@ -358,7 +355,7 @@ ${scheduleContext}
         taskId: z.string().describe("ID задания (получи через listTasks)"),
       }),
       execute: async ({ taskId }: { taskId: string }) => {
-        console.log("[ai tool] getTaskDetails:", { taskId });
+        debugLog("tool", `getTaskDetails: ${taskId}`);
         const { subject, task } = await subjectService.getTask(taskId);
         if (!task) return { error: "Задание не найдено" };
         return {
@@ -388,7 +385,7 @@ ${scheduleContext}
         content: z.string().describe("Текст ответа"),
       }),
       execute: async ({ taskId, content }: { taskId: string; content: string }) => {
-        console.log("[ai tool] addTaskAnswer:", { taskId, contentLength: content.length });
+        debugLog("tool", `addTaskAnswer: ${taskId} (${content.length} chars)`);
         const result = await subjectService.addAnswer(taskId, {
           type: "text",
           content,
@@ -410,7 +407,7 @@ ${scheduleContext}
         fileType: z.enum(["document", "photo"]).describe("Тип файла: document или photo"),
       }),
       execute: async ({ taskId, fileId, fileType }: { taskId: string; fileId: string; fileType: "document" | "photo" }) => {
-        console.log("[ai tool] attachFileToTask:", { taskId, fileType });
+        debugLog("tool", `attachFileToTask: ${taskId} (${fileType})`);
         const { subject, task } = await subjectService.getTask(taskId);
         if (!task) return { error: "Задание не найдено" };
         task.attachments.push({ type: fileType, file_id: fileId });
@@ -431,7 +428,7 @@ ${scheduleContext}
         fileType: z.enum(["document", "photo"]).describe("Тип файла: document или photo"),
       }),
       execute: async ({ taskId, fileId, fileType }: { taskId: string; fileId: string; fileType: "document" | "photo" }) => {
-        console.log("[ai tool] addFileAnswer:", { taskId, fileType });
+        debugLog("tool", `addFileAnswer: ${taskId} (${fileType})`);
         const result = await subjectService.addAnswer(taskId, {
           type: fileType,
           file_id: fileId,
@@ -452,7 +449,7 @@ ${scheduleContext}
         usePro: z.boolean().optional().describe("true = PRO модель (медленнее но точнее), false = обычная (быстрее). По умолчанию false."),
       }),
       execute: async ({ taskId, usePro = false }: { taskId: string; usePro?: boolean }) => {
-        console.log("[ai tool] solveHomework:", { taskId, usePro });
+        debugLog("tool", `solveHomework: ${taskId} (pro: ${usePro})`);
         const { subject, task } = await subjectService.getTask(taskId);
         if (!task) return { error: "Задание не найдено" };
         if (!task.description && (!task.attachments || task.attachments.length === 0)) {
@@ -487,7 +484,7 @@ ${scheduleContext}
         date: z.string().describe("Дата в формате YYYY-MM-DD"),
       }),
       execute: async ({ date }: { date: string }) => {
-        console.log("[ai tool] getSchedule:", { date });
+        debugLog("tool", `getSchedule: ${date}`);
         const result = await scheduleService.getScheduleForDate(new Date(date));
         return {
           dayName: result.dayName,
@@ -514,7 +511,7 @@ ${scheduleContext}
         })).describe("Массив тайм-слотов"),
       }),
       execute: async ({ timeSlots }: { timeSlots: Array<{ number: number; startTime: string; endTime: string }> }) => {
-        console.log("[ai tool] setTimeSlots:", timeSlots.length, "slots");
+        debugLog("tool", `setTimeSlots: ${timeSlots.length} slots`);
         await scheduleService.setTimeSlots(timeSlots);
         return { success: true, slotsCount: timeSlots.length };
       },
@@ -533,7 +530,7 @@ ${scheduleContext}
       }),
       execute: async ({ dayOfWeek, slots }: { dayOfWeek: number; slots: Array<{ slotNumber: number; subjectId: string; subjectIdEven?: string; isAlternating?: boolean }> }) => {
         const dayNames = ["", "Пн", "Вт", "Ср", "Чт", "Пт"];
-        console.log("[ai tool] setDaySchedule:", dayNames[dayOfWeek], slots.length, "slots");
+        debugLog("tool", `setDaySchedule: ${dayNames[dayOfWeek]} ${slots.length} slots`);
         await scheduleService.setDaySchedule(dayOfWeek, slots);
         return { success: true, day: dayNames[dayOfWeek], slotsCount: slots.length };
       },
@@ -548,7 +545,7 @@ ${scheduleContext}
         })).describe("Массив маппингов суббот"),
       }),
       execute: async ({ mappings }: { mappings: Array<{ weekNumber: number; followsDay: number }> }) => {
-        console.log("[ai tool] setSaturdayMappings:", mappings.length, "mappings");
+        debugLog("tool", `setSaturdayMappings: ${mappings.length} mappings`);
         await scheduleService.setSaturdayMappings(mappings);
         return { success: true, mappingsCount: mappings.length };
       },
@@ -568,7 +565,7 @@ ${scheduleContext}
           ? (targetUsername.startsWith("@") ? targetUsername : `@${targetUsername}`)
           : username;
         if (!who) return { error: "Не удалось определить пользователя" };
-        console.log("[ai tool] markSubmission:", { taskId, who, submitted });
+        debugLog("tool", `markSubmission: ${taskId} ${who} → ${submitted}`);
         const { task } = await subjectService.setSubmission(taskId, who, submitted);
         if (!task) return { error: "Задание не найдено" };
         return { success: true, taskTitle: task.title, username: who, submitted };
@@ -582,7 +579,7 @@ ${scheduleContext}
       }),
       execute: async ({ subjectId }: { subjectId?: string }) => {
         if (!username) return { error: "Не удалось определить пользователя" };
-        console.log("[ai tool] getMySubmissions:", { username, subjectId });
+        debugLog("tool", `getMySubmissions: ${username} subjectId=${subjectId || "all"}`);
         const subjectsResult = subjectId
           ? [await subjectService.getById(subjectId)].filter(Boolean)
           : await subjectService.getAll();
@@ -612,7 +609,7 @@ ${scheduleContext}
         taskId: z.string().describe("ID задания (получи через listTasks)"),
       }),
       execute: async ({ taskId }: { taskId: string }) => {
-        console.log("[ai tool] getTaskSubmissions:", { taskId });
+        debugLog("tool", `getTaskSubmissions: ${taskId}`);
         const { task } = await subjectService.getTask(taskId);
         if (!task) return { error: "Задание не найдено" };
         const userService = require("./userService");
@@ -634,7 +631,7 @@ ${scheduleContext}
         subjectId: z.string().optional().describe("ID предмета. Если не указан — все предметы."),
       }),
       execute: async ({ subjectId }: { subjectId?: string }) => {
-        console.log("[ai tool] getTeacherInfo:", { subjectId });
+        debugLog("tool", `getTeacherInfo: subjectId=${subjectId || "all"}`);
         if (subjectId) {
           const s = await subjectService.getById(subjectId);
           if (!s) return { error: "Предмет не найден" };
@@ -664,7 +661,7 @@ ${scheduleContext}
         deadline: z.string().describe("Дата дедлайна в формате YYYY-MM-DD или YYYY-MM-DDTHH:mm"),
       }),
       execute: async ({ taskId, deadline }: { taskId: string; deadline: string }) => {
-        console.log("[ai tool] setTaskDeadline:", { taskId, deadline });
+        debugLog("tool", `setTaskDeadline: ${taskId} → ${deadline}`);
         const date = new Date(deadline);
         if (isNaN(date.getTime())) return { error: "Некорректная дата" };
         const result = await subjectService.updateTask(taskId, { deadline: date });
@@ -687,7 +684,7 @@ ${scheduleContext}
         const { getBot } = require("../lib/bot");
         const bot = getBot();
         if (!bot || !chatId) return { error: "Невозможно отправить — нет доступа к чату" };
-        console.log("[ai tool] createPoll:", { question, optionsCount: options.length });
+        debugLog("tool", `createPoll: ${question} (${options.length} options)`);
         const msg = await bot.telegram.sendPoll(chatId, question, options, {
           is_anonymous: isAnonymous,
           allows_multiple_answers: allowsMultipleAnswers,
@@ -705,7 +702,7 @@ ${scheduleContext}
         fileName: z.string().optional().describe("Имя файла (для определения типа)"),
       }),
       execute: async ({ fileId, fileName }: { fileId: string; fileName?: string }) => {
-        console.log("[ai tool] parseDocument:", { fileId, fileName });
+        debugLog("tool", `parseDocument: ${fileName || fileId}`);
         const { getBot } = require("../lib/bot");
         const bot = getBot();
         if (!bot) return { error: "Нет доступа к боту" };
@@ -763,7 +760,7 @@ ${scheduleContext}
         subjectId: z.string().optional().describe("ID предмета (если не указан — ищет по общей базе)"),
       }),
       execute: async ({ query, subjectId }: { query: string; subjectId?: string }) => {
-        console.log("[ai tool] searchKnowledgeBase:", { query, subjectId });
+        debugLog("tool", `searchKnowledgeBase: "${query}" subjectId=${subjectId || "general"}`);
         const embeddingService = require("./embeddingService");
         const qdrantService = require("./qdrantService");
 
@@ -800,7 +797,7 @@ ${scheduleContext}
         taskId: z.string().describe("ID задания (получи через listTasks)"),
       }),
       execute: async ({ taskId }: { taskId: string }) => {
-        console.log("[ai tool] deleteTask:", { taskId });
+        debugLog("tool", `deleteTask: ${taskId}`);
         const result = await subjectService.deleteTask(taskId);
         if (!result) return { error: "Задание не найдено" };
         return { success: true, deletedTitle: result.title, subjectName: result.subject.name };
@@ -813,7 +810,7 @@ ${scheduleContext}
         subjectId: z.string().describe("ID предмета"),
       }),
       execute: async ({ subjectId }: { subjectId: string }) => {
-        console.log("[ai tool] deleteSubject:", { subjectId });
+        debugLog("tool", `deleteSubject: ${subjectId}`);
         const subject = await subjectService.getById(subjectId);
         if (!subject) return { error: "Предмет не найден" };
         const tasksCount = subject.tasks?.length || 0;
@@ -828,7 +825,7 @@ ${scheduleContext}
       description: "Показать все сохранённые заметки/информацию.",
       inputSchema: z.object({}),
       execute: async () => {
-        console.log("[ai tool] listInfos");
+        debugLog("tool", "listInfos");
         const infos = await infoService.getAll();
         return {
           infos: infos.map((i: any) => ({
@@ -848,7 +845,7 @@ ${scheduleContext}
         infoId: z.string().describe("ID заметки (получи через listInfos)"),
       }),
       execute: async ({ infoId }: { infoId: string }) => {
-        console.log("[ai tool] getInfoDetails:", { infoId });
+        debugLog("tool", `getInfoDetails: ${infoId}`);
         const info = await infoService.getById(infoId);
         if (!info) return { error: "Заметка не найдена" };
         return {
@@ -869,7 +866,7 @@ ${scheduleContext}
         description: z.string().optional().describe("Новое описание"),
       }),
       execute: async ({ infoId, title, emoji, description }: { infoId: string; title?: string; emoji?: string; description?: string }) => {
-        console.log("[ai tool] updateInfo:", { infoId });
+        debugLog("tool", `updateInfo: ${infoId}`);
         const updates: Record<string, string> = {};
         if (title) updates.title = title;
         if (emoji) updates.emoji = emoji;
@@ -887,7 +884,7 @@ ${scheduleContext}
         infoId: z.string().describe("ID заметки"),
       }),
       execute: async ({ infoId }: { infoId: string }) => {
-        console.log("[ai tool] deleteInfo:", { infoId });
+        debugLog("tool", `deleteInfo: ${infoId}`);
         const info = await infoService.getById(infoId);
         if (!info) return { error: "Заметка не найдена" };
         await infoService.delete(infoId);
@@ -901,7 +898,7 @@ ${scheduleContext}
       description: "Проверить конфликты в расписании: пересечения пар, дублирование предметов в одном слоте. Вызывай когда пользователь просит проверить расписание на ошибки или конфликты.",
       inputSchema: z.object({}),
       execute: async () => {
-        console.log("[ai tool] checkScheduleConflicts");
+        debugLog("tool", "checkScheduleConflicts");
         const doc = await scheduleService.get();
         const conflicts: string[] = [];
 
@@ -963,7 +960,7 @@ ${scheduleContext}
         })).describe("Массив заданий для создания"),
       }),
       execute: async ({ subjectId, tasks }: { subjectId: string; tasks: Array<{ title: string; emoji?: string; description?: string; deadline?: string }> }) => {
-        console.log("[ai tool] bulkCreateTasks:", { subjectId, count: tasks.length });
+        debugLog("tool", `bulkCreateTasks: ${subjectId} (${tasks.length} tasks)`);
         const subject = await subjectService.getById(subjectId);
         if (!subject) return { error: "Предмет не найден" };
 
@@ -1012,7 +1009,7 @@ ${scheduleContext}
         })).describe("Расписание по дням"),
       }),
       execute: async ({ timeSlots, days }: { timeSlots?: Array<{ number: number; startTime: string; endTime: string }>; days: Array<{ dayOfWeek: number; slots: Array<{ slotNumber: number; subjectName: string; subjectNameEven?: string }> }> }) => {
-        console.log("[ai tool] importScheduleFromText:", { timeSlotsCount: timeSlots?.length, daysCount: days.length });
+        debugLog("tool", `importScheduleFromText: ${timeSlots?.length || 0} slots, ${days.length} days`);
 
         // Set time slots if provided
         if (timeSlots && timeSlots.length > 0) {
@@ -1079,7 +1076,7 @@ ${scheduleContext}
         const { getBot } = require("../lib/bot");
         const bot = getBot();
         if (!bot || !chatId) return { error: "Нет доступа к чату" };
-        console.log("[ai tool] sendMessageToChat:", text.slice(0, 50));
+        debugLog("tool", `sendMessageToChat: ${text.slice(0, 50)}`);
         await bot.telegram.sendMessage(chatId, text);
         return { success: true };
       },
@@ -1096,7 +1093,7 @@ ${scheduleContext}
         const { getBot } = require("../lib/bot");
         const bot = getBot();
         if (!bot || !chatId) return { error: "Нет доступа к чату" };
-        console.log("[ai tool] forwardFileToChat:", { fileType });
+        debugLog("tool", `forwardFileToChat: ${fileType}`);
         if (fileType === "photo") {
           await bot.telegram.sendPhoto(chatId, fileId, { caption });
         } else {
