@@ -240,11 +240,12 @@ ${scheduleContext}
           emoji: t.emoji || "📄",
           description: t.description || null,
           deadline: t.deadline ? t.deadline.toISOString() : null,
-          hasAttachments: (t.attachments?.length || 0) > 0,
+          attachments: (t.attachments || []).map((a: any) => ({ type: a.type, file_id: a.file_id })),
           aiAnswer: t.aiAnswer ? t.aiAnswer.slice(0, 500) : null,
           answers: (t.answers || []).map((a: any) => ({
             type: a.type,
-            content: a.type === "text" ? a.content?.slice(0, 300) : `[${a.type}]`,
+            content: a.type === "text" ? a.content?.slice(0, 300) : null,
+            file_id: a.file_id || null,
           })),
           submittedCount: (t.submissions || []).filter((s: any) => s.submitted).length,
           mySubmitted: username ? ((t.submissions || []).find((s: any) => s.username === username)?.submitted ?? false) : null,
@@ -274,7 +275,7 @@ ${scheduleContext}
     }),
 
     getTaskDetails: safeTool("getTaskDetails", {
-      description: "Получить полную информацию о задании: описание, AI-решение, ответы пользователей. Используй когда пользователь просит показать задание, решение, ответы на домашку.",
+      description: "Получить полную информацию о задании: описание, вложения (file_id), AI-решение, ответы пользователей. Когда нужно показать файл — возьми file_id из attachments и вызови forwardFileToChat.",
       inputSchema: z.object({
         taskId: z.string().describe("ID задания (получи через listTasks)"),
       }),
@@ -285,14 +286,18 @@ ${scheduleContext}
         return {
           taskTitle: task.title,
           taskEmoji: task.emoji || "📄",
-          subjectName: subject.name,
+          subjectName: subject!.name,
           description: task.description || "(нет описания)",
-          attachmentsCount: task.attachments?.length || 0,
+          attachments: (task.attachments || []).map((a: any) => ({
+            type: a.type,
+            file_id: a.file_id,
+          })),
           deadline: task.deadline ? task.deadline.toISOString() : null,
           aiAnswer: task.aiAnswer || null,
           answers: (task.answers || []).map((a: any) => ({
             type: a.type,
-            content: a.type === "text" ? a.content : `[${a.type}]`,
+            content: a.type === "text" ? a.content : null,
+            file_id: a.file_id || null,
           })),
           submissions: (task.submissions || []).map((s: any) => ({
             username: s.username,
@@ -1008,7 +1013,7 @@ ${scheduleContext}
     }),
 
     forwardFileToChat: safeTool("forwardFileToChat", {
-      description: "Переслать файл/фото в чат по file_id. Используй когда нужно отправить файл из задания в чат.",
+      description: "Отправить файл/фото в чат по file_id. ИСПОЛЬЗУЙ когда пользователь просит показать файл, вложение или ответ из задания. Бери file_id из attachments или answers в результатах listTasks/getTaskDetails.",
       inputSchema: z.object({
         fileId: z.string().describe("Telegram file_id"),
         fileType: z.enum(["document", "photo"]).describe("Тип: document или photo"),
