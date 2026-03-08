@@ -501,15 +501,23 @@ async function processQuery(
     debugLog("processQuery", "Used absolute fallback — no text generated at all", query?.slice(0, 200));
   }
 
-  // Collect parsed document content from tool results for history context
+  // Collect tool results for history context so follow-up messages have context
   let extraHistoryContext = "";
   for (const step of steps) {
     for (const tr of step.toolResults || []) {
       if (tr.toolName === "parseDocument" && tr.output?.text) {
         const docText = tr.output.text.slice(0, 3000);
         extraHistoryContext += `\n[Содержимое файла "${tr.output.fileName || "file"}":\n${docText}${tr.output.truncated ? "\n...(обрезано)" : ""}]`;
+      } else if (tr.output && !tr.output.error) {
+        // Save key tool results so AI has context for follow-up messages
+        const summary = JSON.stringify(tr.output).slice(0, 1500);
+        extraHistoryContext += `\n[Результат ${tr.toolName}: ${summary}]`;
       }
     }
+  }
+  // Limit total extra context to avoid bloating history
+  if (extraHistoryContext.length > 5000) {
+    extraHistoryContext = extraHistoryContext.slice(0, 5000) + "\n...(обрезано)";
   }
 
   return { text, extraHistoryContext };
