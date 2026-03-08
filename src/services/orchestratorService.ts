@@ -508,16 +508,39 @@ async function processQuery(
       if (tr.toolName === "parseDocument" && tr.output?.text) {
         const docText = tr.output.text.slice(0, 3000);
         extraHistoryContext += `\n[Содержимое файла "${tr.output.fileName || "file"}":\n${docText}${tr.output.truncated ? "\n...(обрезано)" : ""}]`;
+      } else if (tr.toolName === "listTasks" && tr.output) {
+        // Save task IDs and names in a clear, compact format for follow-ups
+        const taskSummaries: string[] = [];
+        const subjects = tr.output.subjects || (tr.output.tasks ? [{ tasks: tr.output.tasks }] : []);
+        for (const s of subjects) {
+          for (const t of s.tasks || []) {
+            const parts = [`ID:${t.id}`, t.title];
+            if ((t.attachments || []).length > 0) parts.push(`файлы:${t.attachments.length}`);
+            if ((t.answers || []).length > 0) parts.push(`ответы:${t.answers.length}`);
+            taskSummaries.push(parts.join(" | "));
+          }
+        }
+        if (taskSummaries.length > 0) {
+          extraHistoryContext += `\n[Найденные задания:\n${taskSummaries.join("\n")}]`;
+        }
+      } else if (tr.toolName === "getTaskDetails" && tr.output && !tr.output.error) {
+        const o = tr.output;
+        let detail = `[Задание: ${o.taskTitle} (${o.subjectName})`;
+        if ((o.attachments || []).length > 0) detail += ` | файлов: ${o.attachments.length}`;
+        if ((o.answers || []).length > 0) detail += ` | ответов: ${o.answers.length}`;
+        detail += `]`;
+        extraHistoryContext += `\n${detail}`;
+      } else if (tr.toolName === "sendTaskFiles" && tr.output && !tr.output.error) {
+        extraHistoryContext += `\n[Отправлены файлы задания "${tr.output.taskTitle}": ${tr.output.sentCount} шт.]`;
       } else if (tr.output && !tr.output.error) {
-        // Save key tool results so AI has context for follow-up messages
-        const summary = JSON.stringify(tr.output).slice(0, 1500);
+        const summary = JSON.stringify(tr.output).slice(0, 1000);
         extraHistoryContext += `\n[Результат ${tr.toolName}: ${summary}]`;
       }
     }
   }
   // Limit total extra context to avoid bloating history
-  if (extraHistoryContext.length > 5000) {
-    extraHistoryContext = extraHistoryContext.slice(0, 5000) + "\n...(обрезано)";
+  if (extraHistoryContext.length > 4000) {
+    extraHistoryContext = extraHistoryContext.slice(0, 4000) + "\n...(обрезано)";
   }
 
   return { text, extraHistoryContext };

@@ -82,9 +82,10 @@ async function buildAssistantTools({ chatId, username }: BuildAssistantToolsPara
 ${subjectsList}
 ${scheduleContext}
 
-ГЛАВНОЕ ПРАВИЛО: Когда пользователь спрашивает о домашках, заданиях, ответах, дедлайнах — ОБЯЗАТЕЛЬНО вызови инструмент (listTasks, getTaskDetails и т.д.). НИКОГДА не отвечай по памяти.
-
-После вызова инструмента — ОБЯЗАТЕЛЬНО напиши текстовый ответ с результатами на русском языке.`;
+ПРАВИЛА:
+1. Вопросы о домашках, заданиях, ответах, дедлайнах → вызови listTasks. НИКОГДА не отвечай по памяти.
+2. Пользователь просит показать/скинуть/отправить файл задания → вызови sendTaskFiles с taskId.
+3. После вызова инструмента — ОБЯЗАТЕЛЬНО напиши текстовый ответ на русском.`;
 
   const tools: Record<string, any> = {
     createSubject: safeTool("createSubject", {
@@ -227,7 +228,7 @@ ${scheduleContext}
     }),
 
     listTasks: safeTool("listTasks", {
-      description: "Получить список заданий предмета. Используй чтобы узнать ID задания перед добавлением ответа, решением или обновлением. Если subjectId не указан — выводит задания ВСЕХ предметов.",
+      description: "Получить список заданий предмета с ID. Используй для любых вопросов о домашках. Если есть файлы (filesCount>0) и пользователь просит показать — вызови sendTaskFiles с ID задания. Если subjectId не указан — выводит задания ВСЕХ предметов.",
       inputSchema: z.object({
         subjectId: z.string().optional().describe("ID предмета из списка (если не указан — все предметы)"),
       }),
@@ -240,13 +241,10 @@ ${scheduleContext}
           emoji: t.emoji || "📄",
           description: t.description || null,
           deadline: t.deadline ? t.deadline.toISOString() : null,
-          attachments: (t.attachments || []).map((a: any) => ({ type: a.type, file_id: a.file_id })),
+          filesCount: (t.attachments || []).length,
           aiAnswer: t.aiAnswer ? t.aiAnswer.slice(0, 500) : null,
-          answers: (t.answers || []).map((a: any) => ({
-            type: a.type,
-            content: a.type === "text" ? a.content?.slice(0, 300) : null,
-            file_id: a.file_id || null,
-          })),
+          answersCount: (t.answers || []).length,
+          answersPreview: (t.answers || []).filter((a: any) => a.type === "text").map((a: any) => a.content?.slice(0, 200)).slice(0, 2),
           submittedCount: (t.submissions || []).filter((s: any) => s.submitted).length,
           mySubmitted: username ? ((t.submissions || []).find((s: any) => s.username === username)?.submitted ?? false) : null,
         });
@@ -1012,8 +1010,62 @@ ${scheduleContext}
       },
     }),
 
+    sendTaskFiles: safeTool("sendTaskFiles", {
+      description: "Отправить файлы задания в чат. ИСПОЛЬЗУЙ когда пользователь просит показать, скинуть, отправить файл, вложение или условие задания. Отправляет ВСЕ вложения и файлы-ответы задания. Нужен только taskId (получи через listTasks).",
+      inputSchema: z.object({
+        taskId: z.string().describe("ID задания (получи через listTasks)"),
+        sendAnswers: z.boolean().optional().describe("true = также отправить файлы-ответы (по умолчанию false — только вложения условия)"),
+      }),
+      execute: async ({ taskId, sendAnswers = false }: { taskId: string; sendAnswers?: boolean }) => {
+        const { getBot } = require("../lib/bot");
+        const bot = getBot();
+        if (!bot || !chatId) return { error: "Нет доступа к чату" };
+
+        const { task } = await subjectService.getTask(taskId);
+        if (!task) return { error: "Задание не найдено" };
+
+        debugLog("tool", `sendTaskFiles: ${task.title} (answers: ${sendAnswers})`);
+
+        const filesToSend: Array<{ type: string; file_id: string; caption: string }> = [];
+
+        for (const att of task.attachments || []) {
+          if (att.file_id) {
+            filesToSend.push({ type: att.type, file_id: att.file_id, caption: `📎 ${task.title}` });
+          }
+        }
+
+        if (sendAnswers) {
+          for (const ans of task.answers || []) {
+            if (ans.file_id) {
+              filesToSend.push({ type: ans.type, file_id: ans.file_id, caption: `📝 Ответ: ${task.title}` });
+            }
+          }
+        }
+
+        if (filesToSend.length === 0) {
+          return { error: sendAnswers ? "У задания нет файлов" : "У задания нет вложений. Попробуй sendAnswers=true чтобы отправить файлы-ответы." };
+        }
+
+        let sent = 0;
+        for (const f of filesToSend) {
+          try {
+            if (f.type === "photo") {
+              await bot.telegram.sendPhoto(chatId, f.file_id, { caption: f.caption });
+            } else {
+              await bot.telegram.sendDocument(chatId, f.file_id, { caption: f.caption });
+            }
+            sent++;
+          } catch (e: any) {
+            debugLog("tool-error", `sendTaskFiles: failed to send ${f.type}: ${e.message}`);
+          }
+        }
+
+        return { success: true, sentCount: sent, totalFiles: filesToSend.length, taskTitle: task.title };
+      },
+    }),
+
     forwardFileToChat: safeTool("forwardFileToChat", {
-      description: "Отправить файл/фото в чат по file_id. ИСПОЛЬЗУЙ когда пользователь просит показать файл, вложение или ответ из задания. Бери file_id из attachments или answers в результатах listTasks/getTaskDetails.",
+      description: "Отправить файл/фото в чат по file_id. Для файлов заданий лучше используй sendTaskFiles (нужен только taskId). Этот инструмент — для отправки file_id из метаданных сообщения пользователя.",
       inputSchema: z.object({
         fileId: z.string().describe("Telegram file_id"),
         fileType: z.enum(["document", "photo"]).describe("Тип: document или photo"),
