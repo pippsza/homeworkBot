@@ -302,6 +302,7 @@ ${scheduleContext}
       }),
       execute: async ({ subjectId }: { subjectId?: string }) => {
         debugLog("tool", `listTasks: subjectId=${subjectId || "all"}`);
+        console.log(`[listTasks] called with subjectId=${subjectId || "all"}`);
         const mapTask = (t: any) => ({
           id: t._id.toString(),
           title: t.title,
@@ -326,6 +327,7 @@ ${scheduleContext}
         }
         // All subjects
         const allSubjects = await subjectService.getAll();
+        console.log(`[listTasks] allSubjects: ${allSubjects.length} subjects, tasks: ${allSubjects.map((s: any) => `${s.name}(${s.tasks?.length || 0})`).join(", ")}`);
         const result: any[] = [];
         for (const s of allSubjects) {
           if (!s.tasks || s.tasks.length === 0) continue;

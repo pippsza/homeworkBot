@@ -442,6 +442,7 @@ async function processQuery(
     }));
     const usageInfo = result.usage ? { input: result.usage.inputTokens, output: result.usage.outputTokens, total: result.usage.totalTokens } : "no usage";
     debugLog("processQuery", `Query: "${(query || "").slice(0, 100)}" | Steps: ${steps.length} | Text: ${(text || "").length} chars | Usage: ${JSON.stringify(usageInfo)}`, stepsInfo);
+    console.log(`[processQuery] Steps: ${steps.length} | ToolCalls: ${stepsInfo.map(s => s.toolCalls).flat().join(",")} | Text: ${(text || "").length} chars`);
   }
 
   // If text is empty, try to recover from steps
