@@ -51,6 +51,10 @@ async function main(): Promise<void> {
   const { startWeeklyDigest } = await import("./src/services/weeklyDigestService");
   startWeeklyDigest(bot);
 
+  // Start reminder notifications
+  const { startReminderNotifier } = await import("./src/services/reminderNotificationService");
+  startReminderNotifier(bot);
+
   const app = express();
   app.use(cors());
   app.use(express.json());

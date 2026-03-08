@@ -6,6 +6,7 @@ import { debugLog } from "../lib/debugLog";
 const subjectService = require("./subjectService");
 const infoService = require("./infoService");
 const scheduleService = require("./scheduleService");
+const reminderService = require("./reminderService");
 
 interface ToolDefinition {
   description: string;
@@ -1082,6 +1083,68 @@ ${scheduleContext}
           await bot.telegram.sendDocument(chatId, fileId, { caption });
         }
         return { success: true };
+      },
+    }),
+
+    // --- Напоминания ---
+
+    createReminder: safeTool("createReminder", {
+      description: "Создать напоминание. Бот отправит сообщение в текущий чат в указанное время. Используй когда пользователь просит напомнить о чём-то. Сегодня: " + new Date().toISOString().slice(0, 10),
+      inputSchema: z.object({
+        text: z.string().describe("Текст напоминания"),
+        scheduledAt: z.string().describe("Когда напомнить — ISO дата+время (YYYY-MM-DDTHH:mm). Например: 2026-03-09T09:00"),
+      }),
+      execute: async ({ text, scheduledAt }: { text: string; scheduledAt: string }) => {
+        if (!chatId) return { error: "Нет доступа к чату" };
+        const date = new Date(scheduledAt);
+        if (isNaN(date.getTime())) return { error: "Некорректная дата" };
+        if (date.getTime() <= Date.now()) return { error: "Дата должна быть в будущем" };
+
+        debugLog("tool", `createReminder: "${text.slice(0, 50)}" at ${scheduledAt} in chat ${chatId}`);
+        const reminder = await reminderService.create({
+          chatId: String(chatId),
+          userId: 0,
+          username: username || "",
+          text,
+          scheduledAt: date,
+        });
+        return {
+          success: true,
+          reminderId: reminder._id.toString(),
+          text: text.slice(0, 100),
+          scheduledAt: date.toISOString(),
+        };
+      },
+    }),
+
+    listReminders: safeTool("listReminders", {
+      description: "Показать активные напоминания в текущем чате.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        if (!chatId) return { error: "Нет доступа к чату" };
+        debugLog("tool", `listReminders: chat ${chatId}`);
+        const reminders = await reminderService.listByChat(String(chatId));
+        return {
+          reminders: reminders.map((r: any) => ({
+            id: r._id.toString(),
+            text: r.text,
+            scheduledAt: r.scheduledAt.toISOString(),
+            username: r.username || "—",
+          })),
+        };
+      },
+    }),
+
+    cancelReminder: safeTool("cancelReminder", {
+      description: "Отменить напоминание по ID.",
+      inputSchema: z.object({
+        reminderId: z.string().describe("ID напоминания (получи через listReminders)"),
+      }),
+      execute: async ({ reminderId }: { reminderId: string }) => {
+        debugLog("tool", `cancelReminder: ${reminderId}`);
+        const result = await reminderService.cancel(reminderId);
+        if (!result) return { error: "Напоминание не найдено или уже отправлено" };
+        return { success: true, cancelledText: result.text.slice(0, 100) };
       },
     }),
   };
