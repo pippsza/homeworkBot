@@ -42,17 +42,19 @@ export async function getTask(taskId: string): Promise<{ subject: ISubject | nul
 export async function updateTask(taskId: string, updates: Partial<ITask>): Promise<{ subject: ISubject; task: ITask } | null> {
   const subject = await getByTaskId(taskId);
   if (!subject) return null;
-  const task = subject.tasks.id(taskId)!;
+  const task = subject.tasks.id(taskId);
+  if (!task) return null;
   Object.assign(task, updates);
   await subject.save();
-  return { subject, task: task! };
+  return { subject, task };
 }
 
 export async function deleteTask(taskId: string): Promise<{ subject: ISubject; title: string } | null> {
   const subject = await getByTaskId(taskId);
   if (!subject) return null;
   const task = subject.tasks.id(taskId);
-  const title = task!.title;
+  if (!task) return null;
+  const title = task.title;
   subject.tasks.pull(taskId);
   await subject.save();
   return { subject, title };
@@ -61,7 +63,8 @@ export async function deleteTask(taskId: string): Promise<{ subject: ISubject; t
 export async function addAnswer(taskId: string, answerData: Partial<IAnswer>): Promise<{ subject: ISubject; task: ITask } | null> {
   const subject = await getByTaskId(taskId);
   if (!subject) return null;
-  const task = subject.tasks.id(taskId)!;
+  const task = subject.tasks.id(taskId);
+  if (!task) return null;
   task.answers.push(answerData as IAnswer);
   await subject.save();
   return { subject, task };
@@ -70,7 +73,8 @@ export async function addAnswer(taskId: string, answerData: Partial<IAnswer>): P
 export async function setTaskAttachments(taskId: string, attachments: ISubjectAttachment[]): Promise<{ subject: ISubject; task: ITask } | null> {
   const subject = await getByTaskId(taskId);
   if (!subject) return null;
-  const task = subject.tasks.id(taskId)!;
+  const task = subject.tasks.id(taskId);
+  if (!task) return null;
   task.attachments = attachments;
   await subject.save();
   return { subject, task };

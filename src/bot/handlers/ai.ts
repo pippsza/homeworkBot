@@ -42,6 +42,16 @@ export function mdToHtml(text: string): string {
   // Lists: - item → • item
   html = html.replace(/^[-*]\s+/gm, "• ");
 
+  // Numbered lists: 1. item → 1. item (keep as-is, just ensure no markdown artifacts)
+  // Strikethrough: ~~text~~ → <s>text</s>
+  html = html.replace(/~~(.+?)~~/g, "<s>$1</s>");
+
+  // Links: [text](url) → text (url) — Telegram HTML doesn't support <a> well in all contexts
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
+
+  // Horizontal rules: --- or *** → empty line
+  html = html.replace(/^[-*]{3,}$/gm, "");
+
   // Restore inline code (escape entities inside)
   html = html.replace(/\x00IC(\d+)\x00/g, (_: string, i: string) => {
     const code = inlineCodes[parseInt(i)].replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

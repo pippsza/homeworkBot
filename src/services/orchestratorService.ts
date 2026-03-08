@@ -464,12 +464,12 @@ async function processQuery(
       let regenPrompt: string;
       if (errorResults.length > 0) {
         const errors = errorResults.map((tr: any) => `${tr.toolName}: ${tr.output.error}`).join("\n");
-        regenPrompt = `Ты пытался выполнить действия (${toolCalls.join(", ")}), но произошли ошибки:\n${errors}\n\nСообщи пользователю об ошибках и предложи что делать.`;
+        regenPrompt = `Ты вызвал инструменты (${toolCalls.join(", ")}), но произошли ошибки:\n${errors}\n\nСообщи пользователю об ошибках.`;
       } else if (validResults.length > 0) {
-        const summary = validResults.map((tr: any) => `${tr.toolName}: ${JSON.stringify(tr.output)}`).join("\n");
-        regenPrompt = `Вот результаты вызванных инструментов:\n${summary}\n\nОпиши пользователю что было сделано. Не используй JSON.`;
+        const summary = validResults.map((tr: any) => `${tr.toolName}: ${JSON.stringify(tr.output).slice(0, 1000)}`).join("\n");
+        regenPrompt = `Пользователь спросил: "${(query || "").slice(0, 200)}"\n\nРезультаты инструментов:\n${summary.slice(0, 3000)}\n\nОтветь пользователю на русском, покажи данные в читаемом виде. Не используй JSON.`;
       } else {
-        regenPrompt = `Ты попытался вызвать инструменты (${toolCalls.join(", ") || "неизвестно"}), но они не вернули результатов. Объясни пользователю что произошла ошибка и предложи переформулировать запрос.`;
+        regenPrompt = `Инструменты (${toolCalls.join(", ") || "неизвестно"}) не вернули результатов. Объясни ошибку и предложи переформулировать запрос.`;
       }
 
       try {

@@ -16,6 +16,8 @@ import { mdToHtml } from "./ai";
 import { isForwarded, getMessageText as getHwMsgText, updateCollectMessage } from "./homework";
 import { sendLongResponse } from "./media";
 import { checkRateLimit } from "../helpers/rateLimit";
+import { editOrSend } from "../helpers/editOrSend";
+import { debugLog } from "../../lib/debugLog";
 
 async function deleteUserMsg(ctx: Context): Promise<void> {
   await ctx
@@ -160,11 +162,9 @@ export function textHandler(bot: Telegraf): void {
           },
           { upsert: true }
         ).catch((e: Error) => {
-          const { debugLog } = require("../../lib/debugLog");
           debugLog("history-error", `History save failed: ${e.message}`);
         });
       } catch (e: any) {
-        const { debugLog } = require("../../lib/debugLog");
         debugLog("text-handler-error", `Query: "${question.slice(0, 200)}"`, e.message || String(e));
         await ctx.telegram
           .editMessageText(ctx.chat!.id, thinking.message_id, null as any, "Ошибка AI. Попробуйте позже.")
@@ -246,7 +246,6 @@ export function textHandler(bot: Telegraf): void {
             disable_notification: !isPrivate(ctx),
           })
         );
-        const { editOrSend } = require("../helpers/editOrSend");
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в предмете?\n\n---",
@@ -452,7 +451,6 @@ export function textHandler(bot: Telegraf): void {
             disable_notification: !isPrivate(ctx),
           })
         );
-        const { editOrSend } = require("../helpers/editOrSend");
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в задании?\n\n---",
@@ -471,7 +469,6 @@ export function textHandler(bot: Telegraf): void {
             disable_notification: !isPrivate(ctx),
           })
         );
-        const { editOrSend } = require("../helpers/editOrSend");
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в задании?\n\n---",
@@ -488,7 +485,6 @@ export function textHandler(bot: Telegraf): void {
             disable_notification: !isPrivate(ctx),
           })
         );
-        const { editOrSend } = require("../helpers/editOrSend");
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в задании?\n\n---",
@@ -582,7 +578,6 @@ export function textHandler(bot: Telegraf): void {
             disable_notification: !isPrivate(ctx),
           })
         );
-        const { editOrSend } = require("../helpers/editOrSend");
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в информации?\n\n---",
@@ -599,7 +594,6 @@ export function textHandler(bot: Telegraf): void {
             disable_notification: !isPrivate(ctx),
           })
         );
-        const { editOrSend } = require("../helpers/editOrSend");
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в информации?\n\n---",
@@ -616,7 +610,6 @@ export function textHandler(bot: Telegraf): void {
             disable_notification: !isPrivate(ctx),
           })
         );
-        const { editOrSend } = require("../helpers/editOrSend");
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в информации?\n\n---",
@@ -640,8 +633,7 @@ export function textHandler(bot: Telegraf): void {
       }
     }
     } catch (e) {
-      const { debugLog: dbg } = require("../../lib/debugLog");
-      dbg("text-handler-error", `Unhandled error`, (e as Error).message || String(e));
+      debugLog("text-handler-error", `Unhandled error`, (e as Error).message || String(e));
       await trackSend(ctx, () =>
         ctx.reply("❌ Произошла ошибка. Попробуйте снова или /cancel.", {
           disable_notification: !isPrivate(ctx),

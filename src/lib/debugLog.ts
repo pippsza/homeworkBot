@@ -3,16 +3,25 @@ import { getBot } from "./bot";
 const ADMIN_USER_ID = process.env.ADMIN_TELEGRAM_ID ? Number(process.env.ADMIN_TELEGRAM_ID) : 1256707116;
 
 /**
- * Send a debug log message to the admin via Telegram.
+ * Send a debug log message to the admin via Telegram + console.log.
  * Uses plain text (no HTML) to avoid parse errors.
  * Silent — never throws, never blocks.
  */
 export function debugLog(tag: string, message: string, extra?: unknown): void {
   try {
+    // Always log to console for docker logs visibility
+    const logLine = `[${tag}] ${message}`;
+    console.log(logLine);
+    if (extra !== undefined) {
+      const extraStr = typeof extra === "string" ? extra : JSON.stringify(extra).slice(0, 500);
+      console.log(`  ${extraStr}`);
+    }
+
+    // Send to Telegram
     const bot = getBot();
     if (!bot) return;
 
-    let text = `[${tag}] ${String(message)}`;
+    let text = logLine;
     if (extra !== undefined) {
       const extraStr = typeof extra === "string" ? extra : JSON.stringify(extra, null, 2);
       text += `\n${extraStr.slice(0, 2500)}`;

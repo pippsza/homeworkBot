@@ -99,8 +99,8 @@ async function resolveModels(role: string): Promise<ResolvedModels> {
     fallbackModelId = roleSettings.fallbackModelId;
     try {
       fallback = createLanguageModel(fallbackProvider!, fallbackModelId!);
-    } catch {
-      // Fallback creation failed, proceed without it
+    } catch (e: any) {
+      console.error(`[modelResolver] Fallback model creation failed (${fallbackProvider}/${fallbackModelId}):`, e.message);
     }
   }
 
