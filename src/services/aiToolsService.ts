@@ -302,21 +302,24 @@ ${scheduleContext}
       }),
       execute: async ({ subjectId }: { subjectId?: string }) => {
         debugLog("tool", `listTasks: subjectId=${subjectId || "all"}`);
+        const mapTask = (t: any) => ({
+          id: t._id.toString(),
+          title: t.title,
+          emoji: t.emoji || "📄",
+          description: t.description || null,
+          deadline: t.deadline ? t.deadline.toISOString() : null,
+          hasAttachments: (t.attachments?.length || 0) > 0,
+          aiAnswer: t.aiAnswer ? t.aiAnswer.slice(0, 500) : null,
+          answers: (t.answers || []).map((a: any) => ({
+            type: a.type,
+            content: a.type === "text" ? a.content?.slice(0, 300) : `[${a.type}]`,
+          })),
+          submittedCount: (t.submissions || []).filter((s: any) => s.submitted).length,
+          mySubmitted: username ? ((t.submissions || []).find((s: any) => s.username === username)?.submitted ?? false) : null,
+        });
         if (subjectId) {
           const subject = await subjectService.getById(subjectId);
           if (!subject) return { error: "Предмет не найден" };
-          const mapTask = (t: any) => ({
-            id: t._id.toString(),
-            title: t.title,
-            emoji: t.emoji || "📄",
-            answersCount: t.answers?.length || 0,
-            hasAiAnswer: !!t.aiAnswer,
-            hasDescription: !!t.description,
-            hasAttachments: (t.attachments?.length || 0) > 0,
-            deadline: t.deadline ? t.deadline.toISOString() : null,
-            submittedCount: (t.submissions || []).filter((s: any) => s.submitted).length,
-            mySubmitted: username ? ((t.submissions || []).find((s: any) => s.username === username)?.submitted ?? false) : null,
-          });
           return {
             tasks: (subject.tasks || []).map(mapTask),
           };
@@ -324,18 +327,6 @@ ${scheduleContext}
         // All subjects
         const allSubjects = await subjectService.getAll();
         const result: any[] = [];
-        const mapTask = (t: any) => ({
-          id: t._id.toString(),
-          title: t.title,
-          emoji: t.emoji || "📄",
-          answersCount: t.answers?.length || 0,
-          hasAiAnswer: !!t.aiAnswer,
-          hasDescription: !!t.description,
-          hasAttachments: (t.attachments?.length || 0) > 0,
-          deadline: t.deadline ? t.deadline.toISOString() : null,
-          submittedCount: (t.submissions || []).filter((s: any) => s.submitted).length,
-          mySubmitted: username ? ((t.submissions || []).find((s: any) => s.username === username)?.submitted ?? false) : null,
-        });
         for (const s of allSubjects) {
           if (!s.tasks || s.tasks.length === 0) continue;
           result.push({

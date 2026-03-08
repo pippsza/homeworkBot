@@ -31,10 +31,16 @@ export function mdToHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
+  // Headers: ### ... → bold
+  html = html.replace(/^#{1,6}\s+(.+)$/gm, "<b>$1</b>");
+
   // Bold: **...**
   html = html.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
   // Italic: *...*
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
+
+  // Lists: - item → • item
+  html = html.replace(/^[-*]\s+/gm, "• ");
 
   // Restore inline code (escape entities inside)
   html = html.replace(/\x00IC(\d+)\x00/g, (_: string, i: string) => {
