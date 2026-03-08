@@ -19,9 +19,20 @@ export function debugLog(tag: string, message: string, extra?: unknown): void {
 
     bot.telegram
       .sendMessage(ADMIN_USER_ID, text.slice(0, 4096), { parse_mode: "HTML" })
-      .catch(() => {});
+      .catch((err) => console.error("[debugLog] send failed:", err.message));
   } catch {
     // never throw from debug logging
+  }
+}
+
+export function debugLogStartupTest(): void {
+  const bot = getBot();
+  console.log("[debugLog] startup test: bot =", bot ? "OK" : "NULL", "adminId =", ADMIN_USER_ID);
+  if (bot) {
+    bot.telegram
+      .sendMessage(ADMIN_USER_ID, "✅ debugLog работает! Бот запущен.", { parse_mode: "HTML" })
+      .then(() => console.log("[debugLog] startup message sent OK"))
+      .catch((err) => console.error("[debugLog] startup message FAILED:", err.message));
   }
 }
 

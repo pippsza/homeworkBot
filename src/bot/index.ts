@@ -11,8 +11,11 @@ import { textHandler } from "./handlers/text";
 import { mediaHandler } from "./handlers/media";
 import scheduleHandler from "./handlers/schedule";
 import * as groupMemberService from "../services/groupMemberService";
+import { VERSION } from "../version";
 
 export function setupBot(bot: Telegraf): void {
+  bot.command("v", (ctx) => ctx.reply(`📦 HomeworkBot v${VERSION}`));
+
   // Track group members on every interaction
   bot.use(async (ctx, next) => {
     if (ctx.chat && ctx.chat.type !== "private" && ctx.from) {

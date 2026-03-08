@@ -35,6 +35,8 @@ async function main(): Promise<void> {
   const bot = new Telegraf(BOT_TOKEN!);
   const { setBot } = await import("./src/lib/bot");
   setBot(bot);
+  const { debugLogStartupTest } = await import("./src/lib/debugLog");
+  debugLogStartupTest();
   setupBot(bot);
 
   // Start schedule notifications
