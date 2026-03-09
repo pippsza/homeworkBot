@@ -18,6 +18,7 @@ import { sendLongResponse } from "./media";
 import { checkRateLimit } from "../helpers/rateLimit";
 import { editOrSend } from "../helpers/editOrSend";
 import { debugLog } from "../../lib/debugLog";
+import * as groupMemberService from "../../services/groupMemberService";
 
 async function deleteUserMsg(ctx: Context): Promise<void> {
   await ctx
@@ -88,7 +89,57 @@ export function textHandler(bot: Telegraf): void {
       return;
     }
 
-    // /noai — send message without AI processing, stay in ai_chat mode
+    // "перекличка" in group chat → tag all known members
+    if (
+      !isPrivate(ctx) &&
+      (ctx.message as any).text.trim().toLowerCase() === "перекличка"
+    ) {
+      try {
+        const chatId = ctx.chat!.id;
+        const userMap = new Map<number, { userId: number; firstName: string; username: string }>();
+
+        // 1. Admins from Telegram API
+        try {
+          const admins = await ctx.telegram.getChatAdministrators(chatId);
+          for (const member of admins) {
+            if (member.user.is_bot) continue;
+            userMap.set(member.user.id, {
+              userId: member.user.id,
+              firstName: member.user.first_name || "",
+              username: member.user.username || "",
+            });
+          }
+        } catch {}
+
+        // 2. Tracked members from DB
+        const tracked = await groupMemberService.getMembers(chatId);
+        for (const m of tracked) {
+          if (!userMap.has(m.userId)) {
+            userMap.set(m.userId, { userId: m.userId, firstName: m.firstName, username: m.username });
+          }
+        }
+
+        if (userMap.size === 0) {
+          await trackSend(ctx, () => ctx.reply("📋 Список пуст."));
+          return;
+        }
+
+        const mentions = [...userMap.values()].map(
+          (m) => `<a href="tg://user?id=${m.userId}">${m.firstName || m.username || String(m.userId)}</a>`
+        );
+        const total = await ctx.telegram.getChatMembersCount(chatId).catch(() => null);
+        let msg = "📋 Перекличка:\n\n" + mentions.join(", ");
+        if (total && total > userMap.size) {
+          msg += `\n\n<i>Найдено ${userMap.size} из ~${total}. Остальные появятся когда напишут в чат.</i>`;
+        }
+        await trackSend(ctx, () => ctx.reply(msg, { parse_mode: "HTML" }));
+      } catch (e: any) {
+        debugLog("rollcall-error", e.message);
+      }
+      return;
+    }
+
+    // /noai — send message without AI processing
     if ((ctx.message as any).text.startsWith("/noai")) {
       const noaiText = (ctx.message as any).text.slice(5).trim();
       if (noaiText) {
@@ -99,14 +150,13 @@ export function textHandler(bot: Telegraf): void {
       return;
     }
 
-    // AI conversation: reply to bot message OR ai_chat mode
+    // AI conversation: only when replying to bot's message
     const state = inputState.get(ctx.from!.id);
     const isAiReply =
       !state &&
       (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id;
-    const isAiChat = state?.mode === "ai_chat";
 
-    if ((isAiReply || isAiChat) && (await isStudent(ctx))) {
+    if (isAiReply && (await isStudent(ctx))) {
       const question = (ctx.message as any).text.trim();
       if (!question) return;
 
@@ -144,9 +194,6 @@ export function textHandler(bot: Telegraf): void {
         const replyText = result.text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
         await sendLongResponse(ctx, thinking.message_id, replyText);
 
-        // Keep user in ai_chat mode
-        inputState.set(ctx.from!.id, { mode: "ai_chat" });
-
         await ChatHistory.findOneAndUpdate(
           { telegramUserId: ctx.from!.id },
           {
@@ -173,7 +220,7 @@ export function textHandler(bot: Telegraf): void {
       return;
     }
 
-    if (!state || state.mode === "ai_chat") return;
+    if (!state) return;
 
     const text = (ctx.message as any).text.trim();
 

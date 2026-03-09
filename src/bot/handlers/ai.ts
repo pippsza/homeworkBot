@@ -156,8 +156,6 @@ export function aiHandler(bot: Telegraf): void {
         console.error("[ai bot] history save error:", e.message)
       );
 
-      // Enter ai_chat mode so next messages continue the conversation
-      inputState.set(ctx.from!.id, { mode: "ai_chat" } as any);
     } catch (e: any) {
       console.error("[ai bot] error:", e);
       await ctx.telegram

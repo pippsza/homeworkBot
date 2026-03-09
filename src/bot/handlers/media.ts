@@ -197,8 +197,6 @@ async function handleAiBatch(ctx: Context, items: MediaItem[], caption: string):
     const replyText = result.text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
     await sendLongResponse(ctx, thinking.message_id, replyText);
 
-    inputState.set(ctx.from!.id, { mode: "ai_chat" });
-
     // Save history
     const historyContent = caption
       ? `${caption}${allMeta}`
@@ -258,9 +256,8 @@ export function mediaHandler(bot: Telegraf): void {
   bot.on("document", async (ctx: Context) => {
     const aiState = inputState.get(ctx.from!.id);
     const isAiReply = !aiState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id;
-    const isAiChat = aiState?.mode === "ai_chat";
 
-    if ((isAiReply || isAiChat) && (await isStudent(ctx))) {
+    if (isAiReply && (await isStudent(ctx))) {
       const mediaGroupId = (ctx.message as any).media_group_id;
 
       if (mediaGroupId) {
@@ -323,9 +320,8 @@ export function mediaHandler(bot: Telegraf): void {
   bot.on("photo", async (ctx: Context) => {
     const aiState = inputState.get(ctx.from!.id);
     const isAiReply = !aiState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id;
-    const isAiChat = aiState?.mode === "ai_chat";
 
-    if ((isAiReply || isAiChat) && (await isStudent(ctx))) {
+    if (isAiReply && (await isStudent(ctx))) {
       const mediaGroupId = (ctx.message as any).media_group_id;
 
       if (mediaGroupId) {
