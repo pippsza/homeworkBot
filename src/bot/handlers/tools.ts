@@ -63,10 +63,8 @@ function toolsHandler(bot: Telegraf): void {
       );
     }
 
-    const mentions = [...userMap.values()].map((m) =>
-      m.username
-        ? `@${m.username}`
-        : `<a href="tg://user?id=${m.userId}">${m.firstName || String(m.userId)}</a>`
+    const mentions = [...userMap.values()].map(
+      (m) => `<a href="tg://user?id=${m.userId}">${m.firstName || m.username || String(m.userId)}</a>`
     );
 
     const total = await ctx.telegram.getChatMembersCount(chatId).catch(() => null);
