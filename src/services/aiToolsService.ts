@@ -86,7 +86,11 @@ ${scheduleContext}
 ПРАВИЛА:
 1. Вопросы о домашках, заданиях, ответах, дедлайнах → вызови listTasks. НИКОГДА не отвечай по памяти.
 2. Пользователь просит показать/скинуть/отправить файл задания → вызови sendTaskFiles с taskId.
-3. После вызова инструмента — ОБЯЗАТЕЛЬНО напиши текстовый ответ на русском.`;
+3. После вызова инструмента — ОБЯЗАТЕЛЬНО напиши текстовый ответ на русском.
+4. Когда пользователь присылает МНОГО файлов с номерами (Лаба 1.odt, Лаба 2.odt, Основи 3.odt...) — создай ОТДЕЛЬНОЕ задание на КАЖДЫЙ номер через createHomeworkBatch. НЕ прикрепляй все файлы к одному заданию!
+5. Сопоставляй файлы по именам: файл с "ответ/відповід/answer/ОТВЕТЫ" в названии → это ответ (answers), остальные → условие (attachments). Пример: "Основи 1.odt" → attachments к "Лаба 1", "Основи 1 Ответы.txt" → answers к "Лаба 1".
+6. Если непонятно куда прикрепить файлы или что с ними делать — СПРОСИ уточнение у пользователя, не угадывай.
+7. Обрабатывай ВСЕ файлы из сообщения, не пропускай ни одного.`;
 
   const tools: Record<string, any> = {
     createSubject: safeTool("createSubject", {
@@ -135,6 +139,86 @@ ${scheduleContext}
           subjectName: subject.name,
           subjectEmoji: subject.emoji || "📚",
           taskId: task._id.toString(),
+        };
+      },
+    }),
+
+    createHomeworkBatch: safeTool("createHomeworkBatch", {
+      description: "Создать НЕСКОЛЬКО заданий сразу с файлами. Используй когда пользователь присылает много файлов для разных заданий/лаб. Каждый элемент массива = отдельное задание. Гораздо эффективнее чем вызывать createHomework + attachFileToTask по одному.",
+      inputSchema: z.object({
+        subjectId: z.string().describe("ID предмета из списка"),
+        tasks: z.array(z.object({
+          title: z.string().describe("Название задания"),
+          emoji: z.string().optional().describe("Эмодзи (по умолчанию 📄)"),
+          description: z.string().optional().describe("Описание задания"),
+          attachments: z.array(z.object({
+            fileId: z.string().describe("Telegram file_id"),
+            fileType: z.enum(["document", "photo"]).describe("Тип файла"),
+          })).optional().describe("Файлы условия задания"),
+          answers: z.array(z.object({
+            fileId: z.string().describe("Telegram file_id"),
+            fileType: z.enum(["document", "photo"]).describe("Тип файла"),
+          })).optional().describe("Файлы ответов/решений"),
+        })).describe("Массив заданий для создания"),
+      }),
+      execute: async ({ subjectId, tasks: taskDefs }: {
+        subjectId: string;
+        tasks: Array<{
+          title: string;
+          emoji?: string;
+          description?: string;
+          attachments?: Array<{ fileId: string; fileType: "document" | "photo" }>;
+          answers?: Array<{ fileId: string; fileType: "document" | "photo" }>;
+        }>;
+      }) => {
+        debugLog("tool", `createHomeworkBatch: ${taskDefs.length} tasks for subject ${subjectId}`);
+        const subject = await subjectService.getById(subjectId);
+        if (!subject) return { error: "Предмет не найден" };
+
+        const results: Array<{ title: string; taskId: string; attachmentsCount: number; answersCount: number }> = [];
+        for (const def of taskDefs) {
+          const task = await subjectService.addTask(subjectId, {
+            title: def.title,
+            emoji: def.emoji || "📄",
+            description: def.description || "",
+          });
+
+          // Attach condition files
+          if (def.attachments?.length) {
+            const { task: freshTask, subject: freshSubject } = await subjectService.getTask(task._id.toString());
+            if (freshTask && freshSubject) {
+              if (!freshTask.attachments) freshTask.attachments = [];
+              for (const att of def.attachments) {
+                freshTask.attachments.push({ type: att.fileType, file_id: att.fileId });
+              }
+              await freshSubject.save();
+            }
+          }
+
+          // Attach answer files
+          if (def.answers?.length) {
+            for (const ans of def.answers) {
+              await subjectService.addAnswer(task._id.toString(), {
+                type: ans.fileType,
+                file_id: ans.fileId,
+              });
+            }
+          }
+
+          results.push({
+            title: def.title,
+            taskId: task._id.toString(),
+            attachmentsCount: def.attachments?.length || 0,
+            answersCount: def.answers?.length || 0,
+          });
+        }
+
+        return {
+          success: true,
+          subjectName: subject.name,
+          subjectEmoji: subject.emoji || "📚",
+          createdCount: results.length,
+          tasks: results,
         };
       },
     }),
