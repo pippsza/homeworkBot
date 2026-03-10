@@ -78,6 +78,87 @@ export function aiHandler(bot: Telegraf): void {
     );
   });
 
+  // /ai2 — start AI session (all messages go to AI without reply)
+  bot.command("ai2", async (ctx: Context) => {
+    if (!(await isStudent(ctx))) {
+      return trackSend(ctx, () =>
+        ctx.reply("Нет доступа к AI.", { disable_notification: !isPrivate(ctx) })
+      );
+    }
+
+    const question = (ctx.message as any).text.replace(/^\/ai2\s*/, "").trim();
+
+    // Activate session
+    inputState.set(ctx.from!.id, { mode: "ai_session" });
+
+    if (!question) {
+      return trackSend(ctx, () =>
+        ctx.reply(
+          "🤖 AI-сессия запущена. Пишите сообщения и отправляйте файлы — я всё обработаю.\n\nДля выхода: /cancel",
+          { disable_notification: !isPrivate(ctx) }
+        )
+      );
+    }
+
+    if (!checkRateLimit(ctx.from!.id)) {
+      return trackSend(ctx, () =>
+        ctx.reply("Слишком много запросов. Подождите минуту.", {
+          disable_notification: !isPrivate(ctx),
+        })
+      );
+    }
+
+    const thinking = await trackSend(ctx, () =>
+      ctx.reply("Думаю...", { disable_notification: !isPrivate(ctx) })
+    );
+
+    try {
+      const history = await ChatHistory.findOne({ telegramUserId: ctx.from!.id });
+      const recentMessages = (history?.messages || [])
+        .slice(-MAX_HISTORY)
+        .map((m: any) => ({ role: m.role, content: m.content }));
+
+      const result = await processQuery(question, recentMessages, {
+        userId: String(ctx.from!.id),
+        chatId: String(ctx.chat!.id),
+        username: ctx.from!.username ? `@${ctx.from!.username}` : undefined,
+        operationType: "chat",
+        feature: "ai-session",
+        user: {
+          name: [ctx.from!.first_name, ctx.from!.last_name].filter(Boolean).join(" ") || undefined,
+          role: "student",
+        },
+      });
+      const replyText = result.text || "Действие выполнено, но AI не сгенерировал ответ. Попробуйте переспросить.";
+
+      const { sendLongResponse } = require("./media");
+      await sendLongResponse(ctx, thinking.message_id, replyText);
+
+      await ChatHistory.findOneAndUpdate(
+        { telegramUserId: ctx.from!.id },
+        {
+          $push: {
+            messages: {
+              $each: [
+                { role: "user", content: question + (result.extraHistoryContext || "") },
+                { role: "assistant", content: replyText },
+              ],
+              $slice: -50,
+            },
+          },
+        },
+        { upsert: true }
+      ).catch((e: Error) =>
+        console.error("[ai2 session] history save error:", e.message)
+      );
+    } catch (e: any) {
+      console.error("[ai2 session] error:", e);
+      await ctx.telegram
+        .editMessageText(ctx.chat!.id, thinking.message_id, null as any, "Ошибка AI. Попробуйте позже.")
+        .catch(() => {});
+    }
+  });
+
   bot.command("ai", async (ctx: Context) => {
     if (!(await isStudent(ctx))) {
       return trackSend(ctx, () =>

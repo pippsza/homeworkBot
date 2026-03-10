@@ -254,10 +254,13 @@ async function handleAiPhoto(ctx: Context): Promise<void> {
 export function mediaHandler(bot: Telegraf): void {
   // ── DOCUMENT handler ──
   bot.on("document", async (ctx: Context) => {
-    const aiState = inputState.get(ctx.from!.id);
-    const isAiReply = !aiState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id;
+    const docState = inputState.get(ctx.from!.id);
+    const isAiSession = docState?.mode === "ai_session";
+    const isAiReply = isAiSession || (!docState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id);
 
     if (isAiReply && (await isStudent(ctx))) {
+      if (isAiSession) inputState.set(ctx.from!.id, { mode: "ai_session" });
+
       const mediaGroupId = (ctx.message as any).media_group_id;
 
       if (mediaGroupId) {
@@ -318,10 +321,13 @@ export function mediaHandler(bot: Telegraf): void {
 
   // ── PHOTO handler ──
   bot.on("photo", async (ctx: Context) => {
-    const aiState = inputState.get(ctx.from!.id);
-    const isAiReply = !aiState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id;
+    const photoState = inputState.get(ctx.from!.id);
+    const isAiSession = photoState?.mode === "ai_session";
+    const isAiReply = isAiSession || (!photoState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id);
 
     if (isAiReply && (await isStudent(ctx))) {
+      if (isAiSession) inputState.set(ctx.from!.id, { mode: "ai_session" });
+
       const mediaGroupId = (ctx.message as any).media_group_id;
 
       if (mediaGroupId) {

@@ -37,8 +37,11 @@ export function textHandler(bot: Telegraf): void {
       const hadState = inputState.get(ctx.from!.id);
       inputState.delete(ctx.from!.id);
       if (hadState) {
+        const msg = hadState.mode === "ai_session"
+          ? "🤖 AI-сессия завершена."
+          : "❌ Действие отменено.";
         await trackSend(ctx, () =>
-          ctx.reply("❌ Действие отменено.", {
+          ctx.reply(msg, {
             disable_notification: !isPrivate(ctx),
           })
         );
@@ -57,7 +60,7 @@ export function textHandler(bot: Telegraf): void {
 
     // Forwarded messages → collect for homework creation (admins only, private chat)
     const preState = inputState.get(ctx.from!.id);
-    if (isForwarded(ctx.message as any) && isPrivate(ctx) && (await isStudent(ctx))) {
+    if (isForwarded(ctx.message as any) && isPrivate(ctx) && preState?.mode !== "ai_session" && (await isStudent(ctx))) {
       const msgText = getHwMsgText(ctx.message as any);
       if (preState?.mode === "collect_hw") {
         // Append to existing collection
@@ -150,11 +153,12 @@ export function textHandler(bot: Telegraf): void {
       return;
     }
 
-    // AI conversation: only when replying to bot's message
+    // AI conversation: reply to bot OR active ai_session
     const state = inputState.get(ctx.from!.id);
+    const isAiSession = state?.mode === "ai_session";
     const isAiReply =
-      !state &&
-      (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id;
+      isAiSession ||
+      (!state && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id);
 
     if (isAiReply && (await isStudent(ctx))) {
       const question = (ctx.message as any).text.trim();
@@ -167,6 +171,9 @@ export function textHandler(bot: Telegraf): void {
           })
         );
       }
+
+      // Refresh AI session TTL
+      if (isAiSession) inputState.set(ctx.from!.id, { mode: "ai_session" });
 
       const thinking = await trackSend(ctx, () =>
         ctx.reply("Думаю...", {
@@ -185,7 +192,7 @@ export function textHandler(bot: Telegraf): void {
           chatId: String(ctx.chat!.id),
           username: ctx.from!.username ? `@${ctx.from!.username}` : undefined,
           operationType: "chat",
-          feature: "bot-chat-continue",
+          feature: isAiSession ? "ai-session" : "bot-chat-continue",
           user: {
             name: [ctx.from!.first_name, ctx.from!.last_name].filter(Boolean).join(" ") || undefined,
             role: "student",
