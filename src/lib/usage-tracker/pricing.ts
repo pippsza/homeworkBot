@@ -1,107 +1,197 @@
-import { getModelPricingModel } from "./connection";
-
-interface ModelPrice {
-  input: number;
-  output: number;
-  cached?: number;
-  reasoning?: number;
-}
-
-// Fallback pricing table (USD per 1M tokens)
-// Used when modelPricing collection is not available
-export const FALLBACK_PRICING: Record<string, ModelPrice> = {
-  // OpenAI models
-  "gpt-4.1": { input: 2.0, output: 8.0, cached: 0.5 },
-  "gpt-4.1-mini": { input: 0.4, output: 1.6, cached: 0.1 },
-  "gpt-4.1-nano": { input: 0.1, output: 0.4, cached: 0.025 },
-  "gpt-4o": { input: 2.5, output: 10.0, cached: 1.25 },
-  "gpt-4o-mini": { input: 0.15, output: 0.6, cached: 0.075 },
-  o3: { input: 2.0, output: 8.0, reasoning: 8.0 },
-  "o3-mini": { input: 1.1, output: 4.4, reasoning: 4.4 },
-  "o4-mini": { input: 1.1, output: 4.4, reasoning: 4.4 },
-  // OpenRouter models
-  "openai/gpt-4o-mini": { input: 0.15, output: 0.60 },
-  "openai/gpt-4o": { input: 2.50, output: 10.00, cached: 1.25 },
-  "openai/gpt-4.1": { input: 2.00, output: 8.00, cached: 0.50 },
-  "openai/gpt-4.1-mini": { input: 0.40, output: 1.60, cached: 0.10 },
-  "openai/gpt-4.1-nano": { input: 0.10, output: 0.40, cached: 0.025 },
-  "deepseek/deepseek-chat": { input: 0.32, output: 0.89 },
-  "deepseek/deepseek-r1": { input: 0.55, output: 2.19, reasoning: 2.19 },
-  "meta-llama/llama-3.3-70b-instruct:free": { input: 0, output: 0 },
-  "google/gemini-2.5-flash": { input: 0.15, output: 0.60 },
-  "google/gemini-2.5-pro": { input: 1.25, output: 10.00 },
-  "google/gemini-2.0-flash": { input: 0.10, output: 0.40 },
-  // Google direct
-  "gemini-2.5-flash-lite": { input: 0.075, output: 0.30 },
-  "gemini-2.5-flash": { input: 0.15, output: 0.60 },
-  "gemini-2.5-pro": { input: 1.25, output: 10.00 },
-  "gemini-2.0-flash": { input: 0.10, output: 0.40 },
-  "gemini-2.0-flash-lite": { input: 0.075, output: 0.30 },
-  "gemini-3-flash-preview": { input: 0.15, output: 0.60 },
-  "gemini-1.5-flash": { input: 0.075, output: 0.30 },
-  "gemini-1.5-pro": { input: 1.25, output: 5.00 },
-};
+import { getModelPricingModel } from './connection'
+import type { PricingType } from './types'
 
 /**
- * Load pricing from modelPricing DB collection.
- * Returns a Map of model -> { input, output, cached?, reasoning? }.
- * Falls through to FALLBACK_PRICING if DB is unavailable.
+ * Fallback-ціни (USD за 1M токенів).
+ * Використовуються коли модель відсутня в колекції modelPricing.
+ * Актуальні на 2026-02.
  */
-export async function loadPricingFromDb(): Promise<Map<string, ModelPrice>> {
-  const Model = getModelPricingModel();
-  const now = new Date();
+const FALLBACK_PRICING: Record<
+  string,
+  { input: number; output: number; cached?: number; reasoning?: number }
+> = {
+  'gpt-4.1': { input: 2.0, output: 8.0, cached: 0.5 },
+  'gpt-4.1-mini': { input: 0.4, output: 1.6, cached: 0.1 },
+  'gpt-4.1-nano': { input: 0.1, output: 0.4, cached: 0.025 },
+  'gpt-4o': { input: 2.5, output: 10.0, cached: 1.25 },
+  'gpt-4o-mini': { input: 0.15, output: 0.6, cached: 0.075 },
+  o3: { input: 2.0, output: 8.0, reasoning: 8.0 },
+  'o3-mini': { input: 1.1, output: 4.4, reasoning: 4.4 },
+  'o4-mini': { input: 1.1, output: 4.4, reasoning: 4.4 },
+}
+
+/**
+ * Fallback-ціни для embedding моделей (USD за 1M токенів).
+ */
+const FALLBACK_EMBEDDING_PRICING: Record<string, { input: number }> = {
+  'text-embedding-3-small': { input: 0.02 },
+  'text-embedding-3-large': { input: 0.13 },
+  'text-embedding-ada-002': { input: 0.1 },
+}
+
+/**
+ * Fallback-ціни для транскрибації (USD за хвилину).
+ */
+const FALLBACK_TRANSCRIPTION_PRICING: Record<string, { pricePerMinute: number }> = {
+  'whisper-1': { pricePerMinute: 0.006 },
+  'gpt-4o-transcribe': { pricePerMinute: 0.006 },
+  'gpt-4o-mini-transcribe': { pricePerMinute: 0.003 },
+  scribe_v2: { pricePerMinute: 0.0033 },
+}
+
+export interface PricingEntry {
+  pricingType: PricingType
+  // Per-token
+  input?: number
+  output?: number
+  cached?: number
+  reasoning?: number
+  // Per-minute
+  pricePerMinute?: number
+  includedMinutesPerMonth?: number
+  additionalPricePerMinute?: number
+  // Per-character
+  pricePerMillionCharacters?: number
+}
+
+/**
+ * Завантажує актуальні ціни з колекції modelPricing.
+ * Вибирає тільки активні записи (effectiveFrom <= now, effectiveTo null або > now).
+ * При кількох записах для однієї моделі — бере найновішу за effectiveFrom.
+ */
+export async function loadPricingFromDb(): Promise<Map<string, PricingEntry>> {
+  const Model = getModelPricingModel()
+  const now = new Date()
 
   const docs = await Model.find({
     effectiveFrom: { $lte: now },
-    $or: [
-      { effectiveTo: null },
-      { effectiveTo: { $exists: false } },
-      { effectiveTo: { $gt: now } },
-    ],
+    $or: [{ effectiveTo: null }, { effectiveTo: { $exists: false } }, { effectiveTo: { $gt: now } }],
   })
     .sort({ effectiveFrom: -1 })
-    .lean();
+    .lean()
 
-  const map = new Map<string, ModelPrice>();
+  const map = new Map<string, PricingEntry>()
 
   for (const doc of docs) {
-    const key = String(doc.model);
-    if (map.has(key)) continue;
+    const key = String(doc.model)
+    if (map.has(key)) continue
+
+    const pricingType = (doc.pricingType as PricingType) ?? 'per_token'
 
     map.set(key, {
-      input: doc.inputPricePerMillionTokens,
-      output: doc.outputPricePerMillionTokens,
-      cached: doc.cachedInputPricePerMillionTokens ?? undefined,
-      reasoning: doc.reasoningPricePerMillionTokens ?? undefined,
-    });
+      pricingType,
+      input: (doc.inputPricePerMillionTokens as number | undefined) ?? undefined,
+      output: (doc.outputPricePerMillionTokens as number | undefined) ?? undefined,
+      cached: (doc.cachedInputPricePerMillionTokens as number | undefined) ?? undefined,
+      reasoning: (doc.reasoningPricePerMillionTokens as number | undefined) ?? undefined,
+      pricePerMinute: (doc.pricePerMinute as number | undefined) ?? undefined,
+      includedMinutesPerMonth: (doc.includedMinutesPerMonth as number | undefined) ?? undefined,
+      additionalPricePerMinute: (doc.additionalPricePerMinute as number | undefined) ?? undefined,
+      pricePerMillionCharacters: (doc.pricePerMillionCharacters as number | undefined) ?? undefined,
+    })
   }
 
-  return map;
+  return map
 }
 
 /**
- * Calculate estimated cost for a request in USD.
+ * Розраховує вартість запиту в USD для per-token моделей.
  */
-export function calculateCost(
+export function calculateTokenCost(
   model: string,
   inputTokens: number,
   outputTokens: number,
-  cachedTokens: number = 0,
-  reasoningTokens: number = 0,
-  pricingMap?: Map<string, ModelPrice>
+  cachedTokens = 0,
+  reasoningTokens = 0,
+  pricingMap?: Map<string, PricingEntry>,
 ): number {
-  const pricing = pricingMap?.get(model) ?? FALLBACK_PRICING[model];
-  if (!pricing) return 0;
+  const pricing = pricingMap?.get(model)
+  const fallback = FALLBACK_PRICING[model] ?? FALLBACK_EMBEDDING_PRICING[model]
 
-  let cost = 0;
-  cost += ((inputTokens - cachedTokens) / 1_000_000) * pricing.input;
-  if (cachedTokens && pricing.cached) {
-    cost += (cachedTokens / 1_000_000) * pricing.cached;
-  }
-  cost += (outputTokens / 1_000_000) * pricing.output;
-  if (reasoningTokens && pricing.reasoning) {
-    cost += (reasoningTokens / 1_000_000) * pricing.reasoning;
-  }
+  const input = pricing?.input ?? fallback?.input ?? 0
+  const output = pricing?.output ?? (fallback as { output?: number } | undefined)?.output ?? 0
+  const cached = pricing?.cached ?? (fallback as { cached?: number } | undefined)?.cached
+  const reasoning = pricing?.reasoning ?? (fallback as { reasoning?: number } | undefined)?.reasoning
 
-  return Math.round(cost * 1_000_000) / 1_000_000;
+  if (input === 0 && output === 0) return 0
+
+  let cost = 0
+  cost += ((inputTokens - cachedTokens) / 1_000_000) * input
+  if (cachedTokens && cached) cost += (cachedTokens / 1_000_000) * cached
+  cost += (outputTokens / 1_000_000) * output
+  if (reasoningTokens && reasoning) cost += (reasoningTokens / 1_000_000) * reasoning
+
+  return Math.round(cost * 1_000_000) / 1_000_000
+}
+
+/**
+ * Розраховує вартість транскрибації в USD (per-minute).
+ */
+export function calculateMinuteCost(
+  model: string,
+  durationSeconds: number,
+  pricingMap?: Map<string, PricingEntry>,
+): number {
+  const pricing = pricingMap?.get(model)
+  const fallback = FALLBACK_TRANSCRIPTION_PRICING[model]
+
+  const pricePerMinute = pricing?.pricePerMinute ?? fallback?.pricePerMinute ?? 0
+  if (pricePerMinute === 0) return 0
+
+  const minutes = durationSeconds / 60
+  const cost = minutes * pricePerMinute
+
+  return Math.round(cost * 1_000_000) / 1_000_000
+}
+
+/**
+ * Розраховує вартість per-character в USD.
+ */
+export function calculateCharacterCost(
+  model: string,
+  characters: number,
+  pricingMap?: Map<string, PricingEntry>,
+): number {
+  const pricing = pricingMap?.get(model)
+  const pricePerMillion = pricing?.pricePerMillionCharacters ?? 0
+  if (pricePerMillion === 0) return 0
+
+  const cost = (characters / 1_000_000) * pricePerMillion
+  return Math.round(cost * 1_000_000) / 1_000_000
+}
+
+/**
+ * Універсальний розрахунок вартості — визначає тип за unitType або pricingType з DB.
+ */
+export function calculateCost(
+  model: string,
+  opts: {
+    unitType?: 'token' | 'minute' | 'character'
+    inputTokens?: number
+    outputTokens?: number
+    cachedTokens?: number
+    reasoningTokens?: number
+    durationSeconds?: number
+    characters?: number
+  },
+  pricingMap?: Map<string, PricingEntry>,
+): number {
+  const unitType = opts.unitType ?? pricingMap?.get(model)?.pricingType?.replace('per_', '') as 'token' | 'minute' | 'character' | undefined ?? 'token'
+
+  switch (unitType) {
+    case 'minute':
+      return calculateMinuteCost(model, opts.durationSeconds ?? 0, pricingMap)
+    case 'character':
+      return calculateCharacterCost(model, opts.characters ?? 0, pricingMap)
+    case 'token':
+    default:
+      return calculateTokenCost(
+        model,
+        opts.inputTokens ?? 0,
+        opts.outputTokens ?? 0,
+        opts.cachedTokens ?? 0,
+        opts.reasoningTokens ?? 0,
+        pricingMap,
+      )
+  }
 }

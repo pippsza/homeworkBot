@@ -15,19 +15,29 @@ export interface TrackerConfig {
   }
 }
 
+export type PricingType = 'per_token' | 'per_minute' | 'per_character'
+export type UnitType = 'token' | 'minute' | 'character'
+export type Provider = 'openai' | 'anthropic' | 'google' | 'elevenlabs' | 'openrouter' | 'custom'
+
 export interface UsageEvent {
   userId: string
-  provider?: 'openai' | 'anthropic' | 'google' | 'custom'
+  provider?: Provider
   model: string
   modelGroup?: string
+  unitType?: UnitType
   operationType: string
   feature?: string
   endpoint?: string
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
+  // Token-based fields (unitType: 'token')
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
   cachedTokens?: number
   reasoningTokens?: number
+  // Duration-based fields (unitType: 'minute')
+  durationSeconds?: number
+  // Character-based fields (unitType: 'character')
+  characters?: number
   latencyMs: number
   isStreaming?: boolean
   status: 'success' | 'error' | 'timeout' | 'rate_limited'
@@ -47,6 +57,29 @@ export interface UsageEvent {
     avatarUrl?: string
     meta?: Record<string, unknown>
   }
+}
+
+export interface AvailableModel {
+  model: string
+  provider: string
+  pricingType?: PricingType
+  displayName?: string
+  description?: string
+  contextLength?: number
+  // Per-token pricing
+  inputPricePerMillionTokens?: number
+  outputPricePerMillionTokens?: number
+  cachedInputPricePerMillionTokens?: number
+  reasoningPricePerMillionTokens?: number
+  // Per-minute pricing
+  pricePerMinute?: number
+  includedMinutesPerMonth?: number
+  additionalPricePerMinute?: number
+  // Per-character pricing
+  pricePerMillionCharacters?: number
+  supportsVision: boolean
+  supportsToolCalling: boolean
+  supportsReasoning: boolean
 }
 
 export interface TrackingContext {

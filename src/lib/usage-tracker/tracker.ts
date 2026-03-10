@@ -1,197 +1,180 @@
-import { randomUUID } from "crypto";
-import { getTokenUsageEventModel } from "./connection";
-import { calculateCost, loadPricingFromDb } from "./pricing";
-import { registerProject, syncUser } from "./registry";
+import { getTokenUsageEventModel, getModelPricingModel } from './connection'
+import { calculateCost, loadPricingFromDb } from './pricing'
+import { registerProject, syncUser } from './registry'
+import type { TrackerConfig, UsageEvent, AvailableModel, PricingType } from './types'
 
-export interface TrackerConfig {
-  projectId: string;
-  environment: string;
-  project?: {
-    name: string;
-    description?: string;
-    techStack?: string;
-    [key: string]: unknown;
-  };
-  buffer?: {
-    maxSize?: number;
-    flushIntervalMs?: number;
-  };
-}
+const USER_SYNC_DEBOUNCE_MS = 60_000
+const MAX_BUFFER_SIZE = 10_000
 
-export interface UsageEvent {
-  traceId?: string;
-  userId: string;
-  provider?: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cachedTokens?: number;
-  reasoningTokens?: number;
-  isStreaming?: boolean;
-  operationType: string;
-  feature?: string;
-  endpoint?: string;
-  latencyMs: number;
-  status: string;
-  errorMessage?: string;
-  requestedAt: Date;
-  completedAt: Date;
-  userInfo?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-interface EnrichedEvent extends Omit<UsageEvent, "userInfo"> {
-  projectId: string;
-  environment: string;
-  estimatedCostUsd?: number;
-}
-
-export class UsageTracker {
-  private config: TrackerConfig;
-  private buffer: EnrichedEvent[];
-  private syncedUsers: Map<string, number>;
-  private flushTimer: ReturnType<typeof setInterval> | null;
-  private _started: boolean;
+class UsageTracker {
+  private buffer: UsageEvent[] = []
+  private config: TrackerConfig
+  private flushTimer: ReturnType<typeof setInterval> | null = null
+  private syncedUsers = new Map<string, number>()
 
   constructor(config: TrackerConfig) {
-    this.config = config;
-    this.buffer = [];
-    this.syncedUsers = new Map();
-    this.flushTimer = null;
-    this._started = false;
-  }
+    this.config = config
+    const interval = config.buffer?.flushIntervalMs ?? 5_000
+    this.flushTimer = setInterval(() => this.flush(), interval)
+    if (this.flushTimer.unref) this.flushTimer.unref()
 
-  /**
-   * Start the tracker. Registers project and starts flush timer.
-   * Call this after DB connection is ready.
-   */
-  start(): void {
-    if (this._started) return;
-    this._started = true;
-
-    const interval = this.config.buffer?.flushIntervalMs ?? 5_000;
-    this.flushTimer = setInterval(() => this.flush(), interval);
-    if (this.flushTimer.unref) this.flushTimer.unref();
-
-    // Auto-register project
-    if (this.config.project) {
+    // Авто-реєстрація проєкту при створенні трекера
+    if (config.project) {
       registerProject({
-        projectId: this.config.projectId,
-        environment: this.config.environment,
-        ...this.config.project,
-      });
+        projectId: config.projectId,
+        environment: config.environment,
+        ...config.project,
+      })
     }
-
-    console.log(`[UsageTracker] Started for project: ${this.config.projectId}`);
   }
 
-  /**
-   * Record a usage event. Cost is calculated later in flush() with fresh DB pricing.
-   */
   record(event: UsageEvent): void {
-    if (!this._started) return;
+    // Синхронізувати дані юзера (debounce)
+    this.maybeSyncUser(event)
 
-    // Sync user data (debounced 60s)
-    this._maybeSyncUser(event);
-
-    const enriched: EnrichedEvent = {
+    const enriched = {
       ...event,
-      traceId: event.traceId || randomUUID(),
       projectId: this.config.projectId,
       environment: this.config.environment,
-      provider: event.provider ?? "google",
+      provider: event.provider ?? 'openai',
+      unitType: event.unitType ?? 'token',
       isStreaming: event.isStreaming ?? false,
-    };
+      traceId: event.traceId ?? crypto.randomUUID(),
+    }
 
-    // Remove userInfo from the event (it's only for user sync)
-    delete (enriched as Record<string, unknown>).userInfo;
+    this.buffer.push(enriched as UsageEvent)
 
-    this.buffer.push(enriched);
-
-    const maxSize = this.config.buffer?.maxSize ?? 50;
+    const maxSize = this.config.buffer?.maxSize ?? 50
     if (this.buffer.length >= maxSize) {
-      this.flush();
+      this.flush()
     }
   }
 
-  private _maybeSyncUser(event: UsageEvent): void {
-    if (!event.userInfo) return;
+  private maybeSyncUser(event: UsageEvent): void {
+    if (!event.userInfo) return
 
-    const key = `${event.userId}:${this.config.projectId}`;
-    const lastSync = this.syncedUsers.get(key) ?? 0;
-    const now = Date.now();
+    const key = `${event.userId}:${this.config.projectId}`
+    const lastSync = this.syncedUsers.get(key) ?? 0
+    const now = Date.now()
 
-    // Debounce: no more than once per 60s per user
-    if (now - lastSync < 60_000) return;
+    if (now - lastSync < USER_SYNC_DEBOUNCE_MS) return
 
-    this.syncedUsers.set(key, now);
+    this.syncedUsers.set(key, now)
 
-    // Fire-and-forget
+    // Fire-and-forget — не блокує основний потік
     syncUser(this.config.projectId, {
       userId: event.userId,
       ...event.userInfo,
-    });
+    })
   }
 
-  /**
-   * Flush buffered events to MongoDB.
-   * Loads fresh pricing from DB before calculating costs.
-   */
   async flush(): Promise<void> {
-    if (this.buffer.length === 0) return;
+    if (this.buffer.length === 0) return
 
-    const events = [...this.buffer];
-    this.buffer = [];
+    const events = [...this.buffer]
+    this.buffer = []
 
     try {
-      // Load fresh pricing from DB (falls back to FALLBACK_PRICING if unavailable)
-      let pricingMap: Map<string, { input: number; output: number; cached?: number; reasoning?: number }> | undefined;
+      // Завантажити актуальні ціни з DB паралельно з підготовкою
+      let pricingMap
       try {
-        pricingMap = await loadPricingFromDb();
+        pricingMap = await loadPricingFromDb()
       } catch {
-        // DB pricing unavailable — calculateCost will use FALLBACK_PRICING
+        // Якщо DB цін недоступна — calculateCost використає FALLBACK_PRICING
       }
 
-      // Calculate cost for each event before saving
+      // Розрахувати вартість для кожного евента
       for (const event of events) {
-        event.estimatedCostUsd = calculateCost(
-          event.model as string,
-          event.inputTokens as number,
-          event.outputTokens as number,
-          event.cachedTokens as number | undefined,
-          event.reasoningTokens as number | undefined,
-          pricingMap
-        );
+        ;(event as unknown as Record<string, unknown>).estimatedCostUsd = calculateCost(
+          event.model,
+          {
+            unitType: event.unitType,
+            inputTokens: event.inputTokens,
+            outputTokens: event.outputTokens,
+            cachedTokens: event.cachedTokens,
+            reasoningTokens: event.reasoningTokens,
+            durationSeconds: event.durationSeconds,
+            characters: event.characters,
+          },
+          pricingMap,
+        )
       }
 
-      const Model = getTokenUsageEventModel();
-      await Model.insertMany(events, { ordered: false });
-    } catch (error: unknown) {
-      // Return unsent events to buffer
-      this.buffer.unshift(...events);
-      console.error("[UsageTracker] Flush failed:", (error as Error).message);
+      const Model = getTokenUsageEventModel()
+      await Model.insertMany(events, { ordered: false })
+    } catch (error) {
+      // Повернути невідправлені в буфер
+      this.buffer.unshift(...events)
+      if (this.buffer.length > MAX_BUFFER_SIZE) {
+        console.error(`[UsageTracker] Buffer overflow (${this.buffer.length}), trimming to ${MAX_BUFFER_SIZE}`)
+        this.buffer = this.buffer.slice(-MAX_BUFFER_SIZE)
+      }
+      console.error('[UsageTracker] Flush failed:', (error as Error).message)
     }
   }
 
-  /**
-   * Graceful shutdown: flush remaining events and clear timer.
-   */
+  async getAvailableModels(): Promise<AvailableModel[]> {
+    return getAvailableModels()
+  }
+
   async shutdown(): Promise<void> {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = null;
-    }
-    await this.flush();
-    this._started = false;
-    console.log("[UsageTracker] Shut down gracefully");
+    if (this.flushTimer) clearInterval(this.flushTimer)
+    await this.flush()
   }
 }
 
 /**
- * Create a new UsageTracker instance.
- * Call .start() when ready (after DB connection).
+ * Завантажує список доступних моделей з бази usage.
+ * Повертає тільки активні записи (effectiveTo = null або > now).
+ * Для кожної моделі бере найновішу ціну за effectiveFrom.
+ * Можна використовувати без інстансу трекера — достатньо USAGE_DATABASE_URI.
  */
-export function createUsageTracker(config: TrackerConfig): UsageTracker {
-  return new UsageTracker(config);
+export async function getAvailableModels(): Promise<AvailableModel[]> {
+  const Model = getModelPricingModel()
+  const now = new Date()
+
+  const docs = await Model.find({
+    effectiveFrom: { $lte: now },
+    $or: [{ effectiveTo: null }, { effectiveTo: { $exists: false } }, { effectiveTo: { $gt: now } }],
+  })
+    .sort({ effectiveFrom: -1 })
+    .lean()
+
+  // Дедуплікація: для кожної моделі беремо тільки першу (найновішу)
+  const seen = new Set<string>()
+  const result: AvailableModel[] = []
+
+  for (const doc of docs) {
+    const key = String(doc.model)
+    if (seen.has(key)) continue
+    seen.add(key)
+
+    result.push({
+      model: key,
+      provider: String(doc.provider),
+      pricingType: ((doc.pricingType as string | undefined) ?? 'per_token') as PricingType,
+      displayName: doc.displayName ? String(doc.displayName) : undefined,
+      description: doc.description ? String(doc.description) : undefined,
+      contextLength: doc.contextLength as number | undefined,
+      inputPricePerMillionTokens: doc.inputPricePerMillionTokens as number | undefined,
+      outputPricePerMillionTokens: doc.outputPricePerMillionTokens as number | undefined,
+      cachedInputPricePerMillionTokens: doc.cachedInputPricePerMillionTokens as number | undefined,
+      reasoningPricePerMillionTokens: doc.reasoningPricePerMillionTokens as number | undefined,
+      pricePerMinute: doc.pricePerMinute as number | undefined,
+      includedMinutesPerMonth: doc.includedMinutesPerMonth as number | undefined,
+      additionalPricePerMinute: doc.additionalPricePerMinute as number | undefined,
+      pricePerMillionCharacters: doc.pricePerMillionCharacters as number | undefined,
+      supportsVision: Boolean(doc.supportsVision),
+      supportsToolCalling: Boolean(doc.supportsToolCalling),
+      supportsReasoning: Boolean(doc.supportsReasoning),
+    })
+  }
+
+  return result
 }
+
+export function createUsageTracker(config: TrackerConfig): UsageTracker {
+  return new UsageTracker(config)
+}
+
+export type { UsageTracker }

@@ -1,55 +1,53 @@
-import mongoose, { Connection, Model } from "mongoose";
-import { tokenUsageEventSchema, ITokenUsageEvent } from "./schemas/token-usage-event";
-import { modelPricingSchema, IModelPricing } from "./schemas/model-pricing";
-import { projectSchema, IProject } from "./schemas/project";
-import { userSchema, IUser } from "./schemas/user";
+import mongoose from 'mongoose'
+import { tokenUsageEventSchema } from './schemas/token-usage-event'
+import { modelPricingSchema } from './schemas/model-pricing'
+import { usageSummarySchema } from './schemas/usage-summary'
+import { providerCostSchema } from './schemas/provider-cost'
+import { projectSchema } from './schemas/project'
+import { userSchema } from './schemas/user'
 
-let connection: Connection | null = null;
+let connection: mongoose.Connection | null = null
 
-export function getUsageConnection(): Connection {
+export function getUsageConnection(): mongoose.Connection {
   if (!connection) {
-    const uri = process.env.USAGE_DATABASE_URI;
-    if (!uri) throw new Error("[UsageTracker] USAGE_DATABASE_URI is not set");
+    const uri = process.env.USAGE_DATABASE_URI
+    if (!uri) throw new Error('[UsageTracker] USAGE_DATABASE_URI is not set')
 
-    connection = mongoose.createConnection(uri);
+    connection = mongoose.createConnection(uri)
 
-    connection.on("error", (err: Error) => {
-      console.error("[UsageTracker] MongoDB connection error:", err.message);
-    });
-
-    connection.on("connected", () => {
-      console.log("[UsageTracker] Connected to usage_tracking DB");
-    });
+    connection.on('error', (err) => {
+      console.error('[UsageTracker] MongoDB connection error:', err.message)
+    })
   }
-  return connection;
+  return connection
 }
 
-export function getTokenUsageEventModel(): Model<ITokenUsageEvent> {
-  const conn = getUsageConnection();
-  return conn.models.TokenUsageEvent || conn.model<ITokenUsageEvent>("TokenUsageEvent", tokenUsageEventSchema);
+export function getTokenUsageEventModel() {
+  const conn = getUsageConnection()
+  return conn.models['TokenUsageEvent'] || conn.model('TokenUsageEvent', tokenUsageEventSchema)
 }
 
-export function getModelPricingModel(): Model<IModelPricing> {
-  const conn = getUsageConnection();
-  return conn.models.ModelPricing || conn.model<IModelPricing>("ModelPricing", modelPricingSchema);
+export function getModelPricingModel() {
+  const conn = getUsageConnection()
+  return conn.models['ModelPricing'] || conn.model('ModelPricing', modelPricingSchema)
 }
 
-export function getProjectModel(): Model<IProject> {
-  const conn = getUsageConnection();
-  return conn.models.Project || conn.model<IProject>("Project", projectSchema);
+export function getProjectModel() {
+  const conn = getUsageConnection()
+  return conn.models['Project'] || conn.model('Project', projectSchema)
 }
 
-export function getUserModel(): Model<IUser> {
-  const conn = getUsageConnection();
-  return conn.models.User || conn.model<IUser>("User", userSchema);
+export function getUserModel() {
+  const conn = getUsageConnection()
+  return conn.models['User'] || conn.model('User', userSchema)
 }
 
-/**
- * Close the usage tracking connection gracefully.
- */
-export async function closeConnection(): Promise<void> {
-  if (connection) {
-    await connection.close();
-    connection = null;
-  }
+export function getUsageSummaryModel() {
+  const conn = getUsageConnection()
+  return conn.models['UsageSummary'] || conn.model('UsageSummary', usageSummarySchema)
+}
+
+export function getProviderCostModel() {
+  const conn = getUsageConnection()
+  return conn.models['ProviderCost'] || conn.model('ProviderCost', providerCostSchema)
 }

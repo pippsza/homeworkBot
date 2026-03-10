@@ -1,47 +1,31 @@
-import { Schema, Document } from "mongoose";
+import { Schema, type InferSchemaType } from 'mongoose'
 
-export interface IProviderCost extends Document {
-  provider: "openrouter" | "openai" | "anthropic" | "google";
-  periodStart: Date;
-  periodEnd: Date;
-  internalTotalTokens: number;
-  internalEstimatedCostUsd: number;
-  internalRequestCount: number;
-  providerReportedCostUsd?: number;
-  providerReportedTokens?: number;
-  discrepancyUsd?: number;
-  discrepancyPercent?: number;
-  discrepancyStatus: "within_threshold" | "warning" | "critical" | "pending";
-  notes?: string;
-  importedBy?: string;
-}
-
-export const providerCostSchema = new Schema<IProviderCost>(
+const providerCostSchema = new Schema(
   {
     provider: {
       type: String,
       required: true,
-      enum: ["openrouter", "openai", "anthropic", "google"],
+      enum: ['openai', 'anthropic', 'google'],
     },
     periodStart: { type: Date, required: true },
     periodEnd: { type: Date, required: true },
 
-    // Internal data
+    // Наші дані
     internalTotalTokens: { type: Number, required: true, min: 0 },
     internalEstimatedCostUsd: { type: Number, required: true, min: 0 },
     internalRequestCount: { type: Number, required: true, min: 0 },
 
-    // Provider data
+    // Дані провайдера
     providerReportedCostUsd: { type: Number, min: 0 },
     providerReportedTokens: { type: Number, min: 0 },
 
-    // Discrepancy
+    // Розбіжність
     discrepancyUsd: Number,
     discrepancyPercent: Number,
     discrepancyStatus: {
       type: String,
-      enum: ["within_threshold", "warning", "critical", "pending"],
-      default: "pending",
+      enum: ['within_threshold', 'warning', 'critical', 'pending'],
+      default: 'pending',
     },
 
     notes: String,
@@ -49,6 +33,9 @@ export const providerCostSchema = new Schema<IProviderCost>(
   },
   {
     timestamps: true,
-    collection: "providerCosts",
-  }
-);
+    collection: 'providerCosts',
+  },
+)
+
+export type ProviderCostDoc = InferSchemaType<typeof providerCostSchema>
+export { providerCostSchema }

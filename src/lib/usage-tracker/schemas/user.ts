@@ -1,35 +1,28 @@
-import { Schema, Document } from "mongoose";
+import { Schema, type InferSchemaType } from 'mongoose'
 
-export interface IUser extends Document {
-  userId: string;
-  projectId: string;
-  email?: string;
-  name?: string;
-  role?: string;
-  avatarUrl?: string;
-  meta: Record<string, unknown>;
-  lastActivityAt?: Date;
-  totalRequests: number;
-  totalTokens: number;
-  totalCostUsd: number;
-  isActive: boolean;
-}
-
-export const userSchema = new Schema<IUser>(
+const userSchema = new Schema(
   {
-    userId: { type: String, required: true, index: true },
-    projectId: { type: String, required: true, index: true },
+    userId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    projectId: {
+      type: String,
+      required: true,
+      index: true,
+    },
 
-    // Human-readable fields
+    // Людиночитабельні поля
     email: String,
     name: String,
     role: String,
     avatarUrl: String,
 
-    // Arbitrary meta from project
+    // Будь-які додаткові мета-поля від проєкту
     meta: { type: Schema.Types.Mixed, default: {} },
 
-    // Stats (updated by UsageHub aggregation)
+    // Статистика (оновлює ZenCore aggregation)
     lastActivityAt: Date,
     totalRequests: { type: Number, default: 0 },
     totalTokens: { type: Number, default: 0 },
@@ -39,10 +32,13 @@ export const userSchema = new Schema<IUser>(
   },
   {
     timestamps: true,
-    collection: "users",
-  }
-);
+    collection: 'users',
+  },
+)
 
-// One user can be in multiple projects
-userSchema.index({ userId: 1, projectId: 1 }, { unique: true });
-userSchema.index({ email: 1 });
+// Один юзер може бути в кількох проєктах — унікальність по парі
+userSchema.index({ userId: 1, projectId: 1 }, { unique: true })
+userSchema.index({ email: 1 })
+
+export type UserDoc = InferSchemaType<typeof userSchema>
+export { userSchema }

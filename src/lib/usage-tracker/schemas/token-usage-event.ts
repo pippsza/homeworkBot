@@ -1,114 +1,122 @@
-import { Schema } from "mongoose";
+import { Schema, type InferSchemaType } from 'mongoose'
 
-export interface ITokenUsageEvent {
-  traceId: string;
-  projectId: string;
-  environment: "production" | "staging" | "development";
-  serverInstanceId?: string;
-  userId: string;
-  provider: "openai" | "anthropic" | "google" | "custom";
-  model: string;
-  modelGroup?: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cachedTokens?: number;
-  reasoningTokens?: number;
-  estimatedCostUsd: number;
-  pricingVersion?: string;
-  operationType: string;
-  feature?: string;
-  endpoint?: string;
-  latencyMs: number;
-  isStreaming: boolean;
-  status: "success" | "error" | "timeout" | "rate_limited";
-  errorCode?: string;
-  errorMessage?: string;
-  entityType?: string;
-  entityId?: string;
-  requestedAt: Date;
-  completedAt: Date;
-}
-
-export const tokenUsageEventSchema = new Schema<ITokenUsageEvent>(
+const tokenUsageEventSchema = new Schema(
   {
-    traceId: { type: String, required: true, index: true },
+    // ── Ідентифікація ──
+    traceId: {
+      type: String,
+      required: true,
+      index: true,
+    },
 
-    // Source
-    projectId: { type: String, required: true, index: true },
+    // ── Джерело ──
+    projectId: {
+      type: String,
+      required: true,
+      index: true,
+    },
     environment: {
       type: String,
       required: true,
-      enum: ["production", "staging", "development"],
-      default: "production",
+      enum: ['production', 'staging', 'development'],
+      default: 'production',
     },
     serverInstanceId: String,
 
-    // User
-    userId: { type: String, required: true, index: true },
+    // ── Користувач ──
+    // Людиночитабельні дані (email, name, role) — в колекції `users`
+    userId: {
+      type: String,
+      required: true,
+      index: true,
+    },
 
-    // AI provider
+    // ── AI-провайдер ──
     provider: {
       type: String,
       required: true,
-      enum: ["openai", "anthropic", "google", "custom"],
-      default: "openai",
+      enum: ['openai', 'anthropic', 'google', 'elevenlabs', 'openrouter', 'custom'],
+      default: 'openai',
     },
-    model: { type: String, required: true, index: true },
+    model: {
+      type: String,
+      required: true,
+      index: true,
+    },
     modelGroup: String,
 
-    // Tokens
-    inputTokens: { type: Number, required: true, min: 0 },
-    outputTokens: { type: Number, required: true, min: 0 },
-    totalTokens: { type: Number, required: true, min: 0 },
+    // ── Тип одиниці обліку ──
+    unitType: {
+      type: String,
+      enum: ['token', 'minute', 'character'],
+      default: 'token',
+    },
+
+    // ── Токени (для unitType: 'token') ──
+    inputTokens: { type: Number, min: 0 },
+    outputTokens: { type: Number, min: 0 },
+    totalTokens: { type: Number, min: 0 },
     cachedTokens: { type: Number, min: 0 },
     reasoningTokens: { type: Number, min: 0 },
 
-    // Cost
+    // ── Тривалість (для unitType: 'minute') ──
+    durationSeconds: { type: Number, min: 0 },
+
+    // ── Символи (для unitType: 'character') ──
+    characters: { type: Number, min: 0 },
+
+    // ── Вартість ──
     estimatedCostUsd: { type: Number, required: true, min: 0 },
     pricingVersion: String,
 
-    // Request metadata
-    operationType: { type: String, required: true },
+    // ── Метадані запиту (довільні, визначає проєкт) ──
+    operationType: {
+      type: String,
+      required: true,
+    },
     feature: String,
     endpoint: String,
 
-    // Performance
+    // ── Продуктивність ──
     latencyMs: { type: Number, required: true, min: 0 },
     isStreaming: { type: Boolean, default: false },
 
-    // Status
+    // ── Статус ──
     status: {
       type: String,
       required: true,
-      enum: ["success", "error", "timeout", "rate_limited"],
-      default: "success",
+      enum: ['success', 'error', 'timeout', 'rate_limited'],
+      default: 'success',
     },
     errorCode: String,
     errorMessage: String,
 
-    // Entity context
+    // ── Контекст промпту (опціонально, визначає проєкт) ──
+    promptSummary: String,   // перші ~500 символів промпту або опис задачі
+    responseSummary: String, // перші ~500 символів відповіді або опис результату
+
+    // ── Контекст сутності (довільний, визначає проєкт) ──
     entityType: String,
     entityId: String,
 
-    // Request timestamps
+    // ── Часові мітки запиту ──
     requestedAt: { type: Date, required: true },
     completedAt: { type: Date, required: true },
   },
   {
     timestamps: true,
-    collection: "tokenUsageEvents",
-  }
-);
+    collection: 'tokenUsageEvents',
+  },
+)
 
-// Compound indexes for dashboard queries
-tokenUsageEventSchema.index({ projectId: 1, createdAt: -1 });
-tokenUsageEventSchema.index({ userId: 1, createdAt: -1 });
-tokenUsageEventSchema.index({ projectId: 1, userId: 1, createdAt: -1 });
-tokenUsageEventSchema.index({ model: 1, createdAt: -1 });
+// Складені індекси для типових запитів дашборду
+tokenUsageEventSchema.index({ projectId: 1, createdAt: -1 })
+tokenUsageEventSchema.index({ userId: 1, createdAt: -1 })
+tokenUsageEventSchema.index({ projectId: 1, userId: 1, createdAt: -1 })
+tokenUsageEventSchema.index({ model: 1, createdAt: -1 })
 
-// TTL: auto-delete raw events after 90 days
-tokenUsageEventSchema.index(
-  { createdAt: 1 },
-  { expireAfterSeconds: 90 * 24 * 60 * 60 }
-);
+// TTL: автоматичне видалення сирих подій через 90 днів
+tokenUsageEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 })
+
+export type TokenUsageEventDoc = InferSchemaType<typeof tokenUsageEventSchema>
+export { tokenUsageEventSchema }
