@@ -159,12 +159,44 @@ async function handleAiBatch(ctx: Context, items: MediaItem[], caption: string):
       return { alias, name, type: item.type, fileId: item.fileId };
     });
 
-    // Compact summary first, then file_id mapping
-    const summaryLine = `Файлов: ${items.length}. Список: ${fileList.map(f => `${f.alias}="${f.name}"`).join(", ")}`;
-    const idMapping = fileList.map(f =>
-      `[${f.alias}: тип=${f.type}, file_id=${f.fileId}]`
-    ).join("\n");
-    const allMeta = `\n\n${summaryLine}\n\nМаппинг file_id:\n${idMapping}`;
+    // Try to detect numbered file pairs (e.g. "Лаба 1.odt" + "Лаба 1 Ответы.txt")
+    const answerPattern = /ответ|відповід|answer|решени/i;
+    const groups = new Map<number, { conditions: typeof fileList; answers: typeof fileList }>();
+    const ungrouped: typeof fileList = [];
+    for (const f of fileList) {
+      const numMatch = f.name.match(/(\d+)/);
+      if (numMatch) {
+        const num = parseInt(numMatch[1]);
+        if (!groups.has(num)) groups.set(num, { conditions: [], answers: [] });
+        const g = groups.get(num)!;
+        if (answerPattern.test(f.name)) g.answers.push(f);
+        else g.conditions.push(f);
+      } else {
+        ungrouped.push(f);
+      }
+    }
+
+    // Build metadata
+    let allMeta: string;
+    if (groups.size >= 2) {
+      // Structured pairs format — much easier for AI to parse
+      const pairLines = [...groups.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([num, g]) => {
+          const conds = g.conditions.map(f => `${f.alias}(file_id=${f.fileId})`).join(", ");
+          const ans = g.answers.map(f => `${f.alias}(file_id=${f.fileId})`).join(", ");
+          return `  Задание ${num}: attachments=[${conds}], answers=[${ans}]`;
+        });
+      const ungroupedLines = ungrouped.map(f => `  Без номера: ${f.alias}="${f.name}" file_id=${f.fileId}`);
+      allMeta = `\n\nОбнаружено ${groups.size} пронумерованных заданий:\n${pairLines.join("\n")}${ungroupedLines.length ? "\n" + ungroupedLines.join("\n") : ""}`;
+      allMeta += `\n\nИСПОЛЬЗУЙ createHomeworkBatch с ${groups.size} заданиями. Каждое задание = "лаба N". Файлы из attachments → attachments, файлы из answers → answers.`;
+    } else {
+      // Flat list for small/ungrouped batches
+      const idMapping = fileList.map(f =>
+        `[${f.alias}: "${f.name}", тип=${f.type}, file_id=${f.fileId}]`
+      ).join("\n");
+      allMeta = `\n\nФайлов: ${items.length}:\n${idMapping}`;
+    }
 
     const tracking = buildTracking(ctx, wantsAttach ? "bot-chat-media-attach" : "bot-chat-media");
     let result: any;
