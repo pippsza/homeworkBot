@@ -530,6 +530,13 @@ async function processQuery(
         if ((o.answers || []).length > 0) detail += ` | ответов: ${o.answers.length}`;
         detail += `]`;
         extraHistoryContext += `\n${detail}`;
+      } else if ((tr.toolName === "createHomeworkBatch" || tr.toolName === "createHomework") && tr.output && !tr.output.error) {
+        if (tr.output.tasks) {
+          const taskList = tr.output.tasks.map((t: any) => `"${t.title}" (ID:${t.taskId}, файлов:${t.attachmentsCount || 0}, ответов:${t.answersCount || 0})`).join(", ");
+          extraHistoryContext += `\n[Созданы задания в "${tr.output.subjectName}": ${taskList}]`;
+        } else {
+          extraHistoryContext += `\n[Создано задание "${tr.output.taskTitle}" (ID:${tr.output.taskId}) в "${tr.output.subjectName}"]`;
+        }
       } else if (tr.toolName === "sendTaskFiles" && tr.output && !tr.output.error) {
         extraHistoryContext += `\n[Отправлены файлы задания "${tr.output.taskTitle}": ${tr.output.sentCount} шт.]`;
       } else if (tr.output && !tr.output.error) {

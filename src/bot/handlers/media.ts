@@ -152,36 +152,38 @@ async function handleAiBatch(ctx: Context, items: MediaItem[], caption: string):
     const wantsAttach = attachPattern.test(caption) ||
       recentMessages.slice(-2).some((m: any) => m.role === "user" && attachPattern.test(m.content));
 
-    // Build metadata for all files
-    const metaParts = items.map((item) => {
-      if (item.type === "photo") {
-        return `[Прикреплённое фото — Telegram file_id: ${item.fileId}, тип: photo]`;
-      }
-      return `[Прикреплённый файл — Telegram file_id: ${item.fileId}, тип: document, имя: ${item.fileName || "file"}]`;
+    // Build metadata for all files with short aliases for readability
+    const fileList = items.map((item, idx) => {
+      const alias = `F${idx + 1}`;
+      const name = item.type === "photo" ? "фото" : (item.fileName || "file");
+      return { alias, name, type: item.type, fileId: item.fileId };
     });
-    const allMeta = "\n\n" + metaParts.join("\n");
+
+    // Compact summary first, then file_id mapping
+    const summaryLine = `Файлов: ${items.length}. Список: ${fileList.map(f => `${f.alias}="${f.name}"`).join(", ")}`;
+    const idMapping = fileList.map(f =>
+      `[${f.alias}: тип=${f.type}, file_id=${f.fileId}]`
+    ).join("\n");
+    const allMeta = `\n\n${summaryLine}\n\nМаппинг file_id:\n${idMapping}`;
 
     const tracking = buildTracking(ctx, wantsAttach ? "bot-chat-media-attach" : "bot-chat-media");
     let result: any;
 
     if (wantsAttach) {
-      const query = caption ? `${caption}${allMeta}` : `Пользователь прислал ${items.length} файлов.${allMeta}`;
+      const query = caption ? `${caption}${allMeta}` : `Пользователь прислал ${items.length} файлов для прикрепления.${allMeta}`;
       result = await processQuery(query, recentMessages, tracking);
     } else {
       const imageBuffers: { buffer: Buffer; mimeType: string }[] = [];
-      const nonImageMeta: string[] = [];
 
       await Promise.all(items.map(async (item) => {
         const isImage = item.type === "photo" || (item.mimeType && item.mimeType.startsWith("image/"));
         if (isImage) {
           const buffer = await downloadFile(ctx, item.fileId);
           imageBuffers.push({ buffer, mimeType: item.mimeType || "image/jpeg" });
-        } else {
-          nonImageMeta.push(`[Прикреплённый файл — Telegram file_id: ${item.fileId}, тип: document, имя: ${item.fileName || "file"}]`);
         }
       }));
 
-      const queryText = (caption || "") + (nonImageMeta.length ? "\n\n" + nonImageMeta.join("\n") : "") + allMeta;
+      const queryText = (caption || "") + allMeta;
 
       if (imageBuffers.length > 1) {
         // processQueryMultiImage returns plain text (no extraHistoryContext)
