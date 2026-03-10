@@ -173,46 +173,39 @@ ${scheduleContext}
         }>;
       }) => {
         debugLog("tool", `createHomeworkBatch: ${taskDefs.length} tasks for subject ${subjectId}`);
-        const subject = await subjectService.getById(subjectId);
+        const Subject = (await import("../models/Subject")).default;
+        const subject = await Subject.findById(subjectId);
         if (!subject) return { error: "Предмет не найден" };
 
-        const results: Array<{ title: string; taskId: string; attachmentsCount: number; answersCount: number }> = [];
-        for (const def of taskDefs) {
-          const task = await subjectService.addTask(subjectId, {
-            title: def.title,
-            emoji: def.emoji || "📄",
-            description: def.description || "",
-          });
+        // Build all tasks with attachments+answers upfront, then $push atomically
+        const mongoose = await import("mongoose");
+        const tasksToInsert = taskDefs.map(def => ({
+          _id: new mongoose.Types.ObjectId(),
+          title: def.title,
+          emoji: def.emoji || "📄",
+          description: def.description || "",
+          attachments: (def.attachments || []).map(att => ({
+            type: att.fileType,
+            file_id: att.fileId,
+          })),
+          answers: (def.answers || []).map(ans => ({
+            type: ans.fileType,
+            content: "",
+            file_id: ans.fileId,
+          })),
+        }));
 
-          // Attach condition files
-          if (def.attachments?.length) {
-            const { task: freshTask, subject: freshSubject } = await subjectService.getTask(task._id.toString());
-            if (freshTask && freshSubject) {
-              if (!freshTask.attachments) freshTask.attachments = [];
-              for (const att of def.attachments) {
-                freshTask.attachments.push({ type: att.fileType, file_id: att.fileId });
-              }
-              await freshSubject.save();
-            }
-          }
+        // Single atomic $push with $each — no race conditions
+        await Subject.findByIdAndUpdate(subjectId, {
+          $push: { tasks: { $each: tasksToInsert } },
+        });
 
-          // Attach answer files
-          if (def.answers?.length) {
-            for (const ans of def.answers) {
-              await subjectService.addAnswer(task._id.toString(), {
-                type: ans.fileType,
-                file_id: ans.fileId,
-              });
-            }
-          }
-
-          results.push({
-            title: def.title,
-            taskId: task._id.toString(),
-            attachmentsCount: def.attachments?.length || 0,
-            answersCount: def.answers?.length || 0,
-          });
-        }
+        const results = tasksToInsert.map(t => ({
+          title: t.title,
+          taskId: t._id.toString(),
+          attachmentsCount: t.attachments.length,
+          answersCount: t.answers.length,
+        }));
 
         return {
           success: true,
