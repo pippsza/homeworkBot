@@ -1,5 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import mongoose from "mongoose";
+import Subject from "../models/Subject";
 import Info from "../models/Info";
 import { debugLog } from "../lib/debugLog";
 
@@ -173,12 +175,10 @@ ${scheduleContext}
         }>;
       }) => {
         debugLog("tool", `createHomeworkBatch: ${taskDefs.length} tasks for subject ${subjectId}`);
-        const Subject = (await import("../models/Subject")).default;
         const subject = await Subject.findById(subjectId);
         if (!subject) return { error: "Предмет не найден" };
 
         // Build all tasks with attachments+answers upfront, then $push atomically
-        const mongoose = await import("mongoose");
         const tasksToInsert = taskDefs.map(def => ({
           _id: new mongoose.Types.ObjectId(),
           title: def.title,
@@ -195,10 +195,14 @@ ${scheduleContext}
           })),
         }));
 
+        debugLog("tool", `createHomeworkBatch: inserting ${tasksToInsert.length} tasks: ${tasksToInsert.map(t => `${t.title}(att:${t.attachments.length},ans:${t.answers.length})`).join(", ")}`);
+
         // Single atomic $push with $each — no race conditions
         await Subject.findByIdAndUpdate(subjectId, {
           $push: { tasks: { $each: tasksToInsert } },
         });
+
+        debugLog("tool", `createHomeworkBatch: SUCCESS — ${tasksToInsert.length} tasks created`);
 
         const results = tasksToInsert.map(t => ({
           title: t.title,
