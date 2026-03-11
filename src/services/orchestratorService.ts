@@ -3,6 +3,7 @@ import { getChatModels, getChatVisionModels, getSolveModels, getProSolveModels, 
 import KnowledgeDocument from "../models/KnowledgeDocument";
 import Info from "../models/Info";
 import { ai } from "../lib/tracked-ai";
+import type { Provider } from "@pippsza/usage-tracker";
 import { debugLog } from "../lib/debugLog";
 
 const promptService = require("./promptService");
@@ -87,7 +88,7 @@ async function generateWithFallback(models: ResolvedModels, opts: Record<string,
       operationType: tracking.operationType || "generate",
       feature: tracking.feature,
       endpoint: tracking.endpoint,
-      provider: models.primaryProvider,
+      provider: models.primaryProvider as Provider,
       user: tracking.user,
     };
 
@@ -103,7 +104,7 @@ async function generateWithFallback(models: ResolvedModels, opts: Record<string,
         return await (ai as any).generateObject(
           () => doGenerate(models.fallback!),
           models.fallbackId!,
-          { ...ctx, provider: models.fallbackProvider }
+          { ...ctx, provider: models.fallbackProvider as Provider }
         );
       }
       throw e;
@@ -135,7 +136,7 @@ async function streamWithFallback(models: ResolvedModels, opts: Record<string, a
       operationType: tracking.operationType || "chat",
       feature: tracking.feature,
       endpoint: tracking.endpoint,
-      provider: models.primaryProvider,
+      provider: models.primaryProvider as Provider,
       user: tracking.user,
     };
 
@@ -162,7 +163,7 @@ async function streamWithFallback(models: ResolvedModels, opts: Record<string, a
           operationType: tracking.operationType || "chat",
           feature: tracking.feature,
           endpoint: tracking.endpoint,
-          provider: models.fallbackProvider,
+          provider: models.fallbackProvider as Provider,
           user: tracking.user,
         };
         const existingOnFinish = opts.onFinish; // original, not the wrapped one

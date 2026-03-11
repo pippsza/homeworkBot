@@ -1,9 +1,9 @@
 /**
  * Project-specific usage tracker initialization.
- * This file is NOT copied between projects — it's unique per project.
+ * Uses @pippsza/usage-tracker npm package.
  */
-import { createUsageTracker, createTrackedAI, getUsageConnection } from './usage-tracker'
-import type { UsageTracker, TrackingContext } from './usage-tracker'
+import { createUsageTracker, createTrackedAI, getUsageConnection } from '@pippsza/usage-tracker'
+import type { UsageTracker, TrackingContext } from '@pippsza/usage-tracker'
 
 const PROJECT_ID = 'homework-bot'
 const ENVIRONMENT = (process.env.NODE_ENV === 'production' ? 'production' : 'development') as
@@ -14,93 +14,27 @@ const ENVIRONMENT = (process.env.NODE_ENV === 'production' ? 'production' : 'dev
 // Check if tracking is enabled (USAGE_DATABASE_URI must be set)
 const isEnabled = !!process.env.USAGE_DATABASE_URI
 
-// ── TrackedAI interface (matches createTrackedAI return from tool.ts) ──
+// ── No-op fallbacks when tracking is disabled ──
 
-interface TrackedAI {
-  generateObject<T>(
-    fn: () => Promise<
-      T & {
-        usage: {
-          inputTokens?: number
-          outputTokens?: number
-          promptTokens?: number
-          completionTokens?: number
-          totalTokens?: number
-        }
-      }
-    >,
-    model: string,
-    ctx: TrackingContext,
-  ): Promise<
-    T & {
-      usage: {
-        inputTokens?: number
-        outputTokens?: number
-        promptTokens?: number
-        completionTokens?: number
-        totalTokens?: number
-      }
-    }
-  >
-  onStreamFinish(
-    model: string,
-    ctx: TrackingContext,
-    startTime: Date,
-  ): (arg: {
-    usage: {
-      inputTokens?: number
-      outputTokens?: number
-      promptTokens?: number
-      completionTokens?: number
-      totalTokens?: number
-    }
-    text?: string
-  }) => void
-  transcribe<T>(fn: () => Promise<T>, model: string, durationSeconds: number, ctx: TrackingContext): Promise<T>
-  embed<T>(
-    fn: () => Promise<T & { usage?: { totalTokens?: number; promptTokens?: number } }>,
-    model: string,
-    ctx: TrackingContext,
-  ): Promise<T & { usage?: { totalTokens?: number; promptTokens?: number } }>
-}
-
-// ── No-op implementations ──
-
-interface NoOpTracker {
-  record(): void
-  flush(): Promise<void>
-  shutdown(): Promise<void>
-  getAvailableModels(): Promise<never[]>
-}
-
-const noOpTracker: NoOpTracker = {
+const noOpTracker = {
   record() {},
   async flush() {},
   async shutdown() {},
-  async getAvailableModels() {
-    return []
-  },
+  async getAvailableModels() { return [] as never[] },
 }
 
-const noOpAI: TrackedAI = {
-  async generateObject(fn) {
-    return fn()
-  },
-  onStreamFinish() {
-    return () => {}
-  },
-  async transcribe(fn) {
-    return fn()
-  },
-  async embed(fn) {
-    return fn()
-  },
+const noOpAI = {
+  async generateObject(fn: () => Promise<any>) { return fn() },
+  onStreamFinish() { return () => {} },
+  async transcribe(fn: () => Promise<any>) { return fn() },
+  async embed(fn: () => Promise<any>) { return fn() },
+  async generateMedia(fn: () => Promise<any>) { return fn() },
 }
 
-// ── Initialization (auto-start via constructor) ──
+// ── Initialization ──
 
-let usageTracker: UsageTracker | NoOpTracker
-let ai: TrackedAI
+let usageTracker: UsageTracker | typeof noOpTracker
+let ai: ReturnType<typeof createTrackedAI> | typeof noOpAI
 
 if (isEnabled) {
   usageTracker = createUsageTracker({
@@ -123,18 +57,12 @@ if (isEnabled) {
 
 process.on('beforeExit', () => (usageTracker as UsageTracker).shutdown?.())
 
-// ── Backward-compatible exports for index.ts ──
+// ── Exports ──
 
-/**
- * Start the tracker. No-op — the new SDK auto-starts in the constructor.
- */
 export function startTracking(): void {
   // Auto-started by createUsageTracker constructor
 }
 
-/**
- * Graceful shutdown: flush events and close connection.
- */
 export async function stopTracking(): Promise<void> {
   if (isEnabled) {
     await usageTracker.shutdown()
@@ -144,3 +72,4 @@ export async function stopTracking(): Promise<void> {
 }
 
 export { usageTracker, ai, isEnabled }
+export type { TrackingContext }
