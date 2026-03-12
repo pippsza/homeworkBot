@@ -88,8 +88,13 @@ async function generateWithFallback(models: ResolvedModels, opts: Record<string,
       operationType: tracking.operationType || "generate",
       feature: tracking.feature,
       endpoint: tracking.endpoint,
-      provider: models.primaryProvider as Provider,
       user: tracking.user,
+      // For OpenRouter models the model ID contains prefix (e.g. "openai/gpt-4.1"),
+      // SDK auto-parses provider and sets apiProvider='openrouter'.
+      // For direct providers (google), set provider explicitly.
+      ...(models.primaryProvider !== "openrouter"
+        ? { provider: models.primaryProvider as Provider }
+        : {}),
     };
 
     try {
@@ -101,10 +106,16 @@ async function generateWithFallback(models: ResolvedModels, opts: Record<string,
     } catch (e: any) {
       if (models.fallback && isRateLimitError(e)) {
         debugLog("fallback", `Primary model rate-limited, trying fallback: ${models.fallbackId}`);
+        const fallbackCtx = {
+          ...ctx,
+          ...(models.fallbackProvider !== "openrouter"
+            ? { provider: models.fallbackProvider as Provider }
+            : { provider: undefined }),
+        };
         return await (ai as any).generateObject(
           () => doGenerate(models.fallback!),
           models.fallbackId!,
-          { ...ctx, provider: models.fallbackProvider as Provider }
+          fallbackCtx
         );
       }
       throw e;
@@ -136,8 +147,13 @@ async function streamWithFallback(models: ResolvedModels, opts: Record<string, a
       operationType: tracking.operationType || "chat",
       feature: tracking.feature,
       endpoint: tracking.endpoint,
-      provider: models.primaryProvider as Provider,
       user: tracking.user,
+      // For OpenRouter models the model ID contains prefix (e.g. "openai/gpt-4.1"),
+      // SDK auto-parses provider and sets apiProvider='openrouter'.
+      // For direct providers (google), set provider explicitly.
+      ...(models.primaryProvider !== "openrouter"
+        ? { provider: models.primaryProvider as Provider }
+        : {}),
     };
 
     // Chain onFinish: existing callback + tracking callback
@@ -163,8 +179,10 @@ async function streamWithFallback(models: ResolvedModels, opts: Record<string, a
           operationType: tracking.operationType || "chat",
           feature: tracking.feature,
           endpoint: tracking.endpoint,
-          provider: models.fallbackProvider as Provider,
           user: tracking.user,
+          ...(models.fallbackProvider !== "openrouter"
+            ? { provider: models.fallbackProvider as Provider }
+            : {}),
         };
         const existingOnFinish = opts.onFinish; // original, not the wrapped one
         const trackingOnFinish = ai.onStreamFinish(models.fallbackId!, ctx, startTime);
