@@ -12,7 +12,7 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.29",
     "@ai-sdk/openai": "^3.0.30",
-    "@pippsza/usage-tracker": "^1.0.2",
+    "@pippsza/usage-tracker": "^1.0.3",
     "@qdrant/js-client-rest": "^1.16.2",
     "ai": "^6.0.89",
     "cors": "^2.8.6",
