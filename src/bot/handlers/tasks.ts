@@ -24,7 +24,10 @@ async function swapMedia(
   }
 }
 
-/** Кнопки гортання вкладень: номер поточного файла і повернення до завдання. */
+/**
+ * Кнопки гортання вкладень. Лічильник посередині перемикає вигляд: по одному
+ * файлу в цьому ж вікні або всі одразу списком.
+ */
 function attachmentKeyboard(taskId: string, idx: number, total: number) {
   const rows: any[] = [];
   if (total > 1) {
@@ -32,12 +35,32 @@ function attachmentKeyboard(taskId: string, idx: number, total: number) {
     const next = (idx + 1) % total;
     rows.push([
       Markup.button.callback("◀️", `att_${taskId}_${prev}`),
-      Markup.button.callback(`${idx + 1}/${total}`, "noop"),
+      Markup.button.callback(`${idx + 1}/${total} · списком`, `attlist_${taskId}`),
       Markup.button.callback("▶️", `att_${taskId}_${next}`),
     ]);
   }
   rows.push([Markup.button.callback("⬅️ До завдання", `attback_${taskId}`)]);
   return Markup.inlineKeyboard(rows);
+}
+
+/**
+ * Файли, надіслані списком. Тримаємо їх id, щоб «згорнути» прибрало саме їх:
+ * альбом у Telegram це кілька повідомлень, одним редагуванням його не забрати.
+ */
+const listed = new Map<string, number[]>();
+
+function listedKey(ctx: Context, taskId: string): string {
+  return `${ctx.chat!.id}:${taskId}`;
+}
+
+async function dropListed(ctx: Context, taskId: string): Promise<void> {
+  const key = listedKey(ctx, taskId);
+  const ids = listed.get(key);
+  if (!ids) return;
+  listed.delete(key);
+  for (const id of ids) {
+    await ctx.telegram.deleteMessage(ctx.chat!.id, id).catch(() => {});
+  }
 }
 
 function taskEditMenu(taskId: string) {
@@ -124,6 +147,20 @@ function linkLabel(url: string): string {
 
 function escapeHtml(s: string): string {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Один файл у поточному вікні: індекс закільцьовуємо. */
+async function showAttachment(ctx: Context, taskId: string, idx: number): Promise<void> {
+  const { task } = await subjectService.getTask(taskId);
+  if (!task?.attachments?.length) return;
+  const total = task.attachments.length;
+  const at = ((idx % total) + total) % total;
+  const att = task.attachments[at];
+  await swapMedia(
+    ctx,
+    { type: att.type === "photo" ? "photo" : "document", media: att.file_id },
+    attachmentKeyboard(taskId, at, total)
+  );
 }
 
 function tasksHandler(bot: Telegraf): void {
@@ -213,39 +250,67 @@ function tasksHandler(bot: Telegraf): void {
   // вміє замінити документ на документ, тому чат не забивається файлами.
   bot.action(/^sha_([a-f0-9]{24})$/, async (ctx: Context) => {
     await ctx.answerCbQuery().catch(() => {});
-    const taskId = (ctx as any).match![1];
-    const { task } = await subjectService.getTask(taskId);
-    if (!task?.attachments?.length) return;
-    const att = task.attachments[0];
-    await swapMedia(
-      ctx,
-      { type: att.type === "photo" ? "photo" : "document", media: att.file_id },
-      attachmentKeyboard(taskId, 0, task.attachments.length)
-    );
+    await showAttachment(ctx, (ctx as any).match![1], 0);
   });
 
   bot.action(/^att_([a-f0-9]{24})_(\d+)$/, async (ctx: Context) => {
     const m = (ctx as any).match as RegExpMatchArray;
-    const taskId = m[1];
-    const idx = Number(m[2]);
-    const { task } = await subjectService.getTask(taskId);
-    if (!task?.attachments?.length) return;
-    const total = task.attachments.length;
-    const att = task.attachments[((idx % total) + total) % total];
     await ctx.answerCbQuery().catch(() => {});
-    await ctx
-      .editMessageMedia(
-        { type: att.type === "photo" ? "photo" : "document", media: att.file_id } as any,
-        { reply_markup: attachmentKeyboard(taskId, idx, total).reply_markup } as any
-      )
-      .catch(() => {});
+    await showAttachment(ctx, m[1], Number(m[2]));
+  });
+
+  // Усі вкладення одразу: альбомом під вікном, вікно лишається керуванням.
+  bot.action(/^attlist_([a-f0-9]{24})$/, async (ctx: Context) => {
+    const taskId = (ctx as any).match![1];
+    const { task } = await subjectService.getTask(taskId);
+    if (!task?.attachments?.length) return ctx.answerCbQuery("Немає вкладень.");
+    await ctx.answerCbQuery("Надсилаю списком…").catch(() => {});
+    await dropListed(ctx, taskId);
+
+    const ids: number[] = [];
+    const items = task.attachments.map((a: any) => ({
+      type: a.type === "photo" ? "photo" : "document",
+      media: a.file_id,
+    }));
+    // Telegram бере в альбом не більше десяти файлів за раз
+    for (let i = 0; i < items.length; i += 10) {
+      const sent = await ctx.telegram
+        .sendMediaGroup(ctx.chat!.id, items.slice(i, i + 10) as any, {
+          disable_notification: true,
+        } as any)
+        .catch((e: Error) => {
+          console.error("[attachments] альбом не пішов:", e.message);
+          return [] as any[];
+        });
+      ids.push(...sent.map((m: any) => m.message_id));
+    }
+    if (!ids.length) return ctx.answerCbQuery("Не вийшло надіслати файли.", { show_alert: true });
+    listed.set(listedKey(ctx, taskId), ids);
+
+    await editOrSend(
+      ctx,
+      `📎 <b>${escapeHtml(task.title)}</b>\nФайлів: ${task.attachments.length} - показані нижче.`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback("🔽 Згорнути список", `attfold_${taskId}`)],
+        [Markup.button.callback("⬅️ До завдання", `attback_${taskId}`)],
+      ]) as any
+    );
+  });
+
+  bot.action(/^attfold_([a-f0-9]{24})$/, async (ctx: Context) => {
+    await ctx.answerCbQuery().catch(() => {});
+    const taskId = (ctx as any).match![1];
+    await dropListed(ctx, taskId);
+    await showAttachment(ctx, taskId, 0);
   });
 
   // Повернення до завдання: повідомлення з файлом текстом не стає, тому
   // прибираємо його і малюємо картку заново.
   bot.action(/^attback_([a-f0-9]{24})$/, async (ctx: Context) => {
     await ctx.answerCbQuery().catch(() => {});
-    await showTask(ctx, (ctx as any).match![1]);
+    const taskId = (ctx as any).match![1];
+    await dropListed(ctx, taskId);
+    await showTask(ctx, taskId);
   });
 
   // Show answers
