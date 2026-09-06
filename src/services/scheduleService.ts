@@ -1,7 +1,7 @@
 import Schedule, { ISchedule, ITimeSlot, IDaySlot, ISaturdayMapping } from "../models/Schedule";
 import Subject from "../models/Subject";
 
-export const DAY_NAMES = ["", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+export const DAY_NAMES = ["Неділя", "Понеділок", "Вівторок", "Середа", "Четвер", "П'ятниця", "Субота"];
 
 export async function get(): Promise<ISchedule> {
   let doc = await Schedule.findOne({ key: "main" });
