@@ -7,6 +7,10 @@ WORKDIR /app
 # без неї TZ=Europe/Kyiv не діє і нагадування спізнюються на три години.
 RUN apk add --no-cache font-dejavu font-noto-emoji tzdata
 
+# Зона в образі, а не тільки в compose: оновлення котиться Watchtower'ом,
+# а він переносить env запущеного контейнера і нову змінну з compose не бачить.
+ENV TZ=Europe/Kyiv
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY src/ ./src/
