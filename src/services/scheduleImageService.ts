@@ -107,3 +107,125 @@ export async function renderWeekCard(date: Date): Promise<Buffer> {
 </svg>`;
   return toPng(svg);
 }
+
+function wrap(text: string, perLine: number, maxLines: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if ((cur + " " + w).trim().length > perLine) {
+      lines.push(cur.trim());
+      cur = w;
+      if (lines.length === maxLines) break;
+    } else {
+      cur += " " + w;
+    }
+  }
+  if (lines.length < maxLines && cur.trim()) lines.push(cur.trim());
+  return lines;
+}
+
+/** Картка предмета: викладачі, умови автомата, посилання. Зручно переслати. */
+export async function renderSubjectCard(subjectId: string): Promise<Buffer> {
+  const subj = await subjectService.getById(subjectId);
+  if (!subj) throw new Error("subject not found");
+
+  const blocks: { label: string; lines: string[] }[] = [];
+  const teachers: string[] = [];
+  if (subj.lecturerName) teachers.push(`Лектор: ${subj.lecturerName}`);
+  if (subj.practitionerName && subj.practitionerName !== subj.lecturerName)
+    teachers.push(`Практик: ${subj.practitionerName}`);
+  if (teachers.length) blocks.push({ label: "Викладачі", lines: teachers });
+  if (subj.autoPass) blocks.push({ label: "Умови автомата", lines: wrap(subj.autoPass, 78, 6) });
+  if (subj.practitionerNote) blocks.push({ label: "Про викладача", lines: wrap(subj.practitionerNote, 78, 4) });
+  if (subj.notes) blocks.push({ label: "Нюанси", lines: wrap(subj.notes, 78, 5) });
+
+  const tasks = (subj.tasks || []).length;
+  const links: string[] = [];
+  if (subj.classroomUrl) links.push("Classroom підключено");
+  if (subj.telegramChat) links.push(`TG: ${subj.telegramChat}`);
+  if (subj.teamsLink) links.push("Teams-посилання збережено");
+  if (links.length) blocks.push({ label: "Де матеріали", lines: links });
+
+  let y = PAD + 110;
+  let body = "";
+  for (const b of blocks) {
+    body += `<text x="${PAD}" y="${y}" fill="${ACCENT}" font-size="16" font-family="DejaVu Sans, sans-serif">${esc(b.label)}</text>`;
+    y += 26;
+    for (const line of b.lines) {
+      body += `<text x="${PAD}" y="${y}" fill="${TEXT}" font-size="16" font-family="DejaVu Sans, sans-serif">${esc(line)}</text>`;
+      y += 23;
+    }
+    y += 14;
+  }
+  const H = y + PAD;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <text x="${PAD}" y="${PAD + 36}" fill="${TEXT}" font-size="28" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(subj.emoji || "")} ${esc(subj.name)}</text>
+  <text x="${PAD}" y="${PAD + 66}" fill="${MUTED}" font-size="16" font-family="DejaVu Sans, sans-serif">завдань у боті: ${tasks}</text>
+  ${body}
+</svg>`;
+  return toPng(svg);
+}
+
+/** Таймлайн дедлайнів: смуга на N днів уперед з мітками робіт. */
+export async function renderDeadlineTimeline(from: Date, days: number = 21): Promise<Buffer> {
+  const subjects = await subjectService.getAll();
+  const until = new Date(from);
+  until.setDate(until.getDate() + days);
+
+  const items: { day: number; title: string; subject: string; emoji: string }[] = [];
+  for (const s of subjects) {
+    for (const t of (s.tasks || []) as any[]) {
+      if (!t.deadline) continue;
+      const d = new Date(t.deadline);
+      if (d < from || d > until) continue;
+      const day = Math.round((d.getTime() - from.getTime()) / 86400000);
+      items.push({ day, title: t.title, subject: s.name, emoji: s.emoji || "📚" });
+    }
+  }
+  items.sort((a, b) => a.day - b.day);
+
+  const axisY = PAD + 96;
+  const left = PAD + 10;
+  const right = W - PAD - 10;
+  const span = right - left;
+  const H = axisY + 60 + Math.max(items.length, 1) * 46 + PAD;
+
+  let ticks = "";
+  for (let d = 0; d <= days; d += 7) {
+    const x = left + (span * d) / days;
+    const date = new Date(from);
+    date.setDate(date.getDate() + d);
+    ticks += `<line x1="${x}" y1="${axisY - 12}" x2="${x}" y2="${axisY + 12}" stroke="${MUTED}" stroke-width="2"/>`;
+    ticks += `<text x="${x}" y="${axisY + 34}" fill="${MUTED}" font-size="14" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</text>`;
+  }
+
+  let marks = "";
+  let rows = "";
+  items.forEach((it, i) => {
+    const x = left + (span * it.day) / days;
+    const y = axisY + 60 + i * 46;
+    marks += `<circle cx="${x}" cy="${axisY}" r="7" fill="${ACCENT}"/>`;
+    marks += `<line x1="${x}" y1="${axisY + 7}" x2="${x}" y2="${y - 14}" stroke="${ACCENT}" stroke-width="1.5" opacity="0.5"/>`;
+    rows += `<rect x="${PAD}" y="${y - 26}" width="${W - PAD * 2}" height="38" rx="10" fill="${CARD}"/>`;
+    rows += `<text x="${PAD + 16}" y="${y}" fill="${TEXT}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(it.emoji)} ${esc(it.title)} — ${esc(it.subject)}</text>`;
+    const d = new Date(from);
+    d.setDate(d.getDate() + it.day);
+    rows += `<text x="${W - PAD - 16}" y="${y}" fill="${MUTED}" font-size="15" text-anchor="end" font-family="DejaVu Sans, sans-serif">${d.toLocaleDateString("uk-UA")}</text>`;
+  });
+
+  const empty = items.length
+    ? ""
+    : `<text x="${PAD}" y="${axisY + 80}" fill="${MUTED}" font-size="18" font-family="DejaVu Sans, sans-serif">Дедлайнів на найближчі ${days} днів немає</text>`;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <text x="${PAD}" y="${PAD + 34}" fill="${TEXT}" font-size="26" font-weight="bold" font-family="DejaVu Sans, sans-serif">Дедлайни на ${days} днів</text>
+  <text x="${PAD}" y="${PAD + 62}" fill="${MUTED}" font-size="16" font-family="DejaVu Sans, sans-serif">від ${from.toLocaleDateString("uk-UA")}</text>
+  <line x1="${left}" y1="${axisY}" x2="${right}" y2="${axisY}" stroke="${MUTED}" stroke-width="2"/>
+  ${ticks}${marks}${rows}${empty}
+</svg>`;
+  return toPng(svg);
+}

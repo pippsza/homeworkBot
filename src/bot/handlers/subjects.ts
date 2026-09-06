@@ -108,6 +108,9 @@ function subjectsHandler(bot: Telegraf): void {
     const buttons = [...taskButtons];
     if (await isStudent(ctx)) {
       buttons.push([
+        Markup.button.callback("🖼 Карткою", `subjimg_${id}`),
+      ],
+      [
         Markup.button.callback("➕ Добавить задание", `add_task_${id}`),
       ]);
       buttons.push([

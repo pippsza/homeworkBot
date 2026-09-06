@@ -2,7 +2,7 @@ import { Telegraf, Context, Markup } from "telegraf";
 import { isSuperadmin } from "../middleware/auth";
 import { editOrSend } from "../helpers/editOrSend";
 import * as targets from "../../services/notifyTargetService";
-import { renderWeekCard, renderDayCard } from "../../services/scheduleImageService";
+import { renderWeekCard, renderDayCard, renderSubjectCard, renderDeadlineTimeline } from "../../services/scheduleImageService";
 import { buildDigest, lessonsFor } from "../../services/dailyDigestService";
 
 const KINDS: { key: targets.NotifyKind; label: string }[] = [
@@ -104,6 +104,17 @@ export default function notifyHandler(bot: Telegraf): void {
     const png = await renderDayCard(now, await lessonsFor(now)).catch(() => null);
     if (png) await ctx.replyWithPhoto({ source: png }, { caption: text, parse_mode: "HTML" });
     else await ctx.reply(text, { parse_mode: "HTML" });
+  });
+
+  bot.command("deadlines", async (ctx) => {
+    const png = await renderDeadlineTimeline(new Date(), 21);
+    await ctx.replyWithPhoto({ source: png });
+  });
+
+  bot.action(/^subjimg_(\w+)$/, async (ctx) => {
+    await ctx.answerCbQuery("Малюю…");
+    const png = await renderSubjectCard((ctx.match as RegExpMatchArray)[1]);
+    await ctx.replyWithPhoto({ source: png });
   });
 
   bot.command("week", async (ctx) => {
