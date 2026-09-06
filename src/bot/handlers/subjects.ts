@@ -68,7 +68,7 @@ function subjectsHandler(bot: Telegraf): void {
     for (let i = 0; i < subjects.length; i += 2) {
       subjectButtons.push(
         subjects
-          .slice(i, i + 3)
+          .slice(i, i + 2)
           .map((s: any) => Markup.button.callback(`${s.emoji || "📚"} ${shortSubject(s.name)}`, `subject_${s._id}`))
       );
     }
@@ -181,7 +181,7 @@ function subjectsHandler(bot: Telegraf): void {
     for (let i = 0; i < subjects.length; i += 2) {
       subjectButtons.push(
         subjects
-          .slice(i, i + 3)
+          .slice(i, i + 2)
           .map((s: any) => Markup.button.callback(`${s.emoji || "📚"} ${shortSubject(s.name)}`, `subject_${s._id}`))
       );
     }
