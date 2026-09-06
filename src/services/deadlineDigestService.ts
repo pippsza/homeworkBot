@@ -32,8 +32,8 @@ function collect(subjects: ISubject[], now: Date): { overdue: Item[]; today: Ite
 
   for (const s of subjects) {
     for (const t of (s.tasks || []) as ITask[]) {
-      // Здане не нагадуємо: відмітку ставить суперадмін
-      if (!t.deadline || (t as any).done) continue;
+      // Відмітка «здано» особиста, а розсилка спільна - тут її не враховуємо
+      if (!t.deadline) continue;
       const item: Item = { subject: s.name, emoji: t.emoji || "📄", title: t.title, deadline: t.deadline };
       if (t.deadline < now) overdue.push(item);
       else if (t.deadline <= endOfDay) today.push(item);

@@ -374,7 +374,7 @@ function plain(s: string): string {
  * стрічка дедлайнів і перелік завдань. Підпис під нею лишається коротким,
  * щоб картку не з'їдав текст. Довідка про викладача - за кнопкою «Карткою».
  */
-export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
+export async function renderSubjectStrip(subjectId: string, showDone = false): Promise<Buffer> {
   const subj = await subjectService.getById(subjectId);
   if (!subj) throw new Error("subject not found");
 
@@ -383,7 +383,7 @@ export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
   const grading = ((subj as any).grading || []) as { label: string; points: number }[];
   const marks = tasks
     .filter((t) => t.deadline)
-    .map((t) => ({ title: plain(t.title), date: new Date(t.deadline!), done: !!t.done }))
+    .map((t) => ({ title: plain(t.title), date: new Date(t.deadline!), done: showDone && !!t.done }))
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .slice(0, 6);
 
@@ -396,13 +396,13 @@ export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
   let body = `
   <text x="${left}" y="${y}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(plain(subj.name).slice(0, 40))}</text>`;
   y += 30;
-  const doneCount = tasks.filter((t) => t.done).length;
+  const doneCount = showDone ? tasks.filter((t) => t.done).length : 0;
   const sub = [teacher, `${tasks.length} завдань`].filter(Boolean).join(" · ");
   body += `
   <text x="${left}" y="${y}" fill="${MUTED}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(sub)}</text>`;
   y += 22;
 
-  if (tasks.length) {
+  if (tasks.length && showDone) {
     body += progressBar(doneCount, tasks.length, left, right, y);
     y += 58;
   } else {
@@ -419,7 +419,7 @@ export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
   }
   if (tasks.length) {
     const sorted = [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    body += taskColumns(sorted, now, left, right, y);
+    body += taskColumns(sorted, now, left, right, y, showDone);
     y += 26 + Math.ceil(sorted.length / 3) * 26;
   }
 
@@ -439,7 +439,8 @@ function taskColumns(
   now: Date,
   left: number,
   right: number,
-  y: number
+  y: number,
+  showDone = false
 ): string {
   const cols = 3;
   const colW = (right - left) / cols;
@@ -449,16 +450,17 @@ function taskColumns(
     const x = left + (i % cols) * colW;
     const ty = y + 26 + Math.floor(i / cols) * 26;
     const overdue = t.deadline && new Date(t.deadline) < now;
-    const dot = t.done ? DONE_COLOR : overdue ? "#ff6b6b" : ACCENT;
+    const done = showDone && t.done;
+    const dot = done ? DONE_COLOR : overdue ? "#ff6b6b" : ACCENT;
     out += `
-  <circle cx="${x + 4}" cy="${ty - 5}" r="${t.done ? 5 : 3}" fill="${dot}"/>
-  <text x="${x + 16}" y="${ty}" fill="${t.done ? MUTED : TEXT}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(plain(t.title).slice(0, 26))}</text>`;
+  <circle cx="${x + 4}" cy="${ty - 5}" r="${done ? 5 : 3}" fill="${dot}"/>
+  <text x="${x + 16}" y="${ty}" fill="${done ? MUTED : TEXT}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(plain(t.title).slice(0, 26))}</text>`;
   });
   return out;
 }
 
 /** Список предметів картинкою: у підписі його дублювати не треба. */
-export async function renderSubjectsList(): Promise<Buffer> {
+export async function renderSubjectsList(showDone = false): Promise<Buffer> {
   const subjects = await subjectService.getAll();
   const now = new Date();
   const left = PAD + 28;
@@ -469,7 +471,7 @@ export async function renderSubjectsList(): Promise<Buffer> {
     .map((s: any, i: number) => {
       const y = PAD + 108 + i * ROWH;
       const tasks = (s.tasks || []) as { title: string; deadline?: Date; done?: boolean }[];
-      const done = tasks.filter((t) => t.done).length;
+      const done = showDone ? tasks.filter((t) => t.done).length : 0;
       const next = tasks
         .filter((t) => t.deadline && new Date(t.deadline) >= now)
         .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];

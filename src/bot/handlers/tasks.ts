@@ -187,8 +187,9 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
     ]);
   }
   const actions = [Markup.button.callback("⬅️", `subject_${subject!._id}`)];
-  // Відмітка «здано» - особистий облік суперадміна, решті її не показуємо.
-  if (await isSuperadmin(ctx)) {
+  // Відмітка «здано» - особистий облік суперадміна, решті її не видно взагалі.
+  const boss = await isSuperadmin(ctx);
+  if (boss) {
     actions.push(Markup.button.callback((task as any).done ? "✅" : "⬜", `tdone_${taskId}`));
   }
   if (await isStudent(ctx)) {
@@ -206,15 +207,15 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
     buttons.unshift(links.map((u) => Markup.button.url(`🔗 ${linkLabel(u)}`, u)));
   }
 
-  await editOrSend(ctx, taskCaption(task), Markup.inlineKeyboard(buttons) as any, {
+  await editOrSend(ctx, taskCaption(task, boss), Markup.inlineKeyboard(buttons) as any, {
     render: () => renderTaskCard(subject!.name, task),
   });
 }
 
 const CAPTION_LIMIT = 1024;
 
-function taskCaption(task: any): string {
-  const head = `${task.done ? "✅ " : ""}${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>`;
+function taskCaption(task: any, showDone = false): string {
+  const head = `${showDone && task.done ? "✅ " : ""}${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>`;
   const due = task.deadline ? `\n🗓 До ${new Date(task.deadline).toLocaleDateString("uk-UA")}` : "";
   const body = task.description ? `\n\n${escapeHtml(task.description)}` : "";
   const caption = head + due + body;

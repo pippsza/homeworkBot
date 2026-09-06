@@ -1,5 +1,5 @@
 import { Telegraf, Context, Markup } from "telegraf";
-import { isStudent } from "../middleware/auth";
+import { isStudent, isSuperadmin } from "../middleware/auth";
 import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import { renderSubjectCard, renderSubjectStrip, renderSubjectsList } from "../../services/scheduleImageService";
@@ -93,8 +93,10 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
       );
     }
     buttons.push(actions);
+    // Відмітку «здано» бачить лише суперадмін: це його особистий облік
+    const showDone = await isSuperadmin(ctx);
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any, {
-      render: () => renderSubjectStrip(id),
+      render: () => renderSubjectStrip(id, showDone),
     });
 }
 
@@ -133,7 +135,10 @@ function subjectsHandler(bot: Telegraf): void {
       ]);
     }
     buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any, { render: renderSubjectsList });
+    const showDone = await isSuperadmin(ctx);
+    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any, {
+      render: () => renderSubjectsList(showDone),
+    });
   });
 
   // View single subject
