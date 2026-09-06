@@ -25,6 +25,7 @@ const TIME_SLOTS = [
 const SUBJECTS = [
   {
     key: "ommsb",
+    matchKeys: ["математичного моделювання"],
     name: "Мат. моделювання систем безпеки",
     emoji: "📐",
     lecturerName: "Мілевський Станіслав Валерійович",
@@ -46,6 +47,7 @@ const SUBJECTS = [
   },
   {
     key: "micro",
+    matchKeys: ["мікропроцесорних"],
     name: "Мікропроцесорні системи",
     emoji: "🔌",
     lecturerName: "Шматко Олександр Віталійович",
@@ -72,6 +74,7 @@ const SUBJECTS = [
   },
   {
     key: "stego",
+    matchKeys: ["стеганографічного"],
     name: "Стеганографічний захист",
     emoji: "🖼",
     lecturerName: "Корольов",
@@ -101,6 +104,7 @@ const SUBJECTS = [
   },
   {
     key: "biks",
+    matchKeys: ["інформаційно комунікаційних"],
     name: "Безпека в ІКС",
     emoji: "🛡",
     lecturerName: "Корольов",
@@ -112,24 +116,28 @@ const SUBJECTS = [
   },
   {
     key: "access",
+    matchKeys: ["планування та адміністрування"],
     name: "Планування та адміністрування служб доступу",
     emoji: "🗄",
     notes: "Каф КБ. Викладач ще не з'ясований.",
   },
   {
     key: "incidents",
+    matchKeys: ["кіберінциденти"],
     name: "Реагування на кіберінциденти",
     emoji: "🚨",
     notes: "Каф КБ. Викладач ще не з'ясований.",
   },
   {
     key: "blockchain",
+    matchKeys: ["blockchain"],
     name: "Blockchain",
     emoji: "⛓",
     notes: "Каф КБ. Викладач ще не з'ясований.",
   },
   {
     key: "english",
+    matchKeys: ["english", "англійська"],
     name: "Англійська мова",
     emoji: "🇬🇧",
     practitionerName: "Карасьова Олена В'ячеславівна",

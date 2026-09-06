@@ -82,6 +82,13 @@ function norm(s: string): string {
   return s.toLowerCase().replace(/[^a-zа-яіїєґ0-9]+/gi, " ").trim();
 }
 
+function matches(subject: any, summary: string): boolean {
+  const s = norm(summary);
+  const keys: string[] = subject.matchKeys || [];
+  if (keys.length) return keys.some((k) => s.includes(norm(k)));
+  return norm(subject.name).split(" ").filter((w) => w.length > 4).some((k) => s.includes(k));
+}
+
 /**
  * Записуємо посилання на пари з календаря. Один предмет може мати кілька
  * серій (лекція і лабораторна йдуть окремими зустрічами з різними
@@ -95,11 +102,7 @@ export async function syncLinks(url: string): Promise<{ matched: number; skipped
 
   let matched = 0;
   for (const subj of subjects) {
-    const key = norm(subj.name).split(" ").filter((w) => w.length > 4);
-    const hit = events.find((e) => {
-      const s = norm(e.summary);
-      return key.some((k) => s.includes(k));
-    });
+    const hit = events.find((e) => matches(subj, e.summary));
     if (!hit) continue;
     matched++;
     if (!subj.teamsLink) {
@@ -113,8 +116,7 @@ export async function syncLinks(url: string): Promise<{ matched: number; skipped
         if (!time) continue;
         const ev = events.find((e) => {
           if (!e.start) return false;
-          const s = norm(e.summary);
-          const sameSubject = key.some((k) => s.includes(k));
+          const sameSubject = matches(subj, e.summary);
           const hh = String(e.start.getHours()).padStart(2, "0");
           const mm = String(e.start.getMinutes()).padStart(2, "0");
           return sameSubject && e.start.getDay() === day.dayOfWeek && `${hh}:${mm}` === time.startTime;
@@ -143,10 +145,7 @@ export async function syncSchedule(url: string): Promise<{ slots: number; unmatc
   const byDay = new Map<number, Map<number, any>>();
 
   for (const ev of events) {
-    const s = norm(ev.summary);
-    const subj = subjects.find((x) =>
-      norm(x.name).split(" ").filter((w) => w.length > 4).some((k) => s.includes(k))
-    );
+    const subj = subjects.find((x) => matches(x, ev.summary));
     if (!subj) {
       unmatched.push(ev.summary);
       continue;

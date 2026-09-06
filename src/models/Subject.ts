@@ -51,6 +51,7 @@ export interface ISubject extends Document {
   telegramChat: string;
   classroomUrl: string;
   teamsLink: string;
+  matchKeys: string[];
   tasks: mongoose.Types.DocumentArray<ITask>;
   order: number;
   createdAt: Date;
@@ -117,6 +118,10 @@ const subjectSchema = new mongoose.Schema(
     telegramChat: { type: String, default: "" },
     classroomUrl: { type: String, default: "" },
     teamsLink: { type: String, default: "" },
+
+    // Явні уривки назви з календаря: у розкладі багато схожих назв
+    // («системи», «безпеки»), і пошук по словах плутає предмети.
+    matchKeys: [{ type: String }],
     tasks: [taskSchema],
     order: { type: Number, default: 0 },
   },
