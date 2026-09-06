@@ -10,6 +10,7 @@ import { setupHomeworkHandler } from "./handlers/homework";
 import { textHandler } from "./handlers/text";
 import { mediaHandler } from "./handlers/media";
 import scheduleHandler from "./handlers/schedule";
+import notifyHandler from "./handlers/notify";
 import * as groupMemberService from "../services/groupMemberService";
 import { VERSION } from "../version";
 
@@ -33,6 +34,7 @@ export function setupBot(bot: Telegraf): void {
   aiHandler(bot);
   setupHomeworkHandler(bot);
   scheduleHandler(bot);
+  notifyHandler(bot);
   textHandler(bot);
   mediaHandler(bot);
 }

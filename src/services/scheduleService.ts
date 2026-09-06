@@ -57,15 +57,26 @@ export async function updateConfig(config: Record<string, unknown>): Promise<ISc
   });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function toMonday(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(12, 0, 0, 0);
+  const shift = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - shift);
+  d.setHours(12, 0, 0, 0);
+  return d;
+}
+
+// Рахуємо в днях від понеділка стартового тижня. Опівдні, а не опівночі:
+// інакше перехід на зимовий час зсуває різницю на годину і тиждень стрибає.
 export function getWeekNumber(date: Date | string, semesterStart: Date | string | null): number {
   if (!semesterStart) return 1;
-  const start = new Date(semesterStart);
-  start.setHours(0, 0, 0, 0);
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const diff = d.getTime() - start.getTime();
-  if (diff < 0) return 1;
-  return Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1;
+  const start = toMonday(new Date(semesterStart));
+  const current = toMonday(new Date(date));
+  const days = Math.round((current.getTime() - start.getTime()) / DAY_MS);
+  if (days < 0) return 1;
+  return Math.floor(days / 7) + 1;
 }
 
 export function isOddWeek(date: Date | string, semesterStart: Date | string | null): boolean {

@@ -51,6 +51,10 @@ async function main(): Promise<void> {
   const { startWeeklyDigest } = await import("./src/services/weeklyDigestService");
   startWeeklyDigest(bot);
 
+  // Ранковий дайджест о 8:30 у чати, де він увімкнений
+  const { startDailyDigest } = await import("./src/services/dailyDigestService");
+  startDailyDigest(bot);
+
   // Start reminder notifications
   const { startReminderNotifier } = await import("./src/services/reminderNotificationService");
   startReminderNotifier(bot);

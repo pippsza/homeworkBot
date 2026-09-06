@@ -1,3 +1,5 @@
+# Бот ходить у вже піднятий контейнер Mongo (мережа web) - свою базу не тримаємо,
+# на сервері 2 ГБ RAM. Qdrant не піднімаємо, поки QDRANT_ENABLED=false.
 services:
   homework-server:
     image: pippsza/homework-server:latest
@@ -7,38 +9,20 @@ services:
       - "3000"
     env_file:
       - .env
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/homeworkbot
-      - QDRANT_URL=http://qdrant:6333
-    depends_on:
-      - mongo
-      - qdrant
+    networks:
+      - web
 
   homework-client:
     image: pippsza/homework-client:latest
     container_name: HomeworkClient
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3100:80"
     depends_on:
       - homework-server
+    networks:
+      - web
 
-  mongo:
-    image: mongo:7
-    container_name: HomeworkMongo
-    restart: unless-stopped
-    volumes:
-      - mongo_data:/data/db
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: HomeworkQdrant
-    restart: unless-stopped
-    expose:
-      - "6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
-volumes:
-  mongo_data:
-  qdrant_data:
+networks:
+  web:
+    external: true

@@ -42,8 +42,15 @@ export interface ISubject extends Document {
   emoji: string;
   lecturerName: string;
   lecturerContact: string;
+  lecturerNote: string;
   practitionerName: string;
   practitionerContact: string;
+  practitionerNote: string;
+  notes: string;
+  autoPass: string;
+  telegramChat: string;
+  classroomUrl: string;
+  teamsLink: string;
   tasks: mongoose.Types.DocumentArray<ITask>;
   order: number;
   createdAt: Date;
@@ -101,8 +108,15 @@ const subjectSchema = new mongoose.Schema(
     emoji: { type: String, default: "📚" },
     lecturerName: { type: String, default: "" },
     lecturerContact: { type: String, default: "" },
+    lecturerNote: { type: String, default: "" },
     practitionerName: { type: String, default: "" },
     practitionerContact: { type: String, default: "" },
+    practitionerNote: { type: String, default: "" },
+    notes: { type: String, default: "" },
+    autoPass: { type: String, default: "" },
+    telegramChat: { type: String, default: "" },
+    classroomUrl: { type: String, default: "" },
+    teamsLink: { type: String, default: "" },
     tasks: [taskSchema],
     order: { type: Number, default: 0 },
   },

@@ -5,6 +5,7 @@ import Info from "../models/Info";
 import { ai } from "../lib/tracked-ai";
 import type { Provider } from "@pippsza/usage-tracker";
 import { debugLog } from "../lib/debugLog";
+import { AI_ENABLED, AI_OFF_TEXT } from "../config/features";
 
 const promptService = require("./promptService");
 const embeddingService = require("./embeddingService");
@@ -804,4 +805,31 @@ async function processQueryMultiImage(
   return text;
 }
 
-export { processQueryStream, processQuery, processQueryMultiImage, solveTask };
+const aiOff = { text: AI_OFF_TEXT, steps: [], usage: null, toolCalls: [] };
+
+async function guardedProcessQuery(...args: Parameters<typeof processQuery>) {
+  if (!AI_ENABLED) return aiOff as any;
+  return processQuery(...args);
+}
+
+async function guardedProcessQueryStream(...args: Parameters<typeof processQueryStream>) {
+  if (!AI_ENABLED) return aiOff as any;
+  return processQueryStream(...args);
+}
+
+async function guardedProcessQueryMultiImage(...args: Parameters<typeof processQueryMultiImage>) {
+  if (!AI_ENABLED) return aiOff as any;
+  return processQueryMultiImage(...args);
+}
+
+async function guardedSolveTask(...args: Parameters<typeof solveTask>) {
+  if (!AI_ENABLED) return aiOff as any;
+  return solveTask(...args);
+}
+
+export {
+  guardedProcessQueryStream as processQueryStream,
+  guardedProcessQuery as processQuery,
+  guardedProcessQueryMultiImage as processQueryMultiImage,
+  guardedSolveTask as solveTask,
+};

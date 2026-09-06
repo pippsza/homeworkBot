@@ -1,3 +1,4 @@
+import { QDRANT_ENABLED } from "../config/features";
 import { QdrantClient } from "@qdrant/js-client-rest";
 
 const VECTOR_SIZE = 3072;
@@ -18,6 +19,7 @@ function collectionName(subjectId: string): string {
 }
 
 export async function ensureCollection(subjectId: string): Promise<void> {
+  if (!QDRANT_ENABLED) return;
   const qdrant = getClient();
   const name = collectionName(subjectId);
 
@@ -39,6 +41,7 @@ interface ChunkInput {
 }
 
 export async function upsertChunks(subjectId: string, chunks: ChunkInput[]): Promise<void> {
+  if (!QDRANT_ENABLED) return;
   const qdrant = getClient();
   const name = collectionName(subjectId);
 
@@ -62,6 +65,7 @@ interface SearchResult {
 }
 
 export async function search(subjectId: string, queryEmbedding: number[], limit: number = 5): Promise<SearchResult[]> {
+  if (!QDRANT_ENABLED) return [];
   const qdrant = getClient();
   const name = collectionName(subjectId);
 
@@ -79,6 +83,7 @@ export async function search(subjectId: string, queryEmbedding: number[], limit:
 }
 
 export async function deleteByDocumentId(subjectId: string, documentId: string): Promise<void> {
+  if (!QDRANT_ENABLED) return;
   const qdrant = getClient();
   const name = collectionName(subjectId);
 
@@ -90,6 +95,7 @@ export async function deleteByDocumentId(subjectId: string, documentId: string):
 }
 
 export async function getCollectionInfo(subjectId: string): Promise<{ pointsCount: number }> {
+  if (!QDRANT_ENABLED) return { pointsCount: 0 };
   const qdrant = getClient();
   const name = collectionName(subjectId);
 
@@ -106,6 +112,7 @@ export async function getCollectionInfo(subjectId: string): Promise<{ pointsCoun
 const GENERAL_COLLECTION = "general_knowledge";
 
 export async function ensureGeneralCollection(): Promise<void> {
+  if (!QDRANT_ENABLED) return;
   const qdrant = getClient();
   const collections = await qdrant.getCollections();
   const exists = collections.collections.some(
@@ -119,6 +126,7 @@ export async function ensureGeneralCollection(): Promise<void> {
 }
 
 export async function upsertGeneralChunks(chunks: ChunkInput[]): Promise<void> {
+  if (!QDRANT_ENABLED) return;
   const qdrant = getClient();
   const points = chunks.map((chunk, i) => ({
     id: chunk.id || Date.now() + i,
@@ -133,6 +141,7 @@ export async function upsertGeneralChunks(chunks: ChunkInput[]): Promise<void> {
 }
 
 export async function searchGeneral(queryEmbedding: number[], limit: number = 5): Promise<SearchResult[]> {
+  if (!QDRANT_ENABLED) return [];
   const qdrant = getClient();
   try {
     const results = await qdrant.search(GENERAL_COLLECTION, {
@@ -151,6 +160,7 @@ export async function searchGeneral(queryEmbedding: number[], limit: number = 5)
 }
 
 export async function deleteGeneralByDocumentId(documentId: string): Promise<void> {
+  if (!QDRANT_ENABLED) return;
   const qdrant = getClient();
   try {
     await qdrant.delete(GENERAL_COLLECTION, {
@@ -164,6 +174,7 @@ export async function deleteGeneralByDocumentId(documentId: string): Promise<voi
 }
 
 export async function getGeneralCollectionInfo(): Promise<{ pointsCount: number }> {
+  if (!QDRANT_ENABLED) return { pointsCount: 0 };
   const qdrant = getClient();
   try {
     const info = await qdrant.getCollection(GENERAL_COLLECTION);

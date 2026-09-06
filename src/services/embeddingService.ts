@@ -1,3 +1,4 @@
+import { QDRANT_ENABLED } from "../config/features";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { embedMany, embed } from "ai";
 
@@ -9,6 +10,7 @@ function getEmbeddingModel() {
 }
 
 export async function embedText(text: string): Promise<number[]> {
+  if (!QDRANT_ENABLED) return [];
   const { embedding } = await embed({
     model: getEmbeddingModel(),
     value: text,
@@ -17,6 +19,7 @@ export async function embedText(text: string): Promise<number[]> {
 }
 
 export async function embedTexts(texts: string[]): Promise<number[][]> {
+  if (!QDRANT_ENABLED) return texts.map(() => []);
   const { embeddings } = await embedMany({
     model: getEmbeddingModel(),
     values: texts,

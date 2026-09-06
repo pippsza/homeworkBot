@@ -11,6 +11,9 @@ export interface IDaySlot {
   subjectId: mongoose.Types.ObjectId | null;
   subjectIdEven: mongoose.Types.ObjectId | null;
   isAlternating: boolean;
+  kind: string;
+  kindEven: string;
+  link: string;
 }
 
 export interface IDay {
@@ -51,6 +54,9 @@ const daySlotSchema = new mongoose.Schema(
     subjectId: { type: mongoose.Schema.Types.ObjectId, ref: "Subject", default: null },
     subjectIdEven: { type: mongoose.Schema.Types.ObjectId, ref: "Subject", default: null },
     isAlternating: { type: Boolean, default: false },
+    kind: { type: String, default: "" },
+    kindEven: { type: String, default: "" },
+    link: { type: String, default: "" },
   },
   { _id: false }
 );
