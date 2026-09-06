@@ -25,6 +25,22 @@ async function swapMedia(
   }
 }
 
+/** Кнопки гортання вкладень: номер поточного файла і повернення до завдання. */
+function attachmentKeyboard(taskId: string, idx: number, total: number) {
+  const rows: any[] = [];
+  if (total > 1) {
+    const prev = (idx - 1 + total) % total;
+    const next = (idx + 1) % total;
+    rows.push([
+      Markup.button.callback("◀️", `att_${taskId}_${prev}`),
+      Markup.button.callback(`${idx + 1}/${total}`, "noop"),
+      Markup.button.callback("▶️", `att_${taskId}_${next}`),
+    ]);
+  }
+  rows.push([Markup.button.callback("⬅️ До завдання", `attback_${taskId}`)]);
+  return Markup.inlineKeyboard(rows);
+}
+
 function taskEditMenu(taskId: string) {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📝 Заголовок", `ett_${taskId}`)],
