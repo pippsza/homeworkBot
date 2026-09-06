@@ -16,6 +16,29 @@ function subjectEditMenu(subjectId: string) {
   ]);
 }
 
+/** Назва предмета на кнопку: довгі формулювання ріжемо. */
+function shortSubject(name: string): string {
+  const t = name
+    .replace(/^Планування та адміністрування служб доступу$/i, "Служби доступу")
+    .replace(/^Мат\. моделювання систем безпеки$/i, "Моделювання")
+    .replace(/^Стеганографічний захист$/i, "Стеганографія")
+    .replace(/^Реагування на кіберінциденти$/i, "Кіберінциденти");
+  return t.length > 18 ? t.slice(0, 17) + "…" : t;
+}
+
+/** Коротка назва на кнопку: у ряд поміщається близько 15 символів. */
+function shortTitle(title: string): string {
+  const t = title
+    .replace(/^Лабораторна робота\s*/i, "ЛР ")
+    .replace(/^Контрольна робота\s*/i, "КР ")
+    .replace(/^Підсумкова контрольна робота/i, "Підсумкова КР")
+    .replace(/^Сертифікат Cisco.*/i, "Сертифікат Cisco")
+    .replace(/^Курс Cisco.*/i, "Курс Cisco")
+    .replace(/^Лекції.*/i, "Лекції")
+    .replace(/^Матеріали.*/i, "Матеріали");
+  return t.length > 16 ? t.slice(0, 15) + "…" : t;
+}
+
 function subjectsHandler(bot: Telegraf): void {
   // List all subjects
   bot.action("subjects", async (ctx: Context) => {
@@ -42,11 +65,11 @@ function subjectsHandler(bot: Telegraf): void {
     msg += "\n---";
 
     const subjectButtons: any[][] = [];
-    for (let i = 0; i < subjects.length; i += 3) {
+    for (let i = 0; i < subjects.length; i += 2) {
       subjectButtons.push(
         subjects
           .slice(i, i + 3)
-          .map((s: any) => Markup.button.callback(s.emoji || "📚", `subject_${s._id}`))
+          .map((s: any) => Markup.button.callback(`${s.emoji || "📚"} ${shortSubject(s.name)}`, `subject_${s._id}`))
       );
     }
     const buttons = [...subjectButtons];
@@ -96,12 +119,12 @@ function subjectsHandler(bot: Telegraf): void {
     msg += "\n---";
 
     const taskButtons: any[][] = [];
-    for (let j = 0; j < subject.tasks.length; j += 3) {
+    for (let j = 0; j < subject.tasks.length; j += 2) {
       taskButtons.push(
         subject.tasks
-          .slice(j, j + 3)
+          .slice(j, j + 2)
           .map((t: any) =>
-            Markup.button.callback(t.emoji || "📄", `task_${t._id}`)
+            Markup.button.callback(`${t.emoji || "📄"} ${shortTitle(t.title)}`, `task_${t._id}`)
           )
       );
     }
@@ -155,11 +178,11 @@ function subjectsHandler(bot: Telegraf): void {
           "\n\n---";
 
     const subjectButtons: any[][] = [];
-    for (let i = 0; i < subjects.length; i += 3) {
+    for (let i = 0; i < subjects.length; i += 2) {
       subjectButtons.push(
         subjects
           .slice(i, i + 3)
-          .map((s: any) => Markup.button.callback(s.emoji || "📚", `subject_${s._id}`))
+          .map((s: any) => Markup.button.callback(`${s.emoji || "📚"} ${shortSubject(s.name)}`, `subject_${s._id}`))
       );
     }
     const buttons = [...subjectButtons];

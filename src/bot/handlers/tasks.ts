@@ -26,7 +26,10 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
     );
   }
 
-  let msg = `*📄 ${task.title}*\n\n`;
+  let msg = `*${task.emoji || "📄"} ${task.title}*\n\n`;
+  if (task.deadline) {
+    msg += `🗓 Дедлайн: ${new Date(task.deadline).toLocaleDateString("uk-UA")}\n\n`;
+  }
   if (task.description) msg += `${task.description}\n\n---\n`;
 
   const buttons: any[][] = [];
