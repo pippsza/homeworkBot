@@ -1,6 +1,6 @@
 import { Telegraf, Context, Markup } from "telegraf";
 import { isStudent, isSuperadmin } from "../middleware/auth";
-import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
+import { editOrSend, newScreen, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import * as subjectService from "../../services/subjectService";
 import { renderTaskCard } from "../../services/scheduleImageService";
@@ -53,24 +53,104 @@ function attachmentKeyboard(taskId: string, idx: number, total: number) {
 }
 
 /**
- * Файли, надіслані списком. Тримаємо їх id, щоб «згорнути» прибрало саме їх:
- * альбом у Telegram це кілька повідомлень, одним редагуванням його не забрати.
+ * Показані списком повідомлення. Тримаємо їхні id, щоб «згорнути» прибрало
+ * саме їх: альбом у Telegram це кілька повідомлень, редагуванням його не забрати.
  */
-const listed = new Map<string, number[]>();
-
-function listedKey(ctx: Context, taskId: string): string {
-  return `${ctx.chat!.id}:${taskId}`;
+interface ListedState {
+  /** Альбоми і текстові відповіді - усе, що показали списком. */
+  media: number[];
+  /** Колишнє вікно: воно стало першим файлом списку. */
+  window: number;
 }
 
-async function dropListed(ctx: Context, taskId: string): Promise<void> {
-  const key = listedKey(ctx, taskId);
-  const ids = listed.get(key);
-  if (!ids) return;
+const listed = new Map<string, ListedState>();
+
+function listedKey(ctx: Context, id: string): string {
+  return `${ctx.chat!.id}:${id}`;
+}
+
+export interface FileItem {
+  type: "photo" | "document";
+  file_id: string;
+}
+
+/** Альбом не змішує документи з фото і бере не більше десяти за раз. */
+function albums(items: FileItem[]): { type: string; media: string }[][] {
+  const out: { type: string; media: string }[][] = [];
+  for (const kind of ["photo", "document"] as const) {
+    const same = items.filter((a) => a.type === kind).map((a) => ({ type: kind, media: a.file_id }));
+    for (let i = 0; i < same.length; i += 10) out.push(same.slice(i, i + 10));
+  }
+  return out;
+}
+
+/**
+ * Показуємо всі файли списком.
+ *
+ * Поточне вікно стає першим файлом і лишається без кнопок, решта йде
+ * альбомами під ним, а кнопки переїжджають у нове повідомлення - воно завжди
+ * останнє. Так керування не губиться серед файлів, скільки б їх не було.
+ */
+async function showFileList(
+  ctx: Context,
+  key: string,
+  items: FileItem[],
+  texts: string[],
+  caption: string,
+  keyboard: any,
+  image?: { render: () => Promise<Buffer> }
+): Promise<number> {
+  const chatId = ctx.chat!.id;
+  const windowId = (ctx.update as any).callback_query?.message?.message_id as number;
+  const shown: number[] = [];
+  let rest = items;
+
+  // Перший файл лишається у вже відкритому вікні, щоб не плодити повідомлення
+  if (windowId && items.length) {
+    try {
+      await ctx.telegram.editMessageMedia(chatId, windowId, undefined, {
+        type: items[0].type,
+        media: items[0].file_id,
+      } as any);
+      rest = items.slice(1);
+    } catch (e) {
+      console.error("[list] перший файл не став у вікно:", (e as Error).message);
+    }
+  }
+
+  for (const group of albums(rest)) {
+    try {
+      const sent = await ctx.telegram.sendMediaGroup(chatId, group as any, {
+        disable_notification: true,
+      } as any);
+      shown.push(...sent.map((m: any) => m.message_id));
+    } catch (e) {
+      console.error("[list] альбом не пішов:", (e as Error).message);
+    }
+  }
+
+  for (const t of texts) {
+    const m = await ctx.telegram
+      .sendMessage(chatId, t, { disable_notification: true })
+      .catch(() => null);
+    if (m) shown.push(m.message_id);
+  }
+
+  listed.set(key, { media: shown, window: windowId });
+  await newScreen(ctx, caption, keyboard, image);
+  return shown.length + (rest.length < items.length ? 1 : 0);
+}
+
+/** Прибираємо показаний список: і альбоми, і колишнє вікно. */
+async function clearFileList(ctx: Context, key: string): Promise<void> {
+  const st = listed.get(key);
+  if (!st) return;
   listed.delete(key);
-  for (const id of ids) {
-    await ctx.telegram.deleteMessage(ctx.chat!.id, id).catch(() => {});
+  for (const id of [...st.media, st.window]) {
+    if (id) await ctx.telegram.deleteMessage(ctx.chat!.id, id).catch(() => {});
   }
 }
+
 
 function taskEditMenu(taskId: string) {
   return Markup.inlineKeyboard([
@@ -266,63 +346,39 @@ function tasksHandler(bot: Telegraf): void {
     await showAttachment(ctx, m[1], Number(m[2]));
   });
 
-  // Усі вкладення одразу: альбомом під вікном, вікно лишається керуванням.
+  // Усі вкладення одразу: файли лишаються списком, кнопки - в останньому
+  // повідомленні, щоб керування не загубилось між ними.
   bot.action(/^attlist_([a-f0-9]{24})$/, async (ctx: Context) => {
     const taskId = (ctx as any).match![1];
-    const { task } = await subjectService.getTask(taskId);
+    const { subject, task } = await subjectService.getTask(taskId);
     if (!task?.attachments?.length) return ctx.answerCbQuery("Немає вкладень.");
-    await dropListed(ctx, taskId);
+    await clearFileList(ctx, listedKey(ctx, taskId));
 
-    // Telegram не змішує документи з фото в одному альбомі і бере не більше
-    // десяти за раз, тому ділимо спершу за типом, потім по десять.
-    const groups: { type: string; media: string }[][] = [];
-    for (const kind of ["photo", "document"]) {
-      const same = task.attachments
-        .filter((a: any) => (a.type === "photo" ? "photo" : "document") === kind)
-        .map((a: any) => ({ type: kind, media: a.file_id }));
-      for (let i = 0; i < same.length; i += 10) groups.push(same.slice(i, i + 10));
-    }
-
-    const ids: number[] = [];
-    let failed = "";
-    for (const g of groups) {
-      try {
-        const sent = await ctx.telegram.sendMediaGroup(ctx.chat!.id, g as any, {
-          disable_notification: true,
-        } as any);
-        ids.push(...sent.map((m: any) => m.message_id));
-      } catch (e) {
-        failed = (e as Error).message || "невідома помилка";
-        console.error("[attachments] альбом не пішов:", failed);
-      }
-    }
-
-    if (!ids.length) {
-      const alien = /MEDIA_EMPTY|wrong file identifier/i.test(failed);
-      return ctx.answerCbQuery(
-        alien ? "Файли завантажені іншим ботом - тут вони недоступні" : "Не вдалося надіслати файли",
-        { show_alert: true }
-      );
-    }
-    listed.set(listedKey(ctx, taskId), ids);
-
-    const lost = task.attachments.length - ids.length;
-    await editOrSend(
+    const items: FileItem[] = task.attachments.map((a: any) => ({
+      type: a.type === "photo" ? "photo" : "document",
+      file_id: a.file_id,
+    }));
+    const shown = await showFileList(
       ctx,
-      `📎 <b>${escapeHtml(task.title)}</b>\nФайлів: ${task.attachments.length}` +
-        (lost > 0 ? ` (не відкрилось: ${lost})` : "") +
-        " - показані нижче.",
+      listedKey(ctx, taskId),
+      items,
+      [],
+      `📎 <b>${escapeHtml(task.title)}</b>\nФайлів: ${items.length} - показані вище.`,
       Markup.inlineKeyboard([
         [Markup.button.callback("🔽 Згорнути список", `attfold_${taskId}`)],
         [Markup.button.callback("⬅️ До завдання", `attback_${taskId}`)],
-      ]) as any
+      ]),
+      { render: () => renderTaskCard(subject!.name, task) }
     );
+    if (!shown) return ctx.answerCbQuery("Не вдалося показати файли.", { show_alert: true });
+    await ctx.answerCbQuery().catch(() => {});
   });
 
+  // Згортання: список прибираємо, а повідомлення з кнопками стає вікном гортання
   bot.action(/^attfold_([a-f0-9]{24})$/, async (ctx: Context) => {
     await ctx.answerCbQuery().catch(() => {});
     const taskId = (ctx as any).match![1];
-    await dropListed(ctx, taskId);
+    await clearFileList(ctx, listedKey(ctx, taskId));
     await showAttachment(ctx, taskId, 0);
   });
 
@@ -331,60 +387,51 @@ function tasksHandler(bot: Telegraf): void {
   bot.action(/^attback_([a-f0-9]{24})$/, async (ctx: Context) => {
     await ctx.answerCbQuery().catch(() => {});
     const taskId = (ctx as any).match![1];
-    await dropListed(ctx, taskId);
+    await clearFileList(ctx, listedKey(ctx, taskId));
     await showTask(ctx, taskId);
   });
 
   // Show answers
+  // Відповіді показуємо тим самим списком: файли вище, кнопки останнім
+  // повідомленням. Текстові відповіді йдуть окремими повідомленнями поруч.
   bot.action(/^sa_([a-f0-9]{24})$/, async (ctx: Context) => {
     if (!(await isStudent(ctx))) {
       return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
     }
-    const { task } = await subjectService.getTask((ctx as any).match![1]);
-    if (!task?.answers?.length && !task?.aiAnswerFiles?.length) {
+    const taskId = (ctx as any).match![1];
+    const { subject, task } = await subjectService.getTask(taskId);
+    if (!task?.answers?.length) {
       return ctx.answerCbQuery("❌ Нет ответов.");
     }
-    // Send AI-generated files (LaTeX etc.)
-    if (task.aiAnswerFiles?.length) {
-      for (const file of task.aiAnswerFiles) {
-        try {
-          await trackSend(ctx, () =>
-            ctx.replyWithDocument(
-              { source: Buffer.from(file.content, "utf-8"), filename: file.filename },
-              {
-                caption: `📄 AI: ${file.filename}`,
-                disable_notification: !isPrivate(ctx),
-              }
-            )
-          );
-        } catch (e) {
-          console.error("[show_answers ai-file error]", e);
-        }
-      }
-    }
-    // Send regular answers
-    for (const ans of (task.answers || [])) {
-      try {
-        if (ans.type === "text") {
-          await editOrSend(ctx, ans.content);
-        } else if (ans.type === "photo") {
-          await trackSend(ctx, () =>
-            ctx.replyWithPhoto(ans.file_id, {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
-        } else if (ans.type === "document") {
-          await trackSend(ctx, () =>
-            ctx.replyWithDocument(ans.file_id, {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
-        }
-      } catch (e) {
-        console.error("[show_answers error]", e);
-      }
-    }
-    await ctx.answerCbQuery();
+    const key = listedKey(ctx, `ans_${taskId}`);
+    await clearFileList(ctx, key);
+
+    const items: FileItem[] = task.answers
+      .filter((a: any) => a.type === "photo" || a.type === "document")
+      .map((a: any) => ({ type: a.type, file_id: a.file_id }));
+    const texts = task.answers.filter((a: any) => a.type === "text").map((a: any) => a.content);
+
+    const shown = await showFileList(
+      ctx,
+      key,
+      items,
+      texts,
+      `📖 <b>Відповіді</b>\n${escapeHtml(task.title)} - ${task.answers.length} шт., показані вище.`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback("🔽 Згорнути", `safold_${taskId}`)],
+        [Markup.button.callback("⬅️ До завдання", `saback_${taskId}`)],
+      ]),
+      { render: () => renderTaskCard(subject!.name, task) }
+    );
+    if (!shown) return ctx.answerCbQuery("Не вдалося показати відповіді.", { show_alert: true });
+    await ctx.answerCbQuery().catch(() => {});
+  });
+
+  bot.action(/^(safold|saback)_([a-f0-9]{24})$/, async (ctx: Context) => {
+    await ctx.answerCbQuery().catch(() => {});
+    const taskId = (ctx as any).match![2];
+    await clearFileList(ctx, listedKey(ctx, `ans_${taskId}`));
+    await showTask(ctx, taskId);
   });
 
   // Add task

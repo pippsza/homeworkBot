@@ -150,6 +150,21 @@ export async function editOrSend(
   await sendText(ctx, text, keyboard, isCallback && state?.id !== undefined && current === "text" ? state.id : null);
 }
 
+/**
+ * Нове повідомлення-екран, старе лишаємо в чаті. Потрібно там, де попередні
+ * повідомлення це вже показаний вміст (список файлів), а кнопки за домовленістю
+ * мають бути останніми.
+ */
+export async function newScreen(
+  ctx: Context,
+  text: string,
+  keyboard?: Keyboard,
+  image?: ScreenImage
+): Promise<void> {
+  screens.delete(ctx.chat!.id);
+  await sendMedia(ctx, text, keyboard, image, null);
+}
+
 async function sendMedia(
   ctx: Context,
   text: string,
