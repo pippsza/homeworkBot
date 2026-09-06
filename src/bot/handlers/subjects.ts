@@ -3,6 +3,7 @@ import { isStudent } from "../middleware/auth";
 import { editOrSend, trackSend, isPrivate } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import { renderSubjectCard } from "../../services/scheduleImageService";
+import { packRows } from "../helpers/buttonRows";
 import * as subjectService from "../../services/subjectService";
 
 function subjectEditMenu(subjectId: string) {
@@ -33,26 +34,13 @@ function shortSubject(name: string): string {
  */
 function layoutTasks(tasks: any[], columns: number): any[][] {
   const sorted = [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const rows: any[][] = [];
-  let row: any[] = [];
-  for (const t of sorted) {
-    const btn = Markup.button.callback(
-      `${t.emoji || "📄"} ${t.fullWidth ? t.title : shortTitle(t.title)}`,
-      `task_${t._id}`
-    );
-    if (t.fullWidth) {
-      if (row.length) rows.push(row), (row = []);
-      rows.push([btn]);
-      continue;
-    }
-    row.push(btn);
-    if (row.length >= columns) {
-      rows.push(row);
-      row = [];
-    }
-  }
-  if (row.length) rows.push(row);
-  return rows;
+  return packRows(
+    sorted.map((t) => {
+      const label = `${t.emoji || "📄"} ${t.fullWidth ? t.title : shortTitle(t.title)}`;
+      return { btn: Markup.button.callback(label, `task_${t._id}`), label, fullWidth: t.fullWidth };
+    }),
+    columns
+  ) as any[][];
 }
 
 /** Коротка назва на кнопку: у ряд поміщається близько 15 символів. */
@@ -104,8 +92,14 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
     }
     msg += "\n---";
 
-    const taskButtons = layoutTasks(subject.tasks, subject.buttonColumns || 2);
+    const taskButtons = layoutTasks(subject.tasks, subject.buttonColumns ?? 0);
     const buttons = [...taskButtons];
+
+    // Посилання предмета кнопками: у підписі й на картинці вони не натискаються.
+    const links: any[] = [];
+    if (subject.classroomUrl) links.push(Markup.button.url("🎓 Classroom", subject.classroomUrl));
+    if (subject.teamsLink) links.push(Markup.button.url("🎥 Teams", subject.teamsLink));
+    if (links.length) buttons.push(links);
     if (await isStudent(ctx)) {
       buttons.push(
         [
@@ -152,14 +146,12 @@ function subjectsHandler(bot: Telegraf): void {
     });
     msg += "\n---";
 
-    const subjectButtons: any[][] = [];
-    for (let i = 0; i < subjects.length; i += 2) {
-      subjectButtons.push(
-        subjects
-          .slice(i, i + 2)
-          .map((s: any) => Markup.button.callback(`${s.emoji || "📚"} ${shortSubject(s.name)}`, `subject_${s._id}`))
-      );
-    }
+    const subjectButtons = packRows(
+      subjects.map((s: any) => {
+        const label = `${s.emoji || "📚"} ${shortSubject(s.name)}`;
+        return { btn: Markup.button.callback(label, `subject_${s._id}`), label };
+      })
+    ) as any[][];
     const buttons = [...subjectButtons];
     if (await isStudent(ctx)) {
       buttons.push([
@@ -206,14 +198,12 @@ function subjectsHandler(bot: Telegraf): void {
           subjects.map((s: any) => `${s.emoji || "📚"} ${s.name}`).join("\n") +
           "\n\n---";
 
-    const subjectButtons: any[][] = [];
-    for (let i = 0; i < subjects.length; i += 2) {
-      subjectButtons.push(
-        subjects
-          .slice(i, i + 2)
-          .map((s: any) => Markup.button.callback(`${s.emoji || "📚"} ${shortSubject(s.name)}`, `subject_${s._id}`))
-      );
-    }
+    const subjectButtons = packRows(
+      subjects.map((s: any) => {
+        const label = `${s.emoji || "📚"} ${shortSubject(s.name)}`;
+        return { btn: Markup.button.callback(label, `subject_${s._id}`), label };
+      })
+    ) as any[][];
     const buttons = [...subjectButtons];
     if (await isStudent(ctx))
       buttons.push([

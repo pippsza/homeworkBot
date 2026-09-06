@@ -25,7 +25,7 @@ function toPng(svg: string): Buffer {
 }
 
 /** Картка одного дня: пари з часом, типом заняття і викладачем. */
-export async function renderDayCard(date: Date, lessons: DayLesson[]): Promise<Buffer> {
+export async function renderDayCard(date: Date, lessons: DayLesson[], note?: string): Promise<Buffer> {
   const schedule = await scheduleService.get();
   const week = scheduleService.getWeekNumber(date, schedule.semesterStartDate);
   const odd = scheduleService.isOddWeek(date, schedule.semesterStartDate);
@@ -53,7 +53,7 @@ export async function renderDayCard(date: Date, lessons: DayLesson[]): Promise<B
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${BG}"/>
   <text x="${PAD}" y="${PAD + 34}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(dayName)}</text>
-  <text x="${PAD}" y="${PAD + 66}" fill="${MUTED}" font-size="18" font-family="DejaVu Sans, sans-serif">${date.toLocaleDateString("uk-UA")} · тиждень ${week} (${odd ? "непарний" : "парний"})</text>
+  <text x="${PAD}" y="${PAD + 66}" fill="${MUTED}" font-size="18" font-family="DejaVu Sans, sans-serif">${date.toLocaleDateString("uk-UA")} · тиждень ${week} (${odd ? "непарний" : "парний"})${note ? esc(" · " + note) : ""}</text>
   ${rows}
 </svg>`;
   return toPng(svg);

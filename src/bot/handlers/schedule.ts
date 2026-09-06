@@ -1,6 +1,7 @@
 import { Telegraf, Context, Markup } from "telegraf";
 import { editOrSend } from "../helpers/editOrSend";
-import * as scheduleService from "../../services/scheduleService";
+import { dayPlan, DayPlan } from "../../services/dailyDigestService";
+import { renderDayCard } from "../../services/scheduleImageService";
 
 interface ScheduleClass {
   slotNumber: number;
@@ -19,35 +20,16 @@ interface ScheduleResult {
   classes: ScheduleClass[];
 }
 
-function formatScheduleMessage(date: Date, result: ScheduleResult): string {
-  const d = new Date(date);
-  const dateStr = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "long" });
-  const weekType = result.isOdd ? "нечётная" : "чётная";
-
-  let text = `📅 <b>Расписание</b>\n`;
-  text += `📆 ${dateStr}\n`;
-  text += `📋 Неделя ${result.weekNumber} (${weekType})\n`;
-
-  if (result.isSaturday && result.followsDayName) {
-    text += `🔄 Суббота по расписанию ${result.followsDayName.toLowerCase()}\n`;
-  }
-
-  text += `\n`;
-
-  if (result.classes.length === 0) {
-    if (result.noMapping) {
-      text += `🎉 Суббота — нет расписания на эту неделю`;
-    } else {
-      text += `🎉 Нет занятий`;
-    }
-  } else {
-    for (const cls of result.classes) {
-      text += `<b>${cls.slotNumber}.</b> ${cls.startTime} — ${cls.endTime}\n`;
-      text += `   ${cls.subjectEmoji || "📚"} ${cls.subjectName || "Неизвестный предмет"}\n\n`;
-    }
-  }
-
-  return text.trim();
+/** Підпис під карткою: пари видно на картинці, тут лишаємо тільки шапку. */
+function formatScheduleCaption(date: Date, plan: DayPlan): string {
+  const dateStr = date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "long" });
+  const lines = [
+    "📅 <b>Расписание</b>",
+    `📆 ${dateStr} · неделя ${plan.weekNumber} (${plan.odd ? "нечётная" : "чётная"})`,
+  ];
+  if (plan.followsDayName) lines.push(`🔄 Суббота по расписанию ${plan.followsDayName.toLowerCase()}`);
+  if (!plan.lessons.length) lines.push(plan.noMapping ? "🎉 Суббота без пар на этой неделе" : "🎉 Нет занятий");
+  return lines.join("\n");
 }
 
 function navKeyboard(offset: number) {
@@ -65,11 +47,10 @@ async function showSchedule(ctx: Context, offset: number = 0): Promise<void> {
   const date = new Date();
   date.setDate(date.getDate() + offset);
 
-  const result = await scheduleService.getScheduleForDate(date);
-  const text = formatScheduleMessage(date, result);
-  const kb = navKeyboard(offset);
-
-  await editOrSend(ctx, text, kb as any);
+  const plan = await dayPlan(date);
+  await editOrSend(ctx, formatScheduleCaption(date, plan), navKeyboard(offset) as any, {
+    render: () => renderDayCard(date, plan.lessons, plan.followsDayName ? `за ${plan.followsDayName.toLowerCase()}` : undefined),
+  });
 }
 
 function scheduleHandler(bot: Telegraf): void {

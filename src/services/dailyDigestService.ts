@@ -19,13 +19,37 @@ export interface DayLesson {
   subject: ISubject | null;
 }
 
-/** Пари на конкретну дату з урахуванням чергування тижнів. */
-export async function lessonsFor(date: Date): Promise<DayLesson[]> {
-  const schedule = await scheduleService.get();
-  const day = schedule.days.find((d) => d.dayOfWeek === date.getDay());
-  if (!day) return [];
+export interface DayPlan {
+  lessons: DayLesson[];
+  dayName: string;
+  weekNumber: number;
+  odd: boolean;
+  /** Субота вчиться за розкладом іншого дня - тут його назва. */
+  followsDayName?: string;
+  /** Субота без пари в розкладі на цей тиждень. */
+  noMapping?: boolean;
+}
 
+/** Пари на дату з чергуванням тижнів і суботніми замінами. */
+export async function dayPlan(date: Date): Promise<DayPlan> {
+  const schedule = await scheduleService.get();
+  const jsDay = date.getDay();
+  const weekNumber = scheduleService.getWeekNumber(date, schedule.semesterStartDate);
   const odd = scheduleService.isOddWeek(date, schedule.semesterStartDate);
+  const head = { dayName: scheduleService.DAY_NAMES[jsDay] || "", weekNumber, odd };
+
+  let targetDay = jsDay;
+  let followsDayName: string | undefined;
+  if (jsDay === 6) {
+    const mapping = (schedule.saturdayMappings || []).find((m) => m.weekNumber === weekNumber);
+    if (!mapping) return { ...head, lessons: [], noMapping: true };
+    targetDay = mapping.followsDay;
+    followsDayName = scheduleService.DAY_NAMES[mapping.followsDay];
+  }
+
+  const day = schedule.days.find((d) => d.dayOfWeek === targetDay);
+  if (!day) return { ...head, lessons: [], followsDayName };
+
   const subjects = await subjectService.getAll();
   const byId = new Map(subjects.map((s) => [String(s._id), s]));
 
@@ -42,7 +66,12 @@ export async function lessonsFor(date: Date): Promise<DayLesson[]> {
       subject: byId.get(String(id)) ?? null,
     });
   }
-  return lessons.sort((a, b) => a.slotNumber - b.slotNumber);
+  lessons.sort((a, b) => a.slotNumber - b.slotNumber);
+  return { ...head, lessons, followsDayName };
+}
+
+export async function lessonsFor(date: Date): Promise<DayLesson[]> {
+  return (await dayPlan(date)).lessons;
 }
 
 function deadlinesWithin(subjects: ISubject[], from: Date, days: number) {

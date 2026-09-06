@@ -13,16 +13,18 @@ export default function layoutHandler(bot: Telegraf): void {
     const id = (ctx as any).match![1];
     const subj = await Subject.findById(id);
     if (!subj) return;
-    const cur = subj.buttonColumns || 2;
+    const cur = subj.buttonColumns ?? 0;
+    const label = (n: number) => (n === 0 ? "Авто" : String(n));
     const rows = [
-      [1, 2, 3].map((n) =>
-        Markup.button.callback(n === cur ? `• ${n} •` : String(n), `colsset_${id}_${n}`)
+      [0, 1, 2, 3, 4].map((n) =>
+        Markup.button.callback(n === cur ? `• ${label(n)} •` : label(n), `colsset_${id}_${n}`)
       ),
       [Markup.button.callback("⬅️ Назад", `subject_${id}`)],
     ];
     await editOrSend(
       ctx,
-      `⚙️ <b>${subj.name}</b>\n\nСкільки кнопок завдань ставити в рядок?\nЗараз: ${cur}`,
+      `⚙️ <b>${subj.name}</b>\n\nСкільки кнопок завдань ставити в рядок?\n` +
+        `«Авто» підбирає за довжиною назви: короткі йдуть по чотири.\nЗараз: ${label(cur)}`,
       Markup.inlineKeyboard(rows) as any
     );
   });
@@ -31,7 +33,7 @@ export default function layoutHandler(bot: Telegraf): void {
     if (!(await isStudent(ctx))) return;
     const m = (ctx as any).match as RegExpMatchArray;
     await Subject.updateOne({ _id: m[1] }, { buttonColumns: Number(m[2]) });
-    await ctx.answerCbQuery(`Колонок: ${m[2]}`);
+    await ctx.answerCbQuery(m[2] === "0" ? "Авто" : `Колонок: ${m[2]}`);
     await showSubject(ctx, m[1]);
   });
 

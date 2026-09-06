@@ -89,15 +89,38 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
   buttons.push([
     Markup.button.callback("⬅️ Назад", `subject_${subject!._id}`),
   ]);
-  const due = task.deadline
-    ? `\n🗓 До ${new Date(task.deadline).toLocaleDateString("uk-UA")}`
-    : "";
-  await editOrSend(
-    ctx,
-    `${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>${due}`,
-    Markup.inlineKeyboard(buttons) as any,
-    { render: () => renderTaskCard(subject!.name, task) }
-  );
+  // Посилання з опису виносимо кнопками: на картинці вони не натискаються.
+  const links = extractLinks(`${task.title} ${task.description || ""}`);
+  if (links.length) {
+    buttons.unshift(links.map((u) => Markup.button.url(`🔗 ${linkLabel(u)}`, u)));
+  }
+
+  await editOrSend(ctx, taskCaption(task), Markup.inlineKeyboard(buttons) as any, {
+    render: () => renderTaskCard(subject!.name, task),
+  });
+}
+
+const CAPTION_LIMIT = 1024;
+
+function taskCaption(task: any): string {
+  const head = `${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>`;
+  const due = task.deadline ? `\n🗓 До ${new Date(task.deadline).toLocaleDateString("uk-UA")}` : "";
+  const body = task.description ? `\n\n${escapeHtml(task.description)}` : "";
+  const caption = head + due + body;
+  return caption.length <= CAPTION_LIMIT ? caption : caption.slice(0, CAPTION_LIMIT - 1) + "…";
+}
+
+function extractLinks(text: string): string[] {
+  const found = String(text).match(/https?:\/\/[^\s<>"')]+/gi) || [];
+  return [...new Set(found.map((u) => u.replace(/[.,;]+$/, "")))].slice(0, 3);
+}
+
+function linkLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Посилання";
+  }
 }
 
 function escapeHtml(s: string): string {
