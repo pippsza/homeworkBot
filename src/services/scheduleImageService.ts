@@ -44,7 +44,7 @@ export async function renderDayCard(date: Date, lessons: DayLesson[]): Promise<B
   <rect x="${PAD}" y="${y}" width="6" height="${ROW - 10}" rx="3" fill="${ACCENT}"/>
   <text x="${PAD + 24}" y="${y + 28}" fill="${TEXT}" font-size="20" font-family="DejaVu Sans, sans-serif">${esc(l.startTime)}–${esc(l.endTime)}</text>
   <text x="${PAD + 24}" y="${y + 52}" fill="${MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(l.kind)}</text>
-  <text x="${PAD + 205}" y="${y + 28}" fill="${TEXT}" font-size="21" font-family="DejaVu Sans, sans-serif">${esc(emoji)} ${esc(name)}</text>
+  <text x="${PAD + 205}" y="${y + 28}" fill="${TEXT}" font-size="21" font-family="DejaVu Sans, sans-serif">${esc(name)}</text>
   <text x="${PAD + 205}" y="${y + 52}" fill="${MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(who)}</text>`;
         })
         .join("")
@@ -136,9 +136,9 @@ export async function renderSubjectCard(subjectId: string): Promise<Buffer> {
   if (subj.practitionerName && subj.practitionerName !== subj.lecturerName)
     teachers.push(`Практик: ${subj.practitionerName}`);
   if (teachers.length) blocks.push({ label: "Викладачі", lines: teachers });
-  if (subj.autoPass) blocks.push({ label: "Умови автомата", lines: wrap(subj.autoPass, 78, 6) });
+  if (subj.autoPass) blocks.push({ label: "Умови автомата", lines: wrap(subj.autoPass, 78, 8) });
   if (subj.practitionerNote) blocks.push({ label: "Про викладача", lines: wrap(subj.practitionerNote, 78, 4) });
-  if (subj.notes) blocks.push({ label: "Нюанси", lines: wrap(subj.notes, 78, 5) });
+  if (subj.notes) blocks.push({ label: "Нюанси", lines: wrap(subj.notes, 78, 9) });
 
   const tasks = (subj.tasks || []).length;
   const links: string[] = [];
@@ -162,7 +162,7 @@ export async function renderSubjectCard(subjectId: string): Promise<Buffer> {
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${BG}"/>
-  <text x="${PAD}" y="${PAD + 36}" fill="${TEXT}" font-size="28" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(subj.emoji || "")} ${esc(subj.name)}</text>
+  <text x="${PAD}" y="${PAD + 36}" fill="${TEXT}" font-size="28" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(subj.name)}</text>
   <text x="${PAD}" y="${PAD + 66}" fill="${MUTED}" font-size="16" font-family="DejaVu Sans, sans-serif">завдань у боті: ${tasks}</text>
   ${body}
 </svg>`;
@@ -210,7 +210,7 @@ export async function renderDeadlineTimeline(from: Date, days: number = 21): Pro
     marks += `<circle cx="${x}" cy="${axisY}" r="7" fill="${ACCENT}"/>`;
     marks += `<line x1="${x}" y1="${axisY + 7}" x2="${x}" y2="${y - 14}" stroke="${ACCENT}" stroke-width="1.5" opacity="0.5"/>`;
     rows += `<rect x="${PAD}" y="${y - 26}" width="${W - PAD * 2}" height="38" rx="10" fill="${CARD}"/>`;
-    rows += `<text x="${PAD + 16}" y="${y}" fill="${TEXT}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(it.emoji)} ${esc(it.title)} — ${esc(it.subject)}</text>`;
+    rows += `<text x="${PAD + 16}" y="${y}" fill="${TEXT}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(it.title)} — ${esc(it.subject)}</text>`;
     const d = new Date(from);
     d.setDate(d.getDate() + it.day);
     rows += `<text x="${W - PAD - 16}" y="${y}" fill="${MUTED}" font-size="15" text-anchor="end" font-family="DejaVu Sans, sans-serif">${d.toLocaleDateString("uk-UA")}</text>`;
