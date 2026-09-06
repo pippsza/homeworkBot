@@ -17,7 +17,7 @@ services:
     container_name: HomeworkClient
     restart: unless-stopped
     ports:
-      - "3100:80"
+      - "3300:80"
     depends_on:
       - homework-server
     networks:
