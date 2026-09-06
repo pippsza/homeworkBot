@@ -6,6 +6,9 @@ export interface IcsEvent {
   start: Date | null;
   cancelled: boolean;
   teamsUrl: string;
+  /** 2 = пара через тиждень; так у календарі виражене чергування */
+  interval: number;
+  weekly: boolean;
 }
 
 const JOIN_RE = /https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s"'<>\\]+/;
@@ -47,11 +50,14 @@ export function parseIcs(text: string): IcsEvent[] {
       if (cur) {
         const summary = unescape(cur.SUMMARY || "").trim();
         const blob = `${cur.DESCRIPTION || ""} ${cur["X-MICROSOFT-SKYPETEAMSMEETINGURL"] || ""} ${cur.LOCATION || ""}`;
+        const rrule = cur.RRULE || "";
         events.push({
           summary,
           start: parseDate(cur.DTSTART || ""),
           cancelled: (cur.STATUS || "").toUpperCase() === "CANCELLED" || CANCELLED_RE.test(summary),
           teamsUrl: (unescape(blob).match(JOIN_RE) || [""])[0],
+          interval: Number((rrule.match(/INTERVAL=(\d+)/) || [])[1] || 1),
+          weekly: /FREQ=WEEKLY/.test(rrule),
         });
       }
       cur = null;
@@ -119,4 +125,73 @@ export async function syncLinks(url: string): Promise<{ matched: number; skipped
   }
   await schedule.save();
   return { matched, skipped: events.length - matched };
+}
+
+
+/**
+ * Будуємо розклад із календаря. Він точніший за PDF: пара через тиждень
+ * приходить як INTERVAL=2, а дата першого проведення каже, на який тиждень
+ * вона припадає.
+ */
+export async function syncSchedule(url: string): Promise<{ slots: number; unmatched: string[] }> {
+  const events = (await fetchIcs(url)).filter((e) => !e.cancelled && e.weekly && e.start);
+  const subjects = await subjectService.getAll();
+  const schedule = await scheduleService.get();
+  const semesterStart = schedule.semesterStartDate;
+
+  const unmatched: string[] = [];
+  const byDay = new Map<number, Map<number, any>>();
+
+  for (const ev of events) {
+    const s = norm(ev.summary);
+    const subj = subjects.find((x) =>
+      norm(x.name).split(" ").filter((w) => w.length > 4).some((k) => s.includes(k))
+    );
+    if (!subj) {
+      unmatched.push(ev.summary);
+      continue;
+    }
+    const hh = String(ev.start!.getHours()).padStart(2, "0");
+    const mm = String(ev.start!.getMinutes()).padStart(2, "0");
+    const time = schedule.timeSlots.find((t) => t.startTime === `${hh}:${mm}`);
+    if (!time) {
+      unmatched.push(`${ev.summary} (${hh}:${mm} поза сіткою)`);
+      continue;
+    }
+
+    const dow = ev.start!.getDay();
+    if (!byDay.has(dow)) byDay.set(dow, new Map());
+    const slots = byDay.get(dow)!;
+    const kind = /\bЛК\b/.test(ev.summary) ? "ЛК" : /\bЛБ\b/.test(ev.summary) ? "ЛБ" : /\bПЗ\b/.test(ev.summary) ? "ПЗ" : "";
+    const odd = scheduleService.isOddWeek(ev.start!, semesterStart);
+
+    const existing = slots.get(time.number) || {
+      slotNumber: time.number, subjectId: null, subjectIdEven: null,
+      isAlternating: false, kind: "", kindEven: "", link: ev.teamsUrl || "",
+    };
+
+    if (ev.interval >= 2) {
+      // пара через тиждень: кладемо в ту половину, з якої вона стартувала
+      if (odd) { existing.subjectId = subj._id; existing.kind = kind; }
+      else { existing.subjectIdEven = subj._id; existing.kindEven = kind; }
+      existing.isAlternating = true;
+    } else {
+      existing.subjectId = subj._id;
+      existing.subjectIdEven = subj._id;
+      existing.kind = kind;
+      existing.kindEven = kind;
+      existing.isAlternating = false;
+    }
+    if (ev.teamsUrl) existing.link = ev.teamsUrl;
+    slots.set(time.number, existing);
+  }
+
+  let count = 0;
+  const days = [...byDay.entries()].map(([dayOfWeek, slots]) => {
+    count += slots.size;
+    return { dayOfWeek, slots: [...slots.values()].sort((a, b) => a.slotNumber - b.slotNumber) };
+  });
+  schedule.days = days as any;
+  await schedule.save();
+  return { slots: count, unmatched };
 }

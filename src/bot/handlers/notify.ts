@@ -4,7 +4,7 @@ import { editOrSend } from "../helpers/editOrSend";
 import * as targets from "../../services/notifyTargetService";
 import { renderWeekCard, renderDayCard, renderSubjectCard, renderDeadlineTimeline } from "../../services/scheduleImageService";
 import { buildDigest, lessonsFor } from "../../services/dailyDigestService";
-import { syncLinks } from "../../services/icsService";
+import { syncLinks, syncSchedule } from "../../services/icsService";
 import Settings from "../../models/Settings";
 
 const KINDS: { key: targets.NotifyKind; label: string }[] = [
@@ -126,10 +126,14 @@ export default function notifyHandler(bot: Telegraf): void {
     }
     const msg = await ctx.reply("Тягну календар…");
     try {
-      const { matched, skipped } = await syncLinks(url);
+      const sch = await syncSchedule(url);
+      const { matched } = await syncLinks(url);
+      const tail = sch.unmatched.length
+        ? `\n\nНе зіставив:\n${sch.unmatched.slice(0, 6).map((x) => `• ${x}`).join("\n")}`
+        : "";
       await ctx.telegram.editMessageText(
         msg.chat.id, msg.message_id, undefined,
-        `✅ Календар прочитано.\nПредметів зіставлено: ${matched}\nПодій без пари: ${skipped}`
+        `✅ Календар прочитано.\nПар у розкладі: ${sch.slots}\nПредметів із посиланням: ${matched}${tail}`
       );
     } catch (e) {
       await ctx.telegram.editMessageText(
