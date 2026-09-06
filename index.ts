@@ -39,6 +39,12 @@ async function main(): Promise<void> {
   debugLogStartupTest();
   setupBot(bot);
 
+  // Помилка в обробнику не повинна вбивати опитування: без цього перший же
+  // збій мережі під час sendPhoto лишав бота без polling до перезапуску.
+  bot.catch((err: unknown, ctx) => {
+    console.error("[bot error]", ctx.updateType, (err as Error)?.message || err);
+  });
+
   // Start schedule notifications
   const { startScheduleNotifier } = await import("./src/services/scheduleNotificationService");
   startScheduleNotifier(bot);
@@ -85,11 +91,7 @@ async function main(): Promise<void> {
   });
 
   if (MODE !== "webhook") {
-    bot.launch().catch((err: Error) => {
-      console.error("Bot polling failed:", err.message);
-      console.log("Server continues running without bot polling (API still works)");
-    });
-    console.log("Bot started in polling mode");
+    startPolling(bot);
   }
 
   process.once("SIGINT", async () => {
@@ -105,6 +107,17 @@ async function main(): Promise<void> {
   process.on("unhandledRejection", (err: unknown) => {
     console.error("[unhandledRejection]", (err as Error)?.message || err);
   });
+}
+
+/** Опитування падає на розривах мережі, тому піднімаємо його знову з паузою. */
+function startPolling(bot: Telegraf, attempt = 0): void {
+  bot
+    .launch(() => console.log("Bot started in polling mode"))
+    .catch((err: Error) => {
+      const wait = Math.min(60, 5 * 2 ** attempt);
+      console.error(`Bot polling failed: ${err.message}; retry in ${wait}s`);
+      setTimeout(() => startPolling(bot, attempt + 1), wait * 1000);
+    });
 }
 
 main().catch(console.error);
