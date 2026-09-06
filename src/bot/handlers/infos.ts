@@ -1,6 +1,6 @@
 import { Telegraf, Context, Markup } from "telegraf";
 import { isStudent } from "../middleware/auth";
-import { editOrSend, trackSend, isPrivate } from "../helpers/editOrSend";
+import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import * as infoService from "../../services/infoService";
 
@@ -182,9 +182,7 @@ function infosHandler(bot: Telegraf): void {
   // Add info
   bot.action("add_info", async (ctx: Context) => {
     if (!(await isStudent(ctx))) {
-      return trackSend(ctx, () =>
-        ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
-      );
+      return notice(ctx, "❌ Нет прав.");
     }
     inputState.set(ctx.from!.id, {
       mode: "add_info",
@@ -194,14 +192,9 @@ function infosHandler(bot: Telegraf): void {
       description: "",
       attachments: [],
     });
-    await trackSend(ctx, () =>
-      ctx.reply("ℹ️ Введите заголовок информации:", {
-        ...Markup.inlineKeyboard([
+    await editOrSend(ctx, "ℹ️ Введите заголовок информации:", Markup.inlineKeyboard([
           [Markup.button.callback("❌ Отмена", "infos")],
-        ]),
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+        ]) as any);
   });
 
   // Edit info menu
@@ -229,14 +222,9 @@ function infosHandler(bot: Telegraf): void {
     bot.action(new RegExp(`^${pattern}_([a-f0-9]{24})$`), async (ctx: Context) => {
       const infoId = (ctx as any).match![1];
       inputState.set(ctx.from!.id, { mode: "edit_info", step, infoId });
-      await trackSend(ctx, () =>
-        ctx.reply(prompt, {
-          ...Markup.inlineKeyboard([
+      await editOrSend(ctx, prompt, Markup.inlineKeyboard([
             [Markup.button.callback("❌ Отмена", `eim_${infoId}`)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+          ]) as any);
     });
   }
 
@@ -249,17 +237,9 @@ function infosHandler(bot: Telegraf): void {
       infoId,
       attachments: [],
     });
-    await trackSend(ctx, () =>
-      ctx.reply(
-        '📎 Отправьте новые файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-        {
-          ...Markup.inlineKeyboard([
+    await editOrSend(ctx, '📎 Отправьте новые файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
             [Markup.button.callback("✅ Готово", `fia_${infoId}`)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        }
-      )
-    );
+          ]) as any);
   });
 
   // Finish info attachments
@@ -275,21 +255,13 @@ function infosHandler(bot: Telegraf): void {
         attachments: state.attachments,
       });
       inputState.delete(ctx.from!.id);
-      await trackSend(ctx, () =>
-        ctx.reply("✅ Информация сохранена!\n\n---", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      await editOrSend(ctx, "✅ Информация сохранена!\n\n---");
       const { mainMenu } = await import("./start");
       await mainMenu(ctx);
     } else if (state.mode === "edit_info" && state.step === "attachments") {
       await infoService.setAttachments(state.infoId, state.attachments);
       inputState.delete(ctx.from!.id);
-      await trackSend(ctx, () =>
-        ctx.reply("✅ Вложения обновлены!\n\n---", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      await editOrSend(ctx, "✅ Вложения обновлены!\n\n---");
     }
   });
 
@@ -301,17 +273,9 @@ function infosHandler(bot: Telegraf): void {
     state.step = "attachments";
     const finishId =
       state.mode === "add_info" ? "new" : state.infoId;
-    await trackSend(ctx, () =>
-      ctx.reply(
-        '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-        {
-          ...Markup.inlineKeyboard([
+    await editOrSend(ctx, '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
             [Markup.button.callback("✅ Готово", `fia_${finishId}`)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        }
-      )
-    );
+          ]) as any);
   });
 
   // Skip info description for add flow (no id)
@@ -320,17 +284,9 @@ function infosHandler(bot: Telegraf): void {
     if (!state || state.step !== "description") return;
     state.description = "";
     state.step = "attachments";
-    await trackSend(ctx, () =>
-      ctx.reply(
-        '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-        {
-          ...Markup.inlineKeyboard([
+    await editOrSend(ctx, '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
             [Markup.button.callback("✅ Готово", "finish_add_info_attachments")],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        }
-      )
-    );
+          ]) as any);
   });
 
   // Finish adding info attachments (new info)
@@ -344,11 +300,7 @@ function infosHandler(bot: Telegraf): void {
       attachments: state.attachments,
     });
     inputState.delete(ctx.from!.id);
-    await trackSend(ctx, () =>
-      ctx.reply("✅ Информация сохранена!\n\n---", {
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+    await editOrSend(ctx, "✅ Информация сохранена!\n\n---");
     const { mainMenu } = await import("./start");
     await mainMenu(ctx);
   });

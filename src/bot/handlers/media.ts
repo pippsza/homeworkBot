@@ -1,5 +1,5 @@
 import { Context, Telegraf } from "telegraf";
-import { trackSend, isPrivate } from "../helpers/editOrSend";
+import { trackSend, isPrivate, editOrSend, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import { updateCollectMessage } from "./homework";
 import { isStudent } from "../middleware/auth";
@@ -125,11 +125,7 @@ interface MediaBatch {
 
 async function handleAiBatch(ctx: Context, items: MediaItem[], caption: string): Promise<void> {
   if (!checkRateLimit(ctx.from!.id)) {
-    await trackSend(ctx, () =>
-      ctx.reply("Слишком много запросов. Подождите минуту.", {
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+    await notice(ctx, "Слишком много запросов. Подождите минуту.");
     return;
   }
 
@@ -138,9 +134,7 @@ async function handleAiBatch(ctx: Context, items: MediaItem[], caption: string):
     ? `🖼 Анализирую ${items.length > 1 ? items.length + " файлов" : "изображение"}...`
     : `📄 Обрабатываю ${items.length > 1 ? items.length + " файлов" : "файл"}...`;
 
-  const thinking = await trackSend(ctx, () =>
-    ctx.reply(thinkingText, { disable_notification: !isPrivate(ctx) })
-  );
+  const thinking = await trackSend(ctx, () => ctx.reply(thinkingText) as any);
 
   try {
     const history = await ChatHistory.findOne({ telegramUserId: ctx.from!.id });
@@ -334,20 +328,12 @@ export function mediaHandler(bot: Telegraf): void {
       if (state.step === "attachments") {
         const file_id = (ctx.message as any).document.file_id;
         state.attachments.push({ type: "document", file_id });
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'.", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+        await editOrSend(ctx, "✅ Файл добавлен. Можете добавить ещё или нажмите '✅ Готово'.");
       }
       if (state.mode === "add_answer" && state.step === "answer") {
         const file_id = (ctx.message as any).document.file_id;
         state.answers.push({ type: "document", file_id });
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Файл добавлен. Добавьте ещё или нажмите Готово.", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+        await editOrSend(ctx, "✅ Файл добавлен. Добавьте ещё или нажмите Готово.");
       }
     } catch (e) {
       console.error("[document handler error]", e);
@@ -408,11 +394,7 @@ export function mediaHandler(bot: Telegraf): void {
         if (photo && photo.length) {
           const file_id = photo[photo.length - 1].file_id;
           state.attachments.push({ type: "photo", file_id });
-          await trackSend(ctx, () =>
-            ctx.reply("✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "✅ Фото добавлено. Можете добавить ещё или нажмите '✅ Готово'.");
         }
       }
       if (state.mode === "add_answer" && state.step === "answer") {
@@ -420,11 +402,7 @@ export function mediaHandler(bot: Telegraf): void {
         if (photo && photo.length) {
           const file_id = photo[photo.length - 1].file_id;
           state.answers.push({ type: "photo", file_id });
-          await trackSend(ctx, () =>
-            ctx.reply("✅ Фото добавлено. Добавьте ещё или нажмите Готово.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "✅ Фото добавлено. Добавьте ещё или нажмите Готово.");
         }
       }
     } catch (e) {

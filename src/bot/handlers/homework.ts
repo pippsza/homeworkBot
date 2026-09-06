@@ -74,13 +74,7 @@ async function updateCollectMessage(ctx: Context, state: any): Promise<void> {
         { parse_mode: "HTML", reply_markup: keyboard.reply_markup },
       );
     } else {
-      const sent = await trackSend(ctx, () =>
-        ctx.reply(text, {
-          parse_mode: "HTML",
-          ...keyboard,
-          disable_notification: !isPrivate(ctx),
-        }),
-      );
+      const sent = await trackSend(ctx, () => ctx.reply(text, { parse_mode: "HTML" }) as any);
       state.statusMessageId = sent.message_id;
     }
   } catch (e: any) {
@@ -166,12 +160,7 @@ function setupHomeworkHandler(bot: Telegraf): void {
     }
 
     if (!text) {
-      return trackSend(ctx, () =>
-        ctx.reply(
-          "💡 Использование:\n• Ответьте на сообщение: /newhw\n• С текстом: /newhw <описание задания>\n• Или перешлите сообщения боту в ЛС",
-          { disable_notification: !isPrivate(ctx) },
-        ),
-      );
+      return editOrSend(ctx, "💡 Использование:\n• Ответьте на сообщение: /newhw\n• С текстом: /newhw <описание задания>\n• Или перешлите сообщения боту в ЛС");
     }
 
     // Collect attachments from replied message if present
@@ -181,11 +170,7 @@ function setupHomeworkHandler(bot: Telegraf): void {
       if (att) attachments.push(att);
     }
 
-    const thinking = await trackSend(ctx, () =>
-      ctx.reply("🤔 Анализирую задание...", {
-        disable_notification: !isPrivate(ctx),
-      }),
-    );
+    const thinking = await trackSend(ctx, () => ctx.reply("🤔 Анализирую задание...") as any);
 
     try {
       const extracted = await extractHomework(text);

@@ -368,3 +368,50 @@ function plain(s: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/**
+ * Вузька шапка предмета для списку завдань: назва, викладач і те, що
+ * потрібно щодня - скільки завдань і який дедлайн найближчий. Повна довідка
+ * (умови автомата, нюанси, шкала балів) лишається за кнопкою «Карткою».
+ */
+export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
+  const subj = await subjectService.getById(subjectId);
+  if (!subj) throw new Error("subject not found");
+
+  const tasks = (subj.tasks || []) as { title: string; deadline?: Date }[];
+  const now = new Date();
+  const next = tasks
+    .filter((t) => t.deadline && new Date(t.deadline) >= now)
+    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];
+
+  const teacher = subj.practitionerName || subj.lecturerName || "";
+  const chips: { text: string; color: string }[] = [{ text: `${tasks.length} завдань`, color: ACCENT }];
+  if (next) {
+    const days = Math.ceil((new Date(next.deadline!).getTime() - now.getTime()) / 86_400_000);
+    const color = days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
+    chips.push({ text: `${plain(next.title)} — ${new Date(next.deadline!).toLocaleDateString("uk-UA")}`, color });
+  }
+
+  const H = 210;
+  let x = PAD + 28;
+  const chipRow = chips
+    .map((c) => {
+      const w = [...c.text].length * 9 + 28;
+      const rect = `
+  <rect x="${x}" y="${H - PAD - 58}" width="${w}" height="34" rx="17" fill="${c.color}" opacity="0.16"/>
+  <text x="${x + 14}" y="${H - PAD - 35}" fill="${c.color}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(c.text)}</text>`;
+      x += w + 10;
+      return rect;
+    })
+    .join("");
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <rect x="${PAD}" y="${PAD}" width="${W - PAD * 2}" height="${H - PAD * 2}" rx="20" fill="${CARD}"/>
+  <rect x="${PAD}" y="${PAD}" width="8" height="${H - PAD * 2}" rx="4" fill="${ACCENT}"/>
+  <text x="${PAD + 28}" y="${PAD + 52}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(plain(subj.name).slice(0, 40))}</text>
+  <text x="${PAD + 28}" y="${PAD + 84}" fill="${MUTED}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(teacher)}</text>
+  ${chipRow}
+</svg>`;
+  return toPng(svg);
+}

@@ -1,5 +1,5 @@
 import { Context, Markup, Telegraf } from "telegraf";
-import { trackSend, isPrivate } from "../helpers/editOrSend";
+import { trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import * as subjectService from "../../services/subjectService";
 import * as infoService from "../../services/infoService";
@@ -41,11 +41,7 @@ export function textHandler(bot: Telegraf): void {
         const msg = hadState.mode === "ai_session"
           ? "🤖 AI-сессия завершена."
           : "❌ Действие отменено.";
-        await trackSend(ctx, () =>
-          ctx.reply(msg, {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+        await editOrSend(ctx, msg);
       }
       await mainMenu(ctx);
       await deleteUserMsg(ctx);
@@ -124,7 +120,7 @@ export function textHandler(bot: Telegraf): void {
         }
 
         if (userMap.size === 0) {
-          await trackSend(ctx, () => ctx.reply("📋 Список пуст."));
+          await editOrSend(ctx, "📋 Список пуст.");
           return;
         }
 
@@ -136,7 +132,7 @@ export function textHandler(bot: Telegraf): void {
         if (total && total > userMap.size) {
           msg += `\n\n<i>Найдено ${userMap.size} из ~${total}. Остальные появятся когда напишут в чат.</i>`;
         }
-        await trackSend(ctx, () => ctx.reply(msg, { parse_mode: "HTML" }));
+        await editOrSend(ctx, msg);
       } catch (e: any) {
         debugLog("rollcall-error", e.message);
       }
@@ -147,9 +143,7 @@ export function textHandler(bot: Telegraf): void {
     if ((ctx.message as any).text.startsWith("/noai")) {
       const noaiText = (ctx.message as any).text.slice(5).trim();
       if (noaiText) {
-        await trackSend(ctx, () =>
-          ctx.reply(noaiText, { disable_notification: !isPrivate(ctx) })
-        );
+        await editOrSend(ctx, noaiText);
       }
       return;
     }
@@ -170,21 +164,13 @@ export function textHandler(bot: Telegraf): void {
       if (!question) return;
 
       if (!checkRateLimit(ctx.from!.id)) {
-        return trackSend(ctx, () =>
-          ctx.reply("Слишком много запросов. Подождите минуту.", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+        return notice(ctx, "Слишком много запросов. Подождите минуту.");
       }
 
       // Refresh AI session TTL
       if (isAiSession) inputState.set(ctx.from!.id, { mode: "ai_session" });
 
-      const thinking = await trackSend(ctx, () =>
-        ctx.reply("Думаю...", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      const thinking = await trackSend(ctx, () => ctx.reply("Думаю...") as any);
 
       try {
         const history = await ChatHistory.findOne({ telegramUserId: ctx.from!.id });
@@ -241,11 +227,7 @@ export function textHandler(bot: Telegraf): void {
     if (state.mode === "add_user") {
       const username = text;
       if (!username.startsWith("@")) {
-        await trackSend(ctx, () =>
-          ctx.reply("❌ Введите username с @", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+        await editOrSend(ctx, "❌ Введите username с @");
         await deleteUserMsg(ctx);
         return;
       }
@@ -256,21 +238,11 @@ export function textHandler(bot: Telegraf): void {
       const { field, label } = roleMap[state.step];
       const added = await userService.addUser(field, username);
       if (!added) {
-        await trackSend(ctx, () =>
-          ctx.reply(`❌ Уже есть такой ${label}.`, {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+        await editOrSend(ctx, `❌ Уже есть такой ${label}.`);
         await deleteUserMsg(ctx);
         return;
       }
       inputState.delete(ctx.from!.id);
-      await trackSend(ctx, () =>
-        ctx.reply(
-          `✅ ${label.charAt(0).toUpperCase() + label.slice(1)} добавлен.`,
-          { disable_notification: !isPrivate(ctx) }
-        )
-      );
       await showSettings(ctx);
       await deleteUserMsg(ctx);
       return;
@@ -289,22 +261,13 @@ export function textHandler(bot: Telegraf): void {
       const dbField = fieldMap[state.step];
       if (dbField) {
         if (state.step === "name" && !text) {
-          await trackSend(ctx, () =>
-            ctx.reply("❌ Название не может быть пустым.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "❌ Название не может быть пустым.");
           return;
         }
         const value =
           state.step === "emoji" ? text || "📚" : text;
         await subjectService.update(state.subjectId, { [dbField]: value });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Обновлено!", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в предмете?\n\n---",
@@ -319,98 +282,63 @@ export function textHandler(bot: Telegraf): void {
     if (state.mode === "add_subject") {
       if (state.step === "name") {
         if (!text) {
-          await trackSend(ctx, () =>
-            ctx.reply("❌ Название не может быть пустым.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "❌ Название не может быть пустым.");
           return;
         }
         state.name = text;
         state.step = "emoji";
-        await trackSend(ctx, () =>
-          ctx.reply(
-            "😀 Введите смайлик для предмета (например, 📐) или пропустите:",
-            { disable_notification: !isPrivate(ctx) }
-          )
-        );
+        await editOrSend(ctx, "😀 Введите смайлик для предмета (например, 📐) или пропустите:");
         await deleteUserMsg(ctx);
         return;
       }
       if (state.step === "emoji") {
         state.emoji = text || "📚";
         state.step = "lecturer_name";
-        await trackSend(ctx, () =>
-          ctx.reply("👨‍🏫 Введите ФИО лектора (или пропустите):", {
-            ...Markup.inlineKeyboard([
+        await editOrSend(ctx, "👨‍🏫 Введите ФИО лектора (или пропустите):", Markup.inlineKeyboard([
               [Markup.button.callback("Пропустить", "skip_lecturer_name")],
-            ]),
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+            ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
       if (state.step === "lecturer_name") {
         state.lecturerName = text;
         state.step = "lecturer_contact";
-        await trackSend(ctx, () =>
-          ctx.reply(
-            "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):",
-            {
-              ...Markup.inlineKeyboard([
+        await editOrSend(ctx, "📞 Введите контакты лектора (соц. сети, почта и т.д.) (или пропустите):", Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
                     "Пропустить",
                     "skip_lecturer_contact"
                   ),
                 ],
-              ]),
-              disable_notification: !isPrivate(ctx),
-            }
-          )
-        );
+              ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
       if (state.step === "lecturer_contact") {
         state.lecturerContact = text;
         state.step = "practitioner_name";
-        await trackSend(ctx, () =>
-          ctx.reply("👩‍🏫 Введите ФИО практики (или пропустите):", {
-            ...Markup.inlineKeyboard([
+        await editOrSend(ctx, "👩‍🏫 Введите ФИО практики (или пропустите):", Markup.inlineKeyboard([
               [
                 Markup.button.callback(
                   "Пропустить",
                   "skip_practitioner_name"
                 ),
               ],
-            ]),
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+            ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
       if (state.step === "practitioner_name") {
         state.practitionerName = text;
         state.step = "practitioner_contact";
-        await trackSend(ctx, () =>
-          ctx.reply(
-            "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):",
-            {
-              ...Markup.inlineKeyboard([
+        await editOrSend(ctx, "📞 Введите контакты практики (соц. сети, почта и т.д.) (или пропустите):", Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
                     "Пропустить",
                     "skip_practitioner_contact"
                   ),
                 ],
-              ]),
-              disable_notification: !isPrivate(ctx),
-            }
-          )
-        );
+              ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
@@ -426,11 +354,6 @@ export function textHandler(bot: Telegraf): void {
           tasks: [] as any,
         });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Предмет сохранён!\n\n---", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await mainMenu(ctx);
         await deleteUserMsg(ctx);
         return;
@@ -441,22 +364,13 @@ export function textHandler(bot: Telegraf): void {
     if (state.mode === "add_task" || state.mode === "edit_task") {
       if (state.step === "title") {
         if (!text) {
-          await trackSend(ctx, () =>
-            ctx.reply("❌ Заголовок не может быть пустым.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "❌ Заголовок не может быть пустым.");
           await deleteUserMsg(ctx);
           return;
         }
         state.title = text;
         state.step = "emoji";
-        await trackSend(ctx, () =>
-          ctx.reply(
-            "😀 Введите смайлик для задания (например, 📄) или пропустите:",
-            { disable_notification: !isPrivate(ctx) }
-          )
-        );
+        await editOrSend(ctx, "😀 Введите смайлик для задания (например, 📄) или пропустите:");
         await deleteUserMsg(ctx);
         return;
       }
@@ -464,14 +378,9 @@ export function textHandler(bot: Telegraf): void {
         state.emoji = text || "📄";
         state.step = "description";
         const skipId = state.subjectId || state.taskId;
-        await trackSend(ctx, () =>
-          ctx.reply("📄 Введите описание (или пропустите):", {
-            ...Markup.inlineKeyboard([
+        await editOrSend(ctx, "📄 Введите описание (или пропустите):", Markup.inlineKeyboard([
               [Markup.button.callback("Пропустить", `skd_${skipId}`)],
-            ]),
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+            ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
@@ -479,37 +388,20 @@ export function textHandler(bot: Telegraf): void {
         state.description = text;
         state.step = "attachments";
         const finishId = state.subjectId || state.taskId;
-        await trackSend(ctx, () =>
-          ctx.reply(
-            '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-            {
-              ...Markup.inlineKeyboard([
+        await editOrSend(ctx, '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
                 [Markup.button.callback("✅ Готово", `fta_${finishId}`)],
-              ]),
-              disable_notification: !isPrivate(ctx),
-            }
-          )
-        );
+              ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
       if (state.step === "edit_title") {
         if (!text) {
-          await trackSend(ctx, () =>
-            ctx.reply("❌ Заголовок не может быть пустым.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "❌ Заголовок не может быть пустым.");
           await deleteUserMsg(ctx);
           return;
         }
         await subjectService.updateTask(state.taskId, { title: text });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Заголовок обновлён!", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в задании?\n\n---",
@@ -523,11 +415,6 @@ export function textHandler(bot: Telegraf): void {
           emoji: text || "📄",
         });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Emoji обновлён!", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в задании?\n\n---",
@@ -539,11 +426,6 @@ export function textHandler(bot: Telegraf): void {
       if (state.step === "edit_description") {
         await subjectService.updateTask(state.taskId, { description: text });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Описание обновлено!", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в задании?\n\n---",
@@ -558,21 +440,12 @@ export function textHandler(bot: Telegraf): void {
     if (state.mode === "add_info" || state.mode === "edit_info") {
       if (state.step === "title") {
         if (!text) {
-          await trackSend(ctx, () =>
-            ctx.reply("❌ Заголовок не может быть пустым.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "❌ Заголовок не может быть пустым.");
           return;
         }
         state.title = text;
         state.step = "emoji";
-        await trackSend(ctx, () =>
-          ctx.reply(
-            "😀 Введите смайлик для информации (например, ℹ️) или пропустите:",
-            { disable_notification: !isPrivate(ctx) }
-          )
-        );
+        await editOrSend(ctx, "😀 Введите смайлик для информации (например, ℹ️) или пропустите:");
         await deleteUserMsg(ctx);
         return;
       }
@@ -580,19 +453,14 @@ export function textHandler(bot: Telegraf): void {
         state.emoji = text || "ℹ️";
         state.step = "description";
         const isAdd = state.mode === "add_info";
-        await trackSend(ctx, () =>
-          ctx.reply("📄 Введите описание (или пропустите):", {
-            ...Markup.inlineKeyboard([
+        await editOrSend(ctx, "📄 Введите описание (или пропустите):", Markup.inlineKeyboard([
               [
                 Markup.button.callback(
                   "Пропустить",
                   isAdd ? "skip_info_description" : `skid_${state.infoId}`
                 ),
               ],
-            ]),
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+            ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
@@ -600,11 +468,7 @@ export function textHandler(bot: Telegraf): void {
         state.description = text;
         state.step = "attachments";
         const isAdd = state.mode === "add_info";
-        await trackSend(ctx, () =>
-          ctx.reply(
-            '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---',
-            {
-              ...Markup.inlineKeyboard([
+        await editOrSend(ctx, '📎 Отправьте файлы/фото для информации. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
                     "✅ Готово",
@@ -613,30 +477,17 @@ export function textHandler(bot: Telegraf): void {
                       : `fia_${state.infoId}`
                   ),
                 ],
-              ]),
-              disable_notification: !isPrivate(ctx),
-            }
-          )
-        );
+              ]) as any);
         await deleteUserMsg(ctx);
         return;
       }
       if (state.step === "edit_title") {
         if (!text) {
-          await trackSend(ctx, () =>
-            ctx.reply("❌ Заголовок не может быть пустым.", {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
+          await editOrSend(ctx, "❌ Заголовок не может быть пустым.");
           return;
         }
         await infoService.update(state.infoId, { title: text });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Заголовок обновлён!", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в информации?\n\n---",
@@ -648,11 +499,6 @@ export function textHandler(bot: Telegraf): void {
       if (state.step === "edit_emoji") {
         await infoService.update(state.infoId, { emoji: text || "ℹ️" });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Emoji обновлён!", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в информации?\n\n---",
@@ -664,11 +510,6 @@ export function textHandler(bot: Telegraf): void {
       if (state.step === "edit_description") {
         await infoService.update(state.infoId, { description: text });
         inputState.delete(ctx.from!.id);
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Описание обновлено!", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
         await editOrSend(
           ctx,
           "✏️ Что хотите изменить в информации?\n\n---",
@@ -683,21 +524,13 @@ export function textHandler(bot: Telegraf): void {
     if (state.mode === "add_answer" && state.step === "answer") {
       if (text) {
         state.answers.push({ type: "text", content: text });
-        await trackSend(ctx, () =>
-          ctx.reply("✅ Текст добавлен. Добавьте ещё или нажмите Готово.", {
-            disable_notification: !isPrivate(ctx),
-          })
-        );
+        await editOrSend(ctx, "✅ Текст добавлен. Добавьте ещё или нажмите Готово.");
         await deleteUserMsg(ctx);
       }
     }
     } catch (e) {
       debugLog("text-handler-error", `Unhandled error`, (e as Error).message || String(e));
-      await trackSend(ctx, () =>
-        ctx.reply("❌ Произошла ошибка. Попробуйте снова или /cancel.", {
-          disable_notification: !isPrivate(ctx),
-        })
-      ).catch(() => {});
+      await editOrSend(ctx, "❌ Произошла ошибка. Попробуйте снова или /cancel.").catch(() => {});
     }
   });
 }

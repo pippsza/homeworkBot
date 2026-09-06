@@ -1,6 +1,6 @@
 import { Telegraf, Context, Markup } from "telegraf";
 import { isSuperadmin } from "../middleware/auth";
-import { editOrSend, trackSend, isPrivate } from "../helpers/editOrSend";
+import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as chatMessageService from "../../services/chatMessageService";
 import * as groupMemberService from "../../services/groupMemberService";
 
@@ -24,9 +24,7 @@ function toolsHandler(bot: Telegraf): void {
     if (!(await isSuperadmin(ctx))) return;
 
     if (isPrivate(ctx)) {
-      return trackSend(ctx, () =>
-        ctx.reply("📋 Перекличка доступна только в группах.")
-      );
+      return notice(ctx, "📋 Перекличка доступна только в группах.");
     }
 
     const chatId = ctx.chat!.id;
@@ -58,9 +56,7 @@ function toolsHandler(bot: Telegraf): void {
     }
 
     if (userMap.size === 0) {
-      return trackSend(ctx, () =>
-        ctx.reply("📋 Список пуст.")
-      );
+      return editOrSend(ctx, "📋 Список пуст.");
     }
 
     const mentions = [...userMap.values()].map(
@@ -72,9 +68,7 @@ function toolsHandler(bot: Telegraf): void {
     if (total && total > userMap.size) {
       msg += `\n\n<i>Найдено ${userMap.size} из ~${total}. Остальные появятся когда напишут в чат.</i>`;
     }
-    await trackSend(ctx, () =>
-      ctx.reply(msg, { parse_mode: "HTML" })
-    );
+    await editOrSend(ctx, msg);
   });
 
   bot.action("cleanup", async (ctx: Context) => {
@@ -87,9 +81,7 @@ function toolsHandler(bot: Telegraf): void {
         .catch((e: any) => console.error(`Delete error for ${id}`, e));
     }
     await chatMessageService.clearMessages(chatId);
-    await trackSend(ctx, () =>
-      ctx.reply("Очистка завершена.", { disable_notification: !isPrivate(ctx) })
-    );
+    await editOrSend(ctx, "Очистка завершена.");
   });
 }
 

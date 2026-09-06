@@ -62,14 +62,9 @@ function settingsHandler(bot: Telegraf): void {
         return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
       }
       inputState.set(ctx.from!.id, { mode: "add_user", step });
-      await trackSend(ctx, () =>
-        ctx.reply(prompt, {
-          ...Markup.inlineKeyboard([
+      await editOrSend(ctx, prompt, Markup.inlineKeyboard([
             [Markup.button.callback("❌ Отмена", "settings")],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+          ]) as any);
     });
   }
 

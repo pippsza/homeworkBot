@@ -1,6 +1,6 @@
 import { Telegraf, Context, Markup } from "telegraf";
 import { isStudent } from "../middleware/auth";
-import { editOrSend, trackSend, isPrivate } from "../helpers/editOrSend";
+import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import * as subjectService from "../../services/subjectService";
 import { renderTaskCard } from "../../services/scheduleImageService";
@@ -74,21 +74,16 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
       ),
     ]);
   }
+  const actions = [Markup.button.callback("⬅️", `subject_${subject!._id}`)];
   if (await isStudent(ctx)) {
-    buttons.push([
-      Markup.button.callback("➕ Добавить ответ", `aa_${taskId}`),
-    ]);
-    buttons.push([
-      Markup.button.callback("🗑️ Удалить задание", `trc_${taskId}`),
-    ]);
-    buttons.push([
-      Markup.button.callback("✏️ Редагувати", `etm_${taskId}`),
-      Markup.button.callback("⚙️ Розкладка", `tlay_${taskId}`),
-    ]);
+    actions.push(
+      Markup.button.callback("➕", `aa_${taskId}`),
+      Markup.button.callback("✏️", `etm_${taskId}`),
+      Markup.button.callback("⚙️", `tlay_${taskId}`),
+      Markup.button.callback("🗑", `trc_${taskId}`)
+    );
   }
-  buttons.push([
-    Markup.button.callback("⬅️ Назад", `subject_${subject!._id}`),
-  ]);
+  buttons.push(actions);
   // Посилання з опису виносимо кнопками: на картинці вони не натискаються.
   const links = extractLinks(`${task.title} ${task.description || ""}`);
   if (links.length) {
@@ -267,9 +262,7 @@ function tasksHandler(bot: Telegraf): void {
     for (const ans of (task.answers || [])) {
       try {
         if (ans.type === "text") {
-          await trackSend(ctx, () =>
-            ctx.reply(ans.content, { disable_notification: !isPrivate(ctx) })
-          );
+          await editOrSend(ctx, ans.content);
         } else if (ans.type === "photo") {
           await trackSend(ctx, () =>
             ctx.replyWithPhoto(ans.file_id, {
@@ -293,9 +286,7 @@ function tasksHandler(bot: Telegraf): void {
   // Add task
   bot.action(/^add_task_([a-f0-9]{24})$/, async (ctx: Context) => {
     if (!(await isStudent(ctx))) {
-      return trackSend(ctx, () =>
-        ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
-      );
+      return notice(ctx, "❌ Нет прав.");
     }
     const subjectId = (ctx as any).match![1];
     inputState.set(ctx.from!.id, {
@@ -307,14 +298,9 @@ function tasksHandler(bot: Telegraf): void {
       attachments: [],
       emoji: "",
     });
-    await trackSend(ctx, () =>
-      ctx.reply("📝 Введите заголовок задания:", {
-        ...Markup.inlineKeyboard([
+    await editOrSend(ctx, "📝 Введите заголовок задания:", Markup.inlineKeyboard([
           [Markup.button.callback("❌ Отмена", `subject_${subjectId}`)],
-        ]),
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+        ]) as any);
   });
 
   // Add answer
@@ -382,14 +368,9 @@ function tasksHandler(bot: Telegraf): void {
     bot.action(new RegExp(`^${pattern}_([a-f0-9]{24})$`), async (ctx: Context) => {
       const taskId = (ctx as any).match![1];
       inputState.set(ctx.from!.id, { mode: "edit_task", step, taskId });
-      await trackSend(ctx, () =>
-        ctx.reply(prompt, {
-          ...Markup.inlineKeyboard([
+      await editOrSend(ctx, prompt, Markup.inlineKeyboard([
             [Markup.button.callback("❌ Отмена", `etm_${taskId}`)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+          ]) as any);
     });
   }
 
@@ -402,17 +383,9 @@ function tasksHandler(bot: Telegraf): void {
       taskId,
       attachments: [],
     });
-    await trackSend(ctx, () =>
-      ctx.reply(
-        '📎 Отправьте новые файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-        {
-          ...Markup.inlineKeyboard([
+    await editOrSend(ctx, '📎 Отправьте новые файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
             [Markup.button.callback("✅ Готово", `fta_${taskId}`)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        }
-      )
-    );
+          ]) as any);
   });
 
   // Finish task attachments (add or edit)
@@ -430,21 +403,12 @@ function tasksHandler(bot: Telegraf): void {
         answers: [],
       });
       inputState.delete(ctx.from!.id);
-      await trackSend(ctx, () =>
-        ctx.reply("✅ Задание сохранено!\n\n---", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      await editOrSend(ctx, "✅ Задание сохранено!\n\n---");
       const { mainMenu } = await import("./start");
       await mainMenu(ctx);
     } else if (state.mode === "edit_task" && state.step === "attachments") {
       await subjectService.setTaskAttachments(taskId, state.attachments);
       inputState.delete(ctx.from!.id);
-      await trackSend(ctx, () =>
-        ctx.reply("✅ Вложения обновлены!\n\n---", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
       await showTask(ctx, taskId);
     }
   });
@@ -457,17 +421,9 @@ function tasksHandler(bot: Telegraf): void {
     state.step = "attachments";
     const finishId =
       state.mode === "add_task" ? state.subjectId : state.taskId;
-    await trackSend(ctx, () =>
-      ctx.reply(
-        '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---',
-        {
-          ...Markup.inlineKeyboard([
+    await editOrSend(ctx, '📎 Отправьте файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
             [Markup.button.callback("✅ Готово", `fta_${finishId}`)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        }
-      )
-    );
+          ]) as any);
   });
 }
 

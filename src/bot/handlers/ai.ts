@@ -1,6 +1,6 @@
 import { Context, Telegraf } from "telegraf";
 import { isStudent } from "../middleware/auth";
-import { trackSend, isPrivate } from "../helpers/editOrSend";
+import { trackSend, isPrivate, editOrSend, notice } from "../helpers/editOrSend";
 import { processQuery } from "../../services/orchestratorService";
 import ChatHistory from "../../models/ChatHistory";
 import * as inputState from "../helpers/inputState";
@@ -71,19 +71,13 @@ export function aiHandler(bot: Telegraf): void {
   bot.command("clear", async (ctx: Context) => {
     await ChatHistory.deleteOne({ telegramUserId: ctx.from!.id }).catch(() => {});
     inputState.delete(ctx.from!.id);
-    await trackSend(ctx, () =>
-      ctx.reply("🗑 История AI-чата очищена. Начните новый диалог с /ai или просто напишите.", {
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+    await editOrSend(ctx, "🗑 История AI-чата очищена. Начните новый диалог с /ai или просто напишите.");
   });
 
   // /ai2 — start AI session (all messages go to AI without reply)
   bot.command("ai2", async (ctx: Context) => {
     if (!(await isStudent(ctx))) {
-      return trackSend(ctx, () =>
-        ctx.reply("Нет доступа к AI.", { disable_notification: !isPrivate(ctx) })
-      );
+      return notice(ctx, "Нет доступа к AI.");
     }
 
     const question = (ctx.message as any).text.replace(/^\/ai2\s*/, "").trim();
@@ -92,25 +86,14 @@ export function aiHandler(bot: Telegraf): void {
     inputState.set(ctx.from!.id, { mode: "ai_session" });
 
     if (!question) {
-      return trackSend(ctx, () =>
-        ctx.reply(
-          "🤖 AI-сессия запущена. Пишите сообщения и отправляйте файлы — я всё обработаю.\n\nДля выхода: /cancel",
-          { disable_notification: !isPrivate(ctx) }
-        )
-      );
+      return editOrSend(ctx, "🤖 AI-сессия запущена. Пишите сообщения и отправляйте файлы — я всё обработаю.\n\nДля выхода: /cancel");
     }
 
     if (!checkRateLimit(ctx.from!.id)) {
-      return trackSend(ctx, () =>
-        ctx.reply("Слишком много запросов. Подождите минуту.", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      return notice(ctx, "Слишком много запросов. Подождите минуту.");
     }
 
-    const thinking = await trackSend(ctx, () =>
-      ctx.reply("Думаю...", { disable_notification: !isPrivate(ctx) })
-    );
+    const thinking = await trackSend(ctx, () => ctx.reply("Думаю...") as any);
 
     try {
       const history = await ChatHistory.findOne({ telegramUserId: ctx.from!.id });
@@ -161,35 +144,19 @@ export function aiHandler(bot: Telegraf): void {
 
   bot.command("ai", async (ctx: Context) => {
     if (!(await isStudent(ctx))) {
-      return trackSend(ctx, () =>
-        ctx.reply("Нет доступа к AI.", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      return notice(ctx, "Нет доступа к AI.");
     }
 
     if (!checkRateLimit(ctx.from!.id)) {
-      return trackSend(ctx, () =>
-        ctx.reply("Слишком много запросов. Подождите минуту.", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      return notice(ctx, "Слишком много запросов. Подождите минуту.");
     }
 
     const question = (ctx.message as any).text.replace(/^\/ai\s*/, "").trim();
     if (!question) {
-      return trackSend(ctx, () =>
-        ctx.reply("Использование: /ai <вопрос>", {
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+      return editOrSend(ctx, "Использование: /ai <вопрос>");
     }
 
-    const thinking = await trackSend(ctx, () =>
-      ctx.reply("Думаю...", {
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+    const thinking = await trackSend(ctx, () => ctx.reply("Думаю...") as any);
 
     try {
       // Load recent history

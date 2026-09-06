@@ -1,8 +1,8 @@
 import { Telegraf, Context, Markup } from "telegraf";
 import { isStudent } from "../middleware/auth";
-import { editOrSend, trackSend, isPrivate } from "../helpers/editOrSend";
+import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
-import { renderSubjectCard } from "../../services/scheduleImageService";
+import { renderSubjectCard, renderSubjectStrip } from "../../services/scheduleImageService";
 import { packRows } from "../helpers/buttonRows";
 import * as subjectService from "../../services/subjectService";
 
@@ -100,24 +100,19 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
     if (subject.classroomUrl) links.push(Markup.button.url("🎓 Classroom", subject.classroomUrl));
     if (subject.teamsLink) links.push(Markup.button.url("🎥 Teams", subject.teamsLink));
     if (links.length) buttons.push(links);
+    // Дії одним рядком іконок: підписи тут нічого не додають, а рядків їдять багато.
+    const actions = [Markup.button.callback("⬅️", "subjects"), Markup.button.callback("🖼", `subjimg_${id}`)];
     if (await isStudent(ctx)) {
-      buttons.push(
-        [
-          Markup.button.callback("🖼 Карткою", `subjimg_${id}`),
-          Markup.button.callback("➕ Завдання", `add_task_${id}`),
-        ],
-        [
-          Markup.button.callback("✏️ Змінити", `esm_${id}`),
-          Markup.button.callback("⚙️ Вигляд", `cols_${id}`),
-        ],
-        [
-          Markup.button.callback("🗑️ Видалити", `src_${id}`),
-        ]
+      actions.push(
+        Markup.button.callback("➕", `add_task_${id}`),
+        Markup.button.callback("✏️", `esm_${id}`),
+        Markup.button.callback("⚙️", `cols_${id}`),
+        Markup.button.callback("🗑", `src_${id}`)
       );
     }
-    buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
+    buttons.push(actions);
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any, {
-      render: () => renderSubjectCard(id),
+      render: () => renderSubjectStrip(id),
     });
 }
 
@@ -216,9 +211,7 @@ function subjectsHandler(bot: Telegraf): void {
   // Add subject
   bot.action("add_subject", async (ctx: Context) => {
     if (!(await isStudent(ctx))) {
-      return trackSend(ctx, () =>
-        ctx.reply("❌ Нет прав.", { disable_notification: !isPrivate(ctx) })
-      );
+      return notice(ctx, "❌ Нет прав.");
     }
     inputState.set(ctx.from!.id, {
       mode: "add_subject",
@@ -230,14 +223,9 @@ function subjectsHandler(bot: Telegraf): void {
       practitionerName: "",
       practitionerContact: "",
     });
-    await trackSend(ctx, () =>
-      ctx.reply("📘 Введите название нового предмета:", {
-        ...Markup.inlineKeyboard([
+    await editOrSend(ctx, "📘 Введите название нового предмета:", Markup.inlineKeyboard([
           [Markup.button.callback("❌ Отмена", "subjects")],
-        ]),
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+        ]) as any);
   });
 
   // Edit subject menu
@@ -284,14 +272,9 @@ function subjectsHandler(bot: Telegraf): void {
         step,
         subjectId,
       });
-      await trackSend(ctx, () =>
-        ctx.reply(prompt, {
-          ...Markup.inlineKeyboard([
+      await editOrSend(ctx, prompt, Markup.inlineKeyboard([
             [Markup.button.callback("❌ Отмена", `esm_${subjectId}`)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+          ]) as any);
     });
   }
 
@@ -328,14 +311,9 @@ function subjectsHandler(bot: Telegraf): void {
       if (!state || state.mode !== "add_subject") return;
       state[field] = "";
       state.step = nextStep;
-      await trackSend(ctx, () =>
-        ctx.reply(prompt, {
-          ...Markup.inlineKeyboard([
+      await editOrSend(ctx, prompt, Markup.inlineKeyboard([
             [Markup.button.callback("Пропустить", nextSkip)],
-          ]),
-          disable_notification: !isPrivate(ctx),
-        })
-      );
+          ]) as any);
     });
   }
 
@@ -354,11 +332,7 @@ function subjectsHandler(bot: Telegraf): void {
       tasks: [] as any,
     });
     inputState.delete(ctx.from!.id);
-    await trackSend(ctx, () =>
-      ctx.reply("✅ Предмет добавлен!\n\n---", {
-        disable_notification: !isPrivate(ctx),
-      })
-    );
+    await editOrSend(ctx, "✅ Предмет добавлен!\n\n---");
     const { mainMenu } = await import("./start");
     await mainMenu(ctx);
   });

@@ -110,6 +110,19 @@ function notModified(err: TelegramError): boolean {
 }
 
 /**
+ * Коротке повідомлення, яке не має ставати екраном: відмова в правах,
+ * ліміт запитів, «команда тільки для групи». На натискання кнопки показуємо
+ * спливаюче вікно, на команду - звичайну відповідь, щоб не затерти екран.
+ */
+export async function notice(ctx: Context, text: string): Promise<void> {
+  if (ctx.callbackQuery) {
+    await ctx.answerCbQuery(text, { show_alert: true }).catch(() => {});
+    return;
+  }
+  await ctx.reply(text, { disable_notification: !isPrivate(ctx) }).catch(() => {});
+}
+
+/**
  * Малюємо екран в одному повідомленні: поки воно медіа, кожне натискання
  * редагує його на місці. Текст довший за підпис лишається текстовим.
  */
