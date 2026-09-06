@@ -176,7 +176,7 @@ const DAYS: Record<number, Array<[number, string, string, string?, string?]>> = 
 async function seed(): Promise<void> {
   const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/homeworkbot";
   await mongoose.connect(uri);
-  console.log("[seed] connected:", uri);
+  console.log("[seed] connected:", uri.replace(/\/\/[^@]*@/, "//***@"));
 
   const ids: Record<string, mongoose.Types.ObjectId> = {};
   for (const [i, s] of SUBJECTS.entries()) {

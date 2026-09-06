@@ -44,8 +44,8 @@ export async function renderDayCard(date: Date, lessons: DayLesson[]): Promise<B
   <rect x="${PAD}" y="${y}" width="6" height="${ROW - 10}" rx="3" fill="${ACCENT}"/>
   <text x="${PAD + 24}" y="${y + 28}" fill="${TEXT}" font-size="20" font-family="DejaVu Sans, sans-serif">${esc(l.startTime)}–${esc(l.endTime)}</text>
   <text x="${PAD + 24}" y="${y + 52}" fill="${MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(l.kind)}</text>
-  <text x="${PAD + 150}" y="${y + 28}" fill="${TEXT}" font-size="21" font-family="DejaVu Sans, sans-serif">${esc(emoji)} ${esc(name)}</text>
-  <text x="${PAD + 150}" y="${y + 52}" fill="${MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(who)}</text>`;
+  <text x="${PAD + 205}" y="${y + 28}" fill="${TEXT}" font-size="21" font-family="DejaVu Sans, sans-serif">${esc(emoji)} ${esc(name)}</text>
+  <text x="${PAD + 205}" y="${y + 52}" fill="${MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(who)}</text>`;
         })
         .join("")
     : `<text x="${PAD + 24}" y="${PAD + 140}" fill="${MUTED}" font-size="22" font-family="DejaVu Sans, sans-serif">Пар немає</text>`;
@@ -85,9 +85,9 @@ export async function renderWeekCard(date: Date): Promise<Buffer> {
       const subj = id ? byId.get(String(id)) : null;
       cells += `<rect x="${x + 4}" y="${y}" width="${colW - 8}" height="${rowH - 8}" rx="10" fill="${subj ? CARD : "#161a26"}"/>`;
       if (subj) {
-        const short = subj.name.length > 22 ? subj.name.slice(0, 21) + "…" : subj.name;
+        const short = subj.name.length > 15 ? subj.name.slice(0, 14) + "…" : subj.name;
         const kind = found && found.isAlternating && !odd ? found.kindEven : found?.kind;
-        cells += `<text x="${x + 14}" y="${y + 26}" fill="${TEXT}" font-size="14" font-family="DejaVu Sans, sans-serif">${esc(subj.emoji || "")} ${esc(short)}</text>`;
+        cells += `<text x="${x + 14}" y="${y + 26}" fill="${TEXT}" font-size="14" font-family="DejaVu Sans, sans-serif">${esc(short)}</text>`;
         cells += `<text x="${x + 14}" y="${y + 46}" fill="${MUTED}" font-size="13" font-family="DejaVu Sans, sans-serif">${esc(kind || "")}</text>`;
       }
     }

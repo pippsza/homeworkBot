@@ -3,7 +3,7 @@ WORKDIR /app
 
 # resvg малює картки розкладу системними шрифтами:
 # без цього пакета кирилиця перетворюється на порожні прямокутники.
-RUN apk add --no-cache font-dejavu
+RUN apk add --no-cache font-dejavu font-noto-emoji
 
 COPY package*.json ./
 RUN npm ci --omit=dev
