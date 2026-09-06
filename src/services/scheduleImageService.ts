@@ -378,12 +378,12 @@ export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
   const subj = await subjectService.getById(subjectId);
   if (!subj) throw new Error("subject not found");
 
-  const tasks = (subj.tasks || []) as { title: string; deadline?: Date; order?: number }[];
+  const tasks = (subj.tasks || []) as { title: string; deadline?: Date; order?: number; done?: boolean }[];
   const now = new Date();
   const grading = ((subj as any).grading || []) as { label: string; points: number }[];
   const marks = tasks
     .filter((t) => t.deadline)
-    .map((t) => ({ title: plain(t.title), date: new Date(t.deadline!) }))
+    .map((t) => ({ title: plain(t.title), date: new Date(t.deadline!), done: !!t.done }))
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .slice(0, 6);
 
@@ -396,10 +396,18 @@ export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
   let body = `
   <text x="${left}" y="${y}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(plain(subj.name).slice(0, 40))}</text>`;
   y += 30;
+  const doneCount = tasks.filter((t) => t.done).length;
   const sub = [teacher, `${tasks.length} завдань`].filter(Boolean).join(" · ");
   body += `
   <text x="${left}" y="${y}" fill="${MUTED}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(sub)}</text>`;
-  y += 34;
+  y += 22;
+
+  if (tasks.length) {
+    body += progressBar(doneCount, tasks.length, left, right, y);
+    y += 58;
+  } else {
+    y += 12;
+  }
 
   if (grading.length) {
     body += pointsBar(grading, left, right, y);
@@ -427,7 +435,7 @@ export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
 
 /** Перелік завдань у три колонки: показуємо всі, але не тягнемо картку вниз. */
 function taskColumns(
-  tasks: { title: string; deadline?: Date }[],
+  tasks: { title: string; deadline?: Date; done?: boolean }[],
   now: Date,
   left: number,
   right: number,
@@ -441,9 +449,10 @@ function taskColumns(
     const x = left + (i % cols) * colW;
     const ty = y + 26 + Math.floor(i / cols) * 26;
     const overdue = t.deadline && new Date(t.deadline) < now;
+    const dot = t.done ? DONE_COLOR : overdue ? "#ff6b6b" : ACCENT;
     out += `
-  <circle cx="${x + 4}" cy="${ty - 5}" r="3" fill="${overdue ? MUTED : ACCENT}"/>
-  <text x="${x + 16}" y="${ty}" fill="${overdue ? MUTED : TEXT}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(plain(t.title).slice(0, 26))}</text>`;
+  <circle cx="${x + 4}" cy="${ty - 5}" r="${t.done ? 5 : 3}" fill="${dot}"/>
+  <text x="${x + 16}" y="${ty}" fill="${t.done ? MUTED : TEXT}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(plain(t.title).slice(0, 26))}</text>`;
   });
   return out;
 }
@@ -459,7 +468,8 @@ export async function renderSubjectsList(): Promise<Buffer> {
   const rows = subjects
     .map((s: any, i: number) => {
       const y = PAD + 108 + i * ROWH;
-      const tasks = (s.tasks || []) as { title: string; deadline?: Date }[];
+      const tasks = (s.tasks || []) as { title: string; deadline?: Date; done?: boolean }[];
+      const done = tasks.filter((t) => t.done).length;
       const next = tasks
         .filter((t) => t.deadline && new Date(t.deadline) >= now)
         .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];
@@ -469,7 +479,7 @@ export async function renderSubjectsList(): Promise<Buffer> {
       return `
   <circle cx="${left + 5}" cy="${y - 6}" r="5" fill="${color}"/>
   <text x="${left + 22}" y="${y}" fill="${TEXT}" font-size="19" font-family="DejaVu Sans, sans-serif">${esc(plain(s.name).slice(0, 44))}</text>
-  <text x="${right}" y="${y}" fill="${MUTED}" font-size="15" text-anchor="end" font-family="DejaVu Sans, sans-serif">${tasks.length} завдань${due ? ` · до ${due.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}` : ""}</text>`;
+  <text x="${right}" y="${y}" fill="${MUTED}" font-size="15" text-anchor="end" font-family="DejaVu Sans, sans-serif">${done ? `${done}/` : ""}${tasks.length} завдань${due ? ` · до ${due.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}` : ""}</text>`;
     })
     .join("");
 
@@ -483,6 +493,18 @@ export async function renderSubjectsList(): Promise<Buffer> {
   ${rows}
 </svg>`;
   return toPng(svg);
+}
+
+const DONE_COLOR = "#3ddc84";
+
+/** Скільки робіт здано: рахуємо за відміткою, а не за пройденими дедлайнами. */
+function progressBar(done: number, total: number, left: number, right: number, y: number): string {
+  const w = right - left;
+  const filled = total ? (w * done) / total : 0;
+  return `
+  <rect x="${left}" y="${y}" width="${w}" height="8" rx="4" fill="#2b3345"/>
+  <rect x="${left}" y="${y}" width="${filled}" height="8" rx="4" fill="${DONE_COLOR}"/>
+  <text x="${left}" y="${y + 30}" fill="${done ? DONE_COLOR : MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif">здано ${done} з ${total}</text>`;
 }
 
 const GRADE_COLORS = ["#4f8cff", "#4ecdc4", "#ffc857", "#c77dff", "#ff6b6b"];
@@ -521,7 +543,7 @@ function pointsBar(
  * дати не наїжджали одна на одну.
  */
 function deadlineRibbon(
-  marks: { title: string; date: Date }[],
+  marks: { title: string; date: Date; done?: boolean }[],
   now: Date,
   left: number,
   right: number,
@@ -541,12 +563,12 @@ function deadlineRibbon(
     const x = at(m.date.getTime());
     const past = m.date.getTime() < now.getTime();
     const days = Math.ceil((m.date.getTime() - now.getTime()) / 86_400_000);
-    const color = past ? MUTED : days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
+    const color = m.done ? DONE_COLOR : past ? MUTED : days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
     const ty = y + (i % 2 === 0 ? 48 : 66);
     const anchor = x > right - 90 ? "end" : x < left + 60 ? "start" : "middle";
     out += `
   <circle cx="${x}" cy="${y + 24}" r="7" fill="${color}"/>
-  <text x="${x}" y="${ty}" fill="${past ? MUTED : TEXT}" font-size="13" text-anchor="${anchor}" font-family="DejaVu Sans, sans-serif">${esc(m.date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" }))} ${esc(m.title.slice(0, 16))}</text>`;
+  <text x="${x}" y="${ty}" fill="${past || m.done ? MUTED : TEXT}" font-size="13" text-anchor="${anchor}" font-family="DejaVu Sans, sans-serif">${esc(m.date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" }))} ${esc(m.title.slice(0, 16))}</text>`;
   });
   return out;
 }

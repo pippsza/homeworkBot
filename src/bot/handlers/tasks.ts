@@ -1,5 +1,5 @@
 import { Telegraf, Context, Markup } from "telegraf";
-import { isStudent } from "../middleware/auth";
+import { isStudent, isSuperadmin } from "../middleware/auth";
 import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import * as subjectService from "../../services/subjectService";
@@ -75,6 +75,10 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
     ]);
   }
   const actions = [Markup.button.callback("⬅️", `subject_${subject!._id}`)];
+  // Відмітка «здано» - особистий облік суперадміна, решті її не показуємо.
+  if (await isSuperadmin(ctx)) {
+    actions.push(Markup.button.callback((task as any).done ? "✅" : "⬜", `tdone_${taskId}`));
+  }
   if (await isStudent(ctx)) {
     actions.push(
       Markup.button.callback("➕", `aa_${taskId}`),
@@ -98,7 +102,7 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
 const CAPTION_LIMIT = 1024;
 
 function taskCaption(task: any): string {
-  const head = `${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>`;
+  const head = `${task.done ? "✅ " : ""}${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>`;
   const due = task.deadline ? `\n🗓 До ${new Date(task.deadline).toLocaleDateString("uk-UA")}` : "";
   const body = task.description ? `\n\n${escapeHtml(task.description)}` : "";
   const caption = head + due + body;
@@ -126,6 +130,19 @@ function tasksHandler(bot: Telegraf): void {
   // View task
   bot.action(/^task_([a-f0-9]{24})$/, async (ctx: Context) => {
     await showTask(ctx, (ctx as any).match![1]);
+  });
+
+  bot.action(/^tdone_([a-f0-9]{24})$/, async (ctx: Context) => {
+    if (!(await isSuperadmin(ctx))) {
+      return ctx.answerCbQuery("Тільки для суперадміна.", { show_alert: true });
+    }
+    const taskId = (ctx as any).match![1];
+    const { task } = await subjectService.getTask(taskId);
+    if (!task) return ctx.answerCbQuery("Завдання не знайдено.");
+    const done = !(task as any).done;
+    await subjectService.updateTask(taskId, { done, doneAt: done ? new Date() : null } as any);
+    await ctx.answerCbQuery(done ? "Здано" : "Знято відмітку");
+    await showTask(ctx, taskId);
   });
 
   // Confirm delete task

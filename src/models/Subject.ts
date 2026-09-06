@@ -34,6 +34,9 @@ export interface ITask extends Document {
   deadline: Date | null;
   order: number;
   fullWidth: boolean;
+  /** Робота здана. Ставить лише суперадмін - це його особистий облік. */
+  done: boolean;
+  doneAt: Date | null;
   submissions: ISubmission[];
   createdAt: Date;
   updatedAt: Date;
@@ -106,6 +109,8 @@ const taskSchema = new mongoose.Schema(
     // Розкладка кнопки завдання: порядок у сітці і чи займає весь рядок
     order: { type: Number, default: 0 },
     fullWidth: { type: Boolean, default: false },
+    done: { type: Boolean, default: false },
+    doneAt: { type: Date, default: null },
     submissions: [submissionSchema],
   },
   { _id: true, timestamps: true }
