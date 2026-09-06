@@ -161,6 +161,11 @@ export default function notifyHandler(bot: Telegraf): void {
     }
   });
 
+  bot.action("deadlines_img", async (ctx) => {
+    await ctx.answerCbQuery("Малюю…");
+    await showPhoto(ctx, await renderDeadlineTimeline(new Date(), 21), "main_menu");
+  });
+
   bot.command("deadlines", async (ctx) => {
     const png = await renderDeadlineTimeline(new Date(), 21);
     await ctx.replyWithPhoto({ source: png });

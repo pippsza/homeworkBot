@@ -60,6 +60,21 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
   await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);
 }
 
+function attachmentKeyboard(taskId: string, idx: number, total: number) {
+  const rows: any[] = [];
+  if (total > 1) {
+    const prev = (idx - 1 + total) % total;
+    const next = (idx + 1) % total;
+    rows.push([
+      Markup.button.callback("◀️", `att_${taskId}_${prev}`),
+      Markup.button.callback(`${idx + 1}/${total}`, "noop"),
+      Markup.button.callback("▶️", `att_${taskId}_${next}`),
+    ]);
+  }
+  rows.push([Markup.button.callback("⬅️ До завдання", `attback_${taskId}`)]);
+  return Markup.inlineKeyboard(rows);
+}
+
 function tasksHandler(bot: Telegraf): void {
   // View task
   bot.action(/^task_([a-f0-9]{24})$/, async (ctx: Context) => {
@@ -130,29 +145,43 @@ function tasksHandler(bot: Telegraf): void {
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);
   });
 
-  // Show attachments
+  // Вкладення показуємо по одному в тому самому повідомленні: editMessageMedia
+  // вміє замінити документ на документ, тому чат не забивається файлами.
   bot.action(/^sha_([a-f0-9]{24})$/, async (ctx: Context) => {
-    const { task } = await subjectService.getTask((ctx as any).match![1]);
+    await ctx.answerCbQuery().catch(() => {});
+    const taskId = (ctx as any).match![1];
+    const { task } = await subjectService.getTask(taskId);
     if (!task?.attachments?.length) return;
-    for (const att of task.attachments) {
-      try {
-        if (att.type === "photo") {
-          await trackSend(ctx, () =>
-            ctx.replyWithPhoto(att.file_id, {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
-        } else if (att.type === "document") {
-          await trackSend(ctx, () =>
-            ctx.replyWithDocument(att.file_id, {
-              disable_notification: !isPrivate(ctx),
-            })
-          );
-        }
-      } catch (e) {
-        console.error("[send attachment error]", e);
-      }
-    }
+    await ctx.deleteMessage().catch(() => {});
+    const att = task.attachments[0];
+    const extra = { reply_markup: attachmentKeyboard(taskId, 0, task.attachments.length).reply_markup };
+    if (att.type === "photo") await ctx.replyWithPhoto(att.file_id, extra as any);
+    else await ctx.replyWithDocument(att.file_id, extra as any);
+  });
+
+  bot.action(/^att_([a-f0-9]{24})_(\d+)$/, async (ctx: Context) => {
+    const m = (ctx as any).match as RegExpMatchArray;
+    const taskId = m[1];
+    const idx = Number(m[2]);
+    const { task } = await subjectService.getTask(taskId);
+    if (!task?.attachments?.length) return;
+    const total = task.attachments.length;
+    const att = task.attachments[((idx % total) + total) % total];
+    await ctx.answerCbQuery().catch(() => {});
+    await ctx
+      .editMessageMedia(
+        { type: att.type === "photo" ? "photo" : "document", media: att.file_id } as any,
+        { reply_markup: attachmentKeyboard(taskId, idx, total).reply_markup } as any
+      )
+      .catch(() => {});
+  });
+
+  // Повернення до завдання: повідомлення з файлом текстом не стає, тому
+  // прибираємо його і малюємо картку заново.
+  bot.action(/^attback_([a-f0-9]{24})$/, async (ctx: Context) => {
+    await ctx.answerCbQuery().catch(() => {});
+    await ctx.deleteMessage().catch(() => {});
+    await showTask(ctx, (ctx as any).match![1]);
   });
 
   // Show answers

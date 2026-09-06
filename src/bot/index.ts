@@ -15,6 +15,9 @@ import * as groupMemberService from "../services/groupMemberService";
 import { VERSION } from "../version";
 
 export function setupBot(bot: Telegraf): void {
+  // Лічильник «2/4» - не кнопка, але Telegram чекає відповіді на натискання
+  bot.action("noop", (ctx) => ctx.answerCbQuery().catch(() => {}));
+
   bot.command("v", (ctx) => ctx.reply(`📦 HomeworkBot v${VERSION}`));
 
   // Track group members on every interaction

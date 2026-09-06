@@ -107,18 +107,16 @@ function subjectsHandler(bot: Telegraf): void {
     }
     const buttons = [...taskButtons];
     if (await isStudent(ctx)) {
-      buttons.push([
-        Markup.button.callback("🖼 Карткою", `subjimg_${id}`),
-      ],
-      [
-        Markup.button.callback("➕ Добавить задание", `add_task_${id}`),
-      ]);
-      buttons.push([
-        Markup.button.callback("✏️ Редактировать", `esm_${id}`),
-      ]);
-      buttons.push([
-        Markup.button.callback("🗑️ Удалить предмет", `src_${id}`),
-      ]);
+      buttons.push(
+        [
+          Markup.button.callback("🖼 Карткою", `subjimg_${id}`),
+          Markup.button.callback("➕ Завдання", `add_task_${id}`),
+        ],
+        [
+          Markup.button.callback("✏️ Змінити", `esm_${id}`),
+          Markup.button.callback("🗑️ Видалити", `src_${id}`),
+        ]
+      );
     }
     buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
     await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);

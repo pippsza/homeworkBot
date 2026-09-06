@@ -9,9 +9,14 @@ const replyKeyboard = Markup.keyboard([["🏠 Главное меню"]])
 
 async function mainMenu(ctx: Context): Promise<void> {
   const buttons = [
-    [Markup.button.callback("📚 Предметы", "subjects")],
-    [Markup.button.callback("ℹ️ Информация", "infos")],
-    [Markup.button.callback("📅 Расписание", "sch")],
+    [
+      Markup.button.callback("📚 Предмети", "subjects"),
+      Markup.button.callback("📅 Розклад", "sch"),
+    ],
+    [
+      Markup.button.callback("⏳ Дедлайни", "deadlines_img"),
+      Markup.button.callback("ℹ️ Інформація", "infos"),
+    ],
   ];
   if (await isSuperadmin(ctx)) {
     buttons.push([
