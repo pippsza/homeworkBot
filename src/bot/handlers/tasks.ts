@@ -18,9 +18,18 @@ async function swapMedia(
 ): Promise<void> {
   try {
     await ctx.editMessageMedia(media as any, { reply_markup: keyboard.reply_markup } as any);
+    await ctx.answerCbQuery().catch(() => {});
   } catch (e) {
-    console.error("[attachments] swap failed:", (e as Error).message);
-    await ctx.answerCbQuery("Не вдалося відкрити файл", { show_alert: true }).catch(() => {});
+    const msg = (e as Error).message || "";
+    console.error("[attachments] swap failed:", msg);
+    // file_id належить конкретному боту: на стенді файли бойового бота не відкрити
+    const alien = /wrong file identifier|wrong remote file|MEDIA_EMPTY/i.test(msg);
+    await ctx
+      .answerCbQuery(
+        alien ? "Файл завантажений іншим ботом - тут він недоступний" : "Не вдалося відкрити файл",
+        { show_alert: true }
+      )
+      .catch(() => {});
   }
 }
 
@@ -249,13 +258,11 @@ function tasksHandler(bot: Telegraf): void {
   // Вкладення показуємо по одному в тому самому повідомленні: editMessageMedia
   // вміє замінити документ на документ, тому чат не забивається файлами.
   bot.action(/^sha_([a-f0-9]{24})$/, async (ctx: Context) => {
-    await ctx.answerCbQuery().catch(() => {});
     await showAttachment(ctx, (ctx as any).match![1], 0);
   });
 
   bot.action(/^att_([a-f0-9]{24})_(\d+)$/, async (ctx: Context) => {
     const m = (ctx as any).match as RegExpMatchArray;
-    await ctx.answerCbQuery().catch(() => {});
     await showAttachment(ctx, m[1], Number(m[2]));
   });
 
