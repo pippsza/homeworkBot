@@ -7,6 +7,7 @@ import { buildDigest, lessonsFor } from "../../services/dailyDigestService";
 import { syncLinks, syncSchedule } from "../../services/icsService";
 import Settings from "../../models/Settings";
 import { sendCard } from "../../services/cardService";
+import { buildDeadlineDigest } from "../../services/deadlineDigestService";
 
 
 /** Картка з кнопкою назад у тому самому вікні: малюнок бере editOrSend. */
@@ -170,7 +171,9 @@ export default function notifyHandler(bot: Telegraf): void {
   });
 
   bot.command("deadlines", async (ctx) => {
-    await sendCard(ctx.telegram, ctx.chat!.id, { render: () => renderDeadlineTimeline(new Date(), 21) });
+    const now = new Date();
+    const text = (await buildDeadlineDigest(now)) || "⏳ <b>Дедлайни</b>\nНічого не горить.";
+    await sendCard(ctx.telegram, ctx.chat!.id, { render: () => renderDeadlineTimeline(now, 14) }, { caption: text });
   });
 
   bot.action(/^subjimg_(\w+)$/, async (ctx) => {
