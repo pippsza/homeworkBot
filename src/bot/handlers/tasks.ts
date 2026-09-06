@@ -54,7 +54,8 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
       Markup.button.callback("🗑️ Удалить задание", `trc_${taskId}`),
     ]);
     buttons.push([
-      Markup.button.callback("✏️ Редактировать", `etm_${taskId}`),
+      Markup.button.callback("✏️ Редагувати", `etm_${taskId}`),
+      Markup.button.callback("⚙️ Розкладка", `tlay_${taskId}`),
     ]);
   }
   buttons.push([

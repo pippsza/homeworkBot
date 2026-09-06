@@ -26,6 +26,34 @@ function shortSubject(name: string): string {
   return t.length > 18 ? t.slice(0, 17) + "…" : t;
 }
 
+/**
+ * Розкладка кнопок завдань. Порядок задає поле order, а завдання з
+ * fullWidth займає весь рядок - так довгі назви не ріжуться.
+ */
+function layoutTasks(tasks: any[], columns: number): any[][] {
+  const sorted = [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const rows: any[][] = [];
+  let row: any[] = [];
+  for (const t of sorted) {
+    const btn = Markup.button.callback(
+      `${t.emoji || "📄"} ${t.fullWidth ? t.title : shortTitle(t.title)}`,
+      `task_${t._id}`
+    );
+    if (t.fullWidth) {
+      if (row.length) rows.push(row), (row = []);
+      rows.push([btn]);
+      continue;
+    }
+    row.push(btn);
+    if (row.length >= columns) {
+      rows.push(row);
+      row = [];
+    }
+  }
+  if (row.length) rows.push(row);
+  return rows;
+}
+
 /** Коротка назва на кнопку: у ряд поміщається близько 15 символів. */
 function shortTitle(title: string): string {
   const t = title
@@ -37,6 +65,64 @@ function shortTitle(title: string): string {
     .replace(/^Лекції.*/i, "Лекції")
     .replace(/^Матеріали.*/i, "Матеріали");
   return t.length > 16 ? t.slice(0, 15) + "…" : t;
+}
+
+/** Картка предмета. Винесена, щоб її могли перемалювати налаштування вигляду. */
+export async function showSubject(ctx: Context, id: string): Promise<void> {
+    
+    const subject = await subjectService.getById(id);
+    if (!subject) {
+      return editOrSend(
+        ctx,
+        "❌ Предмет не найден.\n\n---",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("⬅️ Назад", "subjects")],
+        ]) as any
+      );
+    }
+
+    let msg = `📘 Предмет: ${subject.name}\n\n`;
+    if (subject.lecturerName) {
+      msg += `👨‍🏫 Лектор: ${subject.lecturerName}${
+        subject.lecturerContact ? ` (${subject.lecturerContact})` : ""
+      }\n`;
+    }
+    if (subject.practitionerName) {
+      msg += `👩‍🏫 Практик: ${subject.practitionerName}${
+        subject.practitionerContact ? ` (${subject.practitionerContact})` : ""
+      }\n`;
+    }
+    msg += "\n---\n";
+    if (subject.tasks.length === 0) {
+      msg += "😔 Нет заданий.\n";
+    } else {
+      msg += "📝 Задания:\n";
+      subject.tasks.forEach((t: any) => {
+        msg += `${t.emoji || "📄"} ${t.title}\n`;
+      });
+    }
+    msg += "\n---";
+
+    const taskButtons = layoutTasks(subject.tasks, subject.buttonColumns || 2);
+    const buttons = [...taskButtons];
+    if (await isStudent(ctx)) {
+      buttons.push(
+        [
+          Markup.button.callback("🖼 Карткою", `subjimg_${id}`),
+          Markup.button.callback("➕ Завдання", `add_task_${id}`),
+        ],
+        [
+          Markup.button.callback("✏️ Змінити", `esm_${id}`),
+          Markup.button.callback("⚙️ Вигляд", `cols_${id}`),
+        ],
+        [
+          Markup.button.callback("🗑️ Видалити", `src_${id}`),
+        ]
+      );
+    }
+    buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
+    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);
+  
 }
 
 function subjectsHandler(bot: Telegraf): void {
@@ -83,67 +169,8 @@ function subjectsHandler(bot: Telegraf): void {
   });
 
   // View single subject
-  bot.action(/^subject_([a-f0-9]{24})$/, async (ctx: Context) => {
-    const id = (ctx as any).match![1];
-    const subject = await subjectService.getById(id);
-    if (!subject) {
-      return editOrSend(
-        ctx,
-        "❌ Предмет не найден.\n\n---",
-        Markup.inlineKeyboard([
-          [Markup.button.callback("⬅️ Назад", "subjects")],
-        ]) as any
-      );
-    }
+  bot.action(/^subject_([a-f0-9]{24})$/, (ctx: Context) => showSubject(ctx, (ctx as any).match![1]));
 
-    let msg = `📘 Предмет: ${subject.name}\n\n`;
-    if (subject.lecturerName) {
-      msg += `👨‍🏫 Лектор: ${subject.lecturerName}${
-        subject.lecturerContact ? ` (${subject.lecturerContact})` : ""
-      }\n`;
-    }
-    if (subject.practitionerName) {
-      msg += `👩‍🏫 Практик: ${subject.practitionerName}${
-        subject.practitionerContact ? ` (${subject.practitionerContact})` : ""
-      }\n`;
-    }
-    msg += "\n---\n";
-    if (subject.tasks.length === 0) {
-      msg += "😔 Нет заданий.\n";
-    } else {
-      msg += "📝 Задания:\n";
-      subject.tasks.forEach((t: any) => {
-        msg += `${t.emoji || "📄"} ${t.title}\n`;
-      });
-    }
-    msg += "\n---";
-
-    const taskButtons: any[][] = [];
-    for (let j = 0; j < subject.tasks.length; j += 2) {
-      taskButtons.push(
-        subject.tasks
-          .slice(j, j + 2)
-          .map((t: any) =>
-            Markup.button.callback(`${t.emoji || "📄"} ${shortTitle(t.title)}`, `task_${t._id}`)
-          )
-      );
-    }
-    const buttons = [...taskButtons];
-    if (await isStudent(ctx)) {
-      buttons.push(
-        [
-          Markup.button.callback("🖼 Карткою", `subjimg_${id}`),
-          Markup.button.callback("➕ Завдання", `add_task_${id}`),
-        ],
-        [
-          Markup.button.callback("✏️ Змінити", `esm_${id}`),
-          Markup.button.callback("🗑️ Видалити", `src_${id}`),
-        ]
-      );
-    }
-    buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);
-  });
 
   // Confirm delete subject
   bot.action(/^src_([a-f0-9]{24})$/, async (ctx: Context) => {

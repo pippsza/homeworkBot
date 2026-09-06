@@ -32,6 +32,8 @@ export interface ITask extends Document {
   aiAnswerFiles: IAiAnswerFile[];
   autoSolve: boolean;
   deadline: Date | null;
+  order: number;
+  fullWidth: boolean;
   submissions: ISubmission[];
   createdAt: Date;
   updatedAt: Date;
@@ -55,6 +57,7 @@ export interface ISubject extends Document {
   grading: { label: string; points: number }[];
   tasks: mongoose.Types.DocumentArray<ITask>;
   order: number;
+  buttonColumns: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +102,10 @@ const taskSchema = new mongoose.Schema(
     }],
     autoSolve: { type: Boolean, default: false },
     deadline: { type: Date, default: null },
+
+    // Розкладка кнопки завдання: порядок у сітці і чи займає весь рядок
+    order: { type: Number, default: 0 },
+    fullWidth: { type: Boolean, default: false },
     submissions: [submissionSchema],
   },
   { _id: true, timestamps: true }
@@ -128,6 +135,9 @@ const subjectSchema = new mongoose.Schema(
     grading: [{ label: { type: String }, points: { type: Number } }],
     tasks: [taskSchema],
     order: { type: Number, default: 0 },
+
+    // Скільки кнопок завдань в рядок
+    buttonColumns: { type: Number, default: 2, min: 1, max: 3 },
   },
   { timestamps: true }
 );
