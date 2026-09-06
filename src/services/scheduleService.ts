@@ -213,3 +213,23 @@ export async function getNextClass(fromDate: Date = new Date()): Promise<NextCla
 
   return null;
 }
+
+/**
+ * Посилання на конкретну пару. У лекції і лабораторної воно різне, а на
+ * "мигалці" різне ще й по тижнях, тому зберігаємо в слоті, а не в предметі.
+ */
+export async function setSlotLink(
+  dayOfWeek: number,
+  slotNumber: number,
+  link: string,
+  even = false
+): Promise<boolean> {
+  const doc = await get();
+  const day = doc.days.find((d) => d.dayOfWeek === dayOfWeek);
+  const slot = day?.slots.find((s) => s.slotNumber === slotNumber);
+  if (!slot) return false;
+  if (even) slot.linkEven = link;
+  else slot.link = link;
+  await (doc as any).save();
+  return true;
+}

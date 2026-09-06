@@ -370,48 +370,183 @@ function plain(s: string): string {
 }
 
 /**
- * Вузька шапка предмета для списку завдань: назва, викладач і те, що
- * потрібно щодня - скільки завдань і який дедлайн найближчий. Повна довідка
- * (умови автомата, нюанси, шкала балів) лишається за кнопкою «Карткою».
+ * Картка предмета для екрана завдань: назва, з чого складаються бали,
+ * стрічка дедлайнів і перелік завдань. Підпис під нею лишається коротким,
+ * щоб картку не з'їдав текст. Довідка про викладача - за кнопкою «Карткою».
  */
 export async function renderSubjectStrip(subjectId: string): Promise<Buffer> {
   const subj = await subjectService.getById(subjectId);
   if (!subj) throw new Error("subject not found");
 
-  const tasks = (subj.tasks || []) as { title: string; deadline?: Date }[];
+  const tasks = (subj.tasks || []) as { title: string; deadline?: Date; order?: number }[];
   const now = new Date();
-  const next = tasks
-    .filter((t) => t.deadline && new Date(t.deadline) >= now)
-    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];
+  const grading = ((subj as any).grading || []) as { label: string; points: number }[];
+  const marks = tasks
+    .filter((t) => t.deadline)
+    .map((t) => ({ title: plain(t.title), date: new Date(t.deadline!) }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(0, 6);
 
+  const inner = W - PAD * 2;
+  const left = PAD + 28;
+  const right = W - PAD - 28;
   const teacher = subj.practitionerName || subj.lecturerName || "";
-  const chips: { text: string; color: string }[] = [{ text: `${tasks.length} завдань`, color: ACCENT }];
-  if (next) {
-    const days = Math.ceil((new Date(next.deadline!).getTime() - now.getTime()) / 86_400_000);
-    const color = days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
-    chips.push({ text: `${plain(next.title)} — ${new Date(next.deadline!).toLocaleDateString("uk-UA")}`, color });
+
+  let y = PAD + 52;
+  let body = `
+  <text x="${left}" y="${y}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(plain(subj.name).slice(0, 40))}</text>`;
+  y += 30;
+  const sub = [teacher, `${tasks.length} завдань`].filter(Boolean).join(" · ");
+  body += `
+  <text x="${left}" y="${y}" fill="${MUTED}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(sub)}</text>`;
+  y += 34;
+
+  if (grading.length) {
+    body += pointsBar(grading, left, right, y);
+    y += 88;
+  }
+  if (marks.length) {
+    body += deadlineRibbon(marks, now, left, right, y);
+    y += 90;
+  }
+  if (tasks.length) {
+    const sorted = [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    body += taskColumns(sorted, now, left, right, y);
+    y += 26 + Math.ceil(sorted.length / 3) * 26;
   }
 
-  const H = 210;
-  let x = PAD + 28;
-  const chipRow = chips
-    .map((c) => {
-      const w = [...c.text].length * 9 + 28;
-      const rect = `
-  <rect x="${x}" y="${H - PAD - 58}" width="${w}" height="34" rx="17" fill="${c.color}" opacity="0.16"/>
-  <text x="${x + 14}" y="${H - PAD - 35}" fill="${c.color}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(c.text)}</text>`;
-      x += w + 10;
-      return rect;
+  const H = Math.max(150, y + PAD - 12);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <rect x="${PAD}" y="${PAD}" width="${inner}" height="${H - PAD * 2}" rx="20" fill="${CARD}"/>
+  <rect x="${PAD}" y="${PAD}" width="8" height="${H - PAD * 2}" rx="4" fill="${ACCENT}"/>
+  ${body}
+</svg>`;
+  return toPng(svg);
+}
+
+/** Перелік завдань у три колонки: показуємо всі, але не тягнемо картку вниз. */
+function taskColumns(
+  tasks: { title: string; deadline?: Date }[],
+  now: Date,
+  left: number,
+  right: number,
+  y: number
+): string {
+  const cols = 3;
+  const colW = (right - left) / cols;
+  let out = `
+  <text x="${left}" y="${y}" fill="${ACCENT}" font-size="14" font-family="DejaVu Sans, sans-serif">Завдання</text>`;
+  tasks.forEach((t, i) => {
+    const x = left + (i % cols) * colW;
+    const ty = y + 26 + Math.floor(i / cols) * 26;
+    const overdue = t.deadline && new Date(t.deadline) < now;
+    out += `
+  <circle cx="${x + 4}" cy="${ty - 5}" r="3" fill="${overdue ? MUTED : ACCENT}"/>
+  <text x="${x + 16}" y="${ty}" fill="${overdue ? MUTED : TEXT}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(plain(t.title).slice(0, 26))}</text>`;
+  });
+  return out;
+}
+
+/** Список предметів картинкою: у підписі його дублювати не треба. */
+export async function renderSubjectsList(): Promise<Buffer> {
+  const subjects = await subjectService.getAll();
+  const now = new Date();
+  const left = PAD + 28;
+  const right = W - PAD - 28;
+  const ROWH = 38;
+
+  const rows = subjects
+    .map((s: any, i: number) => {
+      const y = PAD + 108 + i * ROWH;
+      const tasks = (s.tasks || []) as { title: string; deadline?: Date }[];
+      const next = tasks
+        .filter((t) => t.deadline && new Date(t.deadline) >= now)
+        .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];
+      const due = next ? new Date(next.deadline!) : null;
+      const days = due ? Math.ceil((due.getTime() - now.getTime()) / 86_400_000) : 0;
+      const color = !due ? MUTED : days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
+      return `
+  <circle cx="${left + 5}" cy="${y - 6}" r="5" fill="${color}"/>
+  <text x="${left + 22}" y="${y}" fill="${TEXT}" font-size="19" font-family="DejaVu Sans, sans-serif">${esc(plain(s.name).slice(0, 44))}</text>
+  <text x="${right}" y="${y}" fill="${MUTED}" font-size="15" text-anchor="end" font-family="DejaVu Sans, sans-serif">${tasks.length} завдань${due ? ` · до ${due.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}` : ""}</text>`;
     })
     .join("");
 
+  const H = PAD * 2 + 108 + Math.max(subjects.length, 1) * ROWH - 12;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${BG}"/>
   <rect x="${PAD}" y="${PAD}" width="${W - PAD * 2}" height="${H - PAD * 2}" rx="20" fill="${CARD}"/>
   <rect x="${PAD}" y="${PAD}" width="8" height="${H - PAD * 2}" rx="4" fill="${ACCENT}"/>
-  <text x="${PAD + 28}" y="${PAD + 52}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(plain(subj.name).slice(0, 40))}</text>
-  <text x="${PAD + 28}" y="${PAD + 84}" fill="${MUTED}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(teacher)}</text>
-  ${chipRow}
+  <text x="${left}" y="${PAD + 52}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">Предмети</text>
+  <text x="${left}" y="${PAD + 82}" fill="${MUTED}" font-size="16" font-family="DejaVu Sans, sans-serif">колір крапки - наскільки близький найближчий дедлайн</text>
+  ${rows}
 </svg>`;
   return toPng(svg);
+}
+
+const GRADE_COLORS = ["#4f8cff", "#4ecdc4", "#ffc857", "#c77dff", "#ff6b6b"];
+
+/** Смуга «з чого складаються 100 балів» плюс однорядковий підпис. */
+function pointsBar(
+  grading: { label: string; points: number }[],
+  left: number,
+  right: number,
+  y: number
+): string {
+  const total = grading.reduce((a, g) => a + g.points, 0) || 100;
+  const barW = right - left;
+  const barH = 26;
+  let x = left;
+  let out = `
+  <text x="${left}" y="${y}" fill="${ACCENT}" font-size="14" font-family="DejaVu Sans, sans-serif">${total} балів</text>`;
+  grading.forEach((g, i) => {
+    const w = (barW * g.points) / total;
+    out += `
+  <rect x="${x}" y="${y + 12}" width="${Math.max(w - 3, 2)}" height="${barH}" rx="6" fill="${GRADE_COLORS[i % GRADE_COLORS.length]}"/>`;
+    if (w > 40)
+      out += `
+  <text x="${x + w / 2 - 1}" y="${y + 31}" fill="#12151c" font-size="14" font-weight="bold" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${g.points}</text>`;
+    x += w;
+  });
+  const legend = grading.map((g) => `${plain(g.label)} ${g.points}`).join("  ·  ");
+  out += `
+  <text x="${left}" y="${y + 58}" fill="${MUTED}" font-size="14" font-family="DejaVu Sans, sans-serif">${esc(legend.slice(0, 110))}</text>`;
+  return out;
+}
+
+/**
+ * Стрічка дедлайнів: вісь від сьогодні до останнього терміну, зафарбована
+ * частина - те, що вже минуло. Підписи чергуємо через рядок, щоб сусідні
+ * дати не наїжджали одна на одну.
+ */
+function deadlineRibbon(
+  marks: { title: string; date: Date }[],
+  now: Date,
+  left: number,
+  right: number,
+  y: number
+): string {
+  const from = Math.min(now.getTime(), marks[0].date.getTime());
+  const to = Math.max(marks[marks.length - 1].date.getTime(), from + 86_400_000);
+  const at = (t: number) => left + ((right - left) * (t - from)) / (to - from);
+  const today = at(now.getTime());
+
+  let out = `
+  <text x="${left}" y="${y}" fill="${ACCENT}" font-size="14" font-family="DejaVu Sans, sans-serif">Дедлайни</text>
+  <rect x="${left}" y="${y + 22}" width="${right - left}" height="4" rx="2" fill="#2b3345"/>
+  <rect x="${left}" y="${y + 22}" width="${Math.max(today - left, 0)}" height="4" rx="2" fill="${ACCENT}" opacity="0.55"/>`;
+
+  marks.forEach((m, i) => {
+    const x = at(m.date.getTime());
+    const past = m.date.getTime() < now.getTime();
+    const days = Math.ceil((m.date.getTime() - now.getTime()) / 86_400_000);
+    const color = past ? MUTED : days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
+    const ty = y + (i % 2 === 0 ? 48 : 66);
+    const anchor = x > right - 90 ? "end" : x < left + 60 ? "start" : "middle";
+    out += `
+  <circle cx="${x}" cy="${y + 24}" r="7" fill="${color}"/>
+  <text x="${x}" y="${ty}" fill="${past ? MUTED : TEXT}" font-size="13" text-anchor="${anchor}" font-family="DejaVu Sans, sans-serif">${esc(m.date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" }))} ${esc(m.title.slice(0, 16))}</text>`;
+  });
+  return out;
 }

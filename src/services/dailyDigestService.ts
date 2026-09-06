@@ -13,6 +13,10 @@ let lastSent = "";
 
 export interface DayLesson {
   slotNumber: number;
+  /** День розкладу, за яким узята пара: у суботу він не збігається з датою. */
+  dayOfWeek: number;
+  /** Пара стоїть у "мигалці" й цього тижня йде за парним варіантом. */
+  even: boolean;
   startTime: string;
   endTime: string;
   kind: string;
@@ -62,10 +66,12 @@ export async function dayPlan(date: Date): Promise<DayPlan> {
     const time = schedule.timeSlots.find((t) => t.number === slot.slotNumber);
     lessons.push({
       slotNumber: slot.slotNumber,
+      dayOfWeek: targetDay,
+      even: !!slot.isAlternating && !odd,
       startTime: time?.startTime ?? "",
       endTime: time?.endTime ?? "",
       kind: (slot.isAlternating && !odd ? slot.kindEven : slot.kind) || "",
-      link: slot.link || undefined,
+      link: (slot.isAlternating && !odd ? slot.linkEven : slot.link) || undefined,
       subject: byId.get(String(id)) ?? null,
     });
   }

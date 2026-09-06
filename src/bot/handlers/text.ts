@@ -9,6 +9,8 @@ import { subjectEditMenu } from "./subjects";
 import { taskEditMenu, showTask } from "./tasks";
 import { infoEditMenu } from "./infos";
 import { showSettings } from "./settings";
+import { showSchedule } from "./schedule";
+import * as scheduleService from "../../services/scheduleService";
 import { isStudent } from "../middleware/auth";
 import { processQuery } from "../../services/orchestratorService";
 import ChatHistory from "../../models/ChatHistory";
@@ -223,6 +225,25 @@ export function textHandler(bot: Telegraf): void {
     const text = (ctx.message as any).text.trim();
 
     try {
+    // Посилання на пару зберігаємо в слоті розкладу
+    if (state.mode === "set_slot_link") {
+      const url = text === "-" ? "" : text;
+      if (url && !/^https?:\/\//i.test(url)) {
+        await editOrSend(
+          ctx,
+          "❌ Це не посилання. Надішліть адресу, що починається з http.",
+          Markup.inlineKeyboard([[Markup.button.callback("❌ Отмена", `schlnk_${state.offset}`)]]) as any
+        );
+        await deleteUserMsg(ctx);
+        return;
+      }
+      await scheduleService.setSlotLink(state.dayOfWeek, state.slotNumber, url, state.even);
+      inputState.delete(ctx.from!.id);
+      await showSchedule(ctx, state.offset);
+      await deleteUserMsg(ctx);
+      return;
+    }
+
     // Add user
     if (state.mode === "add_user") {
       const username = text;

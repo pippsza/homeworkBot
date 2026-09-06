@@ -1,5 +1,8 @@
 import { Telegraf, Context, Markup } from "telegraf";
 import { editOrSend } from "../helpers/editOrSend";
+import { isStudent } from "../middleware/auth";
+import * as inputState from "../helpers/inputState";
+import * as scheduleService from "../../services/scheduleService";
 import { dayPlan, DayPlan } from "../../services/dailyDigestService";
 import { renderDayCard } from "../../services/scheduleImageService";
 
@@ -37,39 +40,74 @@ function shortName(name?: string): string {
   return name.length > 18 ? name.slice(0, 17) + "…" : name;
 }
 
-function navKeyboard(offset: number, joins: any[] = []) {
-  return Markup.inlineKeyboard([
-    ...joins.map((b) => [b]),
-    [
-      Markup.button.callback("◀️", `schd_${offset - 1}`),
-      Markup.button.callback("Сегодня", "sch"),
-      Markup.button.callback("▶️", `schd_${offset + 1}`),
-    ],
-    [Markup.button.callback("🏠 Меню", "main_menu")],
-  ]);
+function navKeyboard(offset: number, joins: any[] = [], canEdit = false) {
+  const nav = [
+    Markup.button.callback("◀️", `schd_${offset - 1}`),
+    Markup.button.callback("Сегодня", "sch"),
+    Markup.button.callback("▶️", `schd_${offset + 1}`),
+  ];
+  if (canEdit) nav.push(Markup.button.callback("🔗", `schlnk_${offset}`));
+  return Markup.inlineKeyboard([...joins.map((b) => [b]), nav, [Markup.button.callback("🏠 Меню", "main_menu")]]);
 }
 
-async function showSchedule(ctx: Context, offset: number = 0): Promise<void> {
+export async function showSchedule(ctx: Context, offset: number = 0): Promise<void> {
   const date = new Date();
   date.setDate(date.getDate() + offset);
 
   const plan = await dayPlan(date);
-  // Посилання на пару: беремо збережене в слоті, інакше загальне у предмета.
-  const joins: any[] = [];
-  const seen = new Set<string>();
-  for (const l of plan.lessons) {
-    const url = (l as any).link || (l.subject as any)?.teamsLink;
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    joins.push(Markup.button.url(`🎥 ${l.startTime} ${shortName(l.subject?.name)}`, url));
-  }
+  // Посилання зберігається в слоті: у лекції і лабораторної воно різне,
+  // тому на рівні предмета його тримати не можна.
+  const joins = plan.lessons
+    .filter((l) => l.link)
+    .map((l) => Markup.button.url(`🎥 ${l.startTime} ${shortName(l.subject?.name)}`, l.link!));
 
-  await editOrSend(ctx, formatScheduleCaption(date, plan), navKeyboard(offset, joins) as any, {
+  const canEdit = plan.lessons.length > 0 && (await isStudent(ctx));
+  await editOrSend(ctx, formatScheduleCaption(date, plan), navKeyboard(offset, joins, canEdit) as any, {
     render: () => renderDayCard(date, plan.lessons, plan.followsDayName ? `за ${plan.followsDayName.toLowerCase()}` : undefined),
   });
 }
 
 function scheduleHandler(bot: Telegraf): void {
+  // Посилання на пару: у кожної своє, тому прив'язуємо до слота розкладу.
+  bot.action(/^schlnk_(-?\d+)$/, async (ctx: Context) => {
+    await ctx.answerCbQuery().catch(() => {});
+    if (!(await isStudent(ctx))) return;
+    const offset = Number((ctx as any).match![1]);
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+    const plan = await dayPlan(date);
+    const rows = plan.lessons.map((l) => [
+      Markup.button.callback(
+        `${l.link ? "✅" : "➕"} ${l.startTime} ${shortName(l.subject?.name)}`,
+        `schls_${l.dayOfWeek}_${l.slotNumber}_${l.even ? 1 : 0}_${offset}`
+      ),
+    ]);
+    rows.push([Markup.button.callback("⬅️ Назад", `schd_${offset}`)]);
+    await editOrSend(
+      ctx,
+      "🔗 <b>Посилання на пару</b>\nОберіть пару - і надішліть посилання наступним повідомленням.",
+      Markup.inlineKeyboard(rows) as any
+    );
+  });
+
+  bot.action(/^schls_(\d+)_(\d+)_(\d)_(-?\d+)$/, async (ctx: Context) => {
+    await ctx.answerCbQuery().catch(() => {});
+    if (!(await isStudent(ctx))) return;
+    const m = (ctx as any).match as RegExpMatchArray;
+    inputState.set(ctx.from!.id, {
+      mode: "set_slot_link",
+      dayOfWeek: Number(m[1]),
+      slotNumber: Number(m[2]),
+      even: m[3] === "1",
+      offset: Number(m[4]),
+    });
+    await editOrSend(
+      ctx,
+      "🔗 Надішліть посилання на пару.\nЩоб прибрати збережене - надішліть <code>-</code>.",
+      Markup.inlineKeyboard([[Markup.button.callback("❌ Отмена", `schlnk_${m[4]}`)]]) as any
+    );
+  });
+
   // Command or main menu button
   bot.action("sch", async (ctx: Context) => {
     try {

@@ -14,6 +14,7 @@ export interface IDaySlot {
   kind: string;
   kindEven: string;
   link: string;
+  linkEven: string;
 }
 
 export interface IDay {
@@ -57,6 +58,7 @@ const daySlotSchema = new mongoose.Schema(
     kind: { type: String, default: "" },
     kindEven: { type: String, default: "" },
     link: { type: String, default: "" },
+    linkEven: { type: String, default: "" },
   },
   { _id: false }
 );

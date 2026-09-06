@@ -2,7 +2,7 @@ import { Telegraf, Context, Markup } from "telegraf";
 import { isStudent } from "../middleware/auth";
 import { editOrSend, trackSend, isPrivate, notice } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
-import { renderSubjectCard, renderSubjectStrip } from "../../services/scheduleImageService";
+import { renderSubjectCard, renderSubjectStrip, renderSubjectsList } from "../../services/scheduleImageService";
 import { packRows } from "../helpers/buttonRows";
 import * as subjectService from "../../services/subjectService";
 
@@ -70,36 +70,18 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
       );
     }
 
-    let msg = `📘 Предмет: ${subject.name}\n\n`;
-    if (subject.lecturerName) {
-      msg += `👨‍🏫 Лектор: ${subject.lecturerName}${
-        subject.lecturerContact ? ` (${subject.lecturerContact})` : ""
-      }\n`;
-    }
-    if (subject.practitionerName) {
-      msg += `👩‍🏫 Практик: ${subject.practitionerName}${
-        subject.practitionerContact ? ` (${subject.practitionerContact})` : ""
-      }\n`;
-    }
-    msg += "\n---\n";
-    if (subject.tasks.length === 0) {
-      msg += "😔 Нет заданий.\n";
-    } else {
-      msg += "📝 Задания:\n";
-      subject.tasks.forEach((t: any) => {
-        msg += `${t.emoji || "📄"} ${t.title}\n`;
-      });
-    }
-    msg += "\n---";
+    // Викладачі й перелік завдань є на картинці, тому підпис лишаємо коротким.
+    const contacts = [subject.lecturerContact, subject.practitionerContact].filter(Boolean).join(" · ");
+    const msg = `📘 <b>${subject.name}</b>` + (contacts ? `\n${contacts}` : "");
 
     const taskButtons = layoutTasks(subject.tasks, subject.buttonColumns ?? 0);
     const buttons = [...taskButtons];
 
-    // Посилання предмета кнопками: у підписі й на картинці вони не натискаються.
-    const links: any[] = [];
-    if (subject.classroomUrl) links.push(Markup.button.url("🎓 Classroom", subject.classroomUrl));
-    if (subject.teamsLink) links.push(Markup.button.url("🎥 Teams", subject.teamsLink));
-    if (links.length) buttons.push(links);
+    // Classroom один на предмет, а посилання на Teams у кожної пари своє -
+    // воно живе в розкладі, не тут.
+    if (subject.classroomUrl) {
+      buttons.push([Markup.button.url("🎓 Classroom", subject.classroomUrl)]);
+    }
     // Дії одним рядком іконок: підписи тут нічого не додають, а рядків їдять багато.
     const actions = [Markup.button.callback("⬅️", "subjects"), Markup.button.callback("🖼", `subjimg_${id}`)];
     if (await isStudent(ctx)) {
@@ -135,11 +117,8 @@ function subjectsHandler(bot: Telegraf): void {
       );
     }
 
-    let msg = "📋 Список предметов:\n\n";
-    subjects.forEach((s: any) => {
-      msg += `${s.emoji || "📚"} ${s.name}\n`;
-    });
-    msg += "\n---";
+    // Список - на картинці, у підписі його дублювати не треба.
+    const msg = `📋 <b>Предмети</b> · ${subjects.length}`;
 
     const subjectButtons = packRows(
       subjects.map((s: any) => {
@@ -154,7 +133,7 @@ function subjectsHandler(bot: Telegraf): void {
       ]);
     }
     buttons.push([Markup.button.callback("⬅️ Назад", "main_menu")]);
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);
+    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any, { render: renderSubjectsList });
   });
 
   // View single subject
