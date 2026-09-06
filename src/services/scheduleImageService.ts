@@ -135,7 +135,7 @@ export async function renderSubjectCard(subjectId: string): Promise<Buffer> {
       .split(/(?<=\.)\s+(?=[А-ЯІЇЄҐA-Z])/)
       .map((x) => x.trim())
       .filter(Boolean)
-      .flatMap((sentence) => wrap(sentence, 74, 4).map((l, i) => (i === 0 ? "• " + l : "   " + l)));
+      .flatMap((sentence) => wrap(sentence, 68, 4).map((l, i) => (i === 0 ? "• " + l : "   " + l)));
 
   const grading = (subj as any).grading as { label: string; points: number }[] | undefined;
   const palette = ["#4f8cff", "#4ecdc4", "#ffc857", "#c77dff", "#ff6b6b"];
