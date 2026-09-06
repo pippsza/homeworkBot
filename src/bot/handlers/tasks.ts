@@ -6,9 +6,10 @@ import * as subjectService from "../../services/subjectService";
 import { renderTaskCard } from "../../services/scheduleImageService";
 
 /**
- * Показуємо картинку в поточному повідомленні. editMessageMedia міняє медіа
- * на медіа будь-якого типу, тому картка і файли живуть в одному повідомленні.
- * Текст на медіа Telegram замінити не дає - тоді доводиться пересилати.
+ * Показуємо файл у поточному повідомленні: editMessageMedia міняє медіа на
+ * медіа будь-якого типу, тому картка і вкладення живуть в одному вікні.
+ * Якщо файл недоступний (наприклад, file_id від іншого бота), лишаємо вікно
+ * на місці й кажемо про це спливаючим написом - інакше екран просто зникає.
  */
 async function swapMedia(
   ctx: Context,
@@ -17,11 +18,9 @@ async function swapMedia(
 ): Promise<void> {
   try {
     await ctx.editMessageMedia(media as any, { reply_markup: keyboard.reply_markup } as any);
-    return;
-  } catch {
-    await ctx.deleteMessage().catch(() => {});
-    if (media.type === "photo") await ctx.replyWithPhoto(media.media, { reply_markup: keyboard.reply_markup } as any);
-    else await ctx.replyWithDocument(media.media, { reply_markup: keyboard.reply_markup } as any);
+  } catch (e) {
+    console.error("[attachments] swap failed:", (e as Error).message);
+    await ctx.answerCbQuery("Не вдалося відкрити файл", { show_alert: true }).catch(() => {});
   }
 }
 
@@ -90,8 +89,19 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
   buttons.push([
     Markup.button.callback("⬅️ Назад", `subject_${subject!._id}`),
   ]);
-  const png = await renderTaskCard(subject!.name, task);
-  await swapMedia(ctx, { type: "photo", media: { source: png } }, Markup.inlineKeyboard(buttons));
+  const due = task.deadline
+    ? `\n🗓 До ${new Date(task.deadline).toLocaleDateString("uk-UA")}`
+    : "";
+  await editOrSend(
+    ctx,
+    `${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>${due}`,
+    Markup.inlineKeyboard(buttons) as any,
+    { render: () => renderTaskCard(subject!.name, task) }
+  );
+}
+
+function escapeHtml(s: string): string {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function tasksHandler(bot: Telegraf): void {

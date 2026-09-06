@@ -2,6 +2,7 @@ import { Telegraf, Context, Markup } from "telegraf";
 import { isStudent } from "../middleware/auth";
 import { editOrSend, trackSend, isPrivate } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
+import { renderSubjectCard } from "../../services/scheduleImageService";
 import * as subjectService from "../../services/subjectService";
 
 function subjectEditMenu(subjectId: string) {
@@ -121,8 +122,9 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
       );
     }
     buttons.push([Markup.button.callback("⬅️ Назад", "subjects")]);
-    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);
-  
+    await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any, {
+      render: () => renderSubjectCard(id),
+    });
 }
 
 function subjectsHandler(bot: Telegraf): void {

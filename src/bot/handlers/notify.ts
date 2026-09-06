@@ -6,21 +6,21 @@ import { renderWeekCard, renderDayCard, renderSubjectCard, renderDeadlineTimelin
 import { buildDigest, lessonsFor } from "../../services/dailyDigestService";
 import { syncLinks, syncSchedule } from "../../services/icsService";
 import Settings from "../../models/Settings";
+import { sendCard } from "../../services/cardService";
 
 
-/**
- * Показуємо картинку замість поточного повідомлення.
- * Telegram не дозволяє перетворити текстове повідомлення на медіа, тому
- * прибираємо старе і шлемо нове: у чаті лишається одне повідомлення, а не два.
- */
-async function showPhoto(ctx: Context, png: Buffer, back: string, caption?: string): Promise<void> {
-  await ctx.deleteMessage().catch(() => {});
-  await ctx.replyWithPhoto(
-    { source: png },
-    {
-      ...(caption ? { caption, parse_mode: "HTML" as const } : {}),
-      reply_markup: Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад", back)]]).reply_markup,
-    }
+/** Картка з кнопкою назад у тому самому вікні: малюнок бере editOrSend. */
+async function showCard(
+  ctx: Context,
+  caption: string,
+  back: string,
+  render: () => Promise<Buffer>
+): Promise<void> {
+  await editOrSend(
+    ctx,
+    caption,
+    Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад", back)]]) as any,
+    { render }
   );
 }
 
@@ -81,8 +81,8 @@ export default function notifyHandler(bot: Telegraf): void {
       return ctx.reply("Підключати чати може лише суперадмін.");
     }
     const chat = ctx.chat;
-    const title = "title" in chat ? chat.title : String(chat.id);
-    await targets.upsert(String(chat.id), title);
+    const title = "title" in chat ? chat.title : "";
+    await targets.upsert(String(ctx.chat.id), title);
     await ctx.reply(`✅ Чат «${title}» підключено. Що саме надсилати — у налаштуваннях бота.`);
   });
 
@@ -109,22 +109,22 @@ export default function notifyHandler(bot: Telegraf): void {
   // Картинки розкладу
   bot.action("sch_img_week", async (ctx) => {
     await ctx.answerCbQuery("Малюю…");
-    await showPhoto(ctx, await renderWeekCard(new Date()), "sch");
+    await showCard(ctx, "📅 <b>Розклад на тиждень</b>", "sch", () => renderWeekCard(new Date()));
   });
 
   bot.action("sch_img_day", async (ctx) => {
     await ctx.answerCbQuery("Малюю…");
     const now = new Date();
     const { text } = await buildDigest(now);
-    await showPhoto(ctx, await renderDayCard(now, await lessonsFor(now)), "sch", text);
+    await showCard(ctx, text, "sch", async () => renderDayCard(now, await lessonsFor(now)));
   });
 
   bot.command("today", async (ctx) => {
     const now = new Date();
     const { text } = await buildDigest(now);
-    const png = await renderDayCard(now, await lessonsFor(now)).catch(() => null);
-    if (png) await ctx.replyWithPhoto({ source: png }, { caption: text, parse_mode: "HTML" });
-    else await ctx.reply(text, { parse_mode: "HTML" });
+    await sendCard(ctx.telegram, ctx.chat!.id, { render: async () => renderDayCard(now, await lessonsFor(now)) }, { caption: text }).catch(
+      () => ctx.reply(text, { parse_mode: "HTML" })
+    );
   });
 
   // /ics <посилання> - зберегти календар; /ics без аргументів - пересинхронити
@@ -164,22 +164,22 @@ export default function notifyHandler(bot: Telegraf): void {
 
   bot.action("deadlines_img", async (ctx) => {
     await ctx.answerCbQuery("Малюю…");
-    await showPhoto(ctx, await renderDeadlineTimeline(new Date(), 21), "main_menu");
+    await showCard(ctx, "⏳ <b>Дедлайни</b>\nНайближчі три тижні", "main_menu", () =>
+      renderDeadlineTimeline(new Date(), 21)
+    );
   });
 
   bot.command("deadlines", async (ctx) => {
-    const png = await renderDeadlineTimeline(new Date(), 21);
-    await ctx.replyWithPhoto({ source: png });
+    await sendCard(ctx.telegram, ctx.chat!.id, { render: () => renderDeadlineTimeline(new Date(), 21) });
   });
 
   bot.action(/^subjimg_(\w+)$/, async (ctx) => {
     await ctx.answerCbQuery("Малюю…");
     const id = (ctx.match as RegExpMatchArray)[1];
-    await showPhoto(ctx, await renderSubjectCard(id), `subject_${id}`);
+    await showCard(ctx, "📊 <b>Картка предмета</b>", `subject_${id}`, () => renderSubjectCard(id));
   });
 
   bot.command("week", async (ctx) => {
-    const png = await renderWeekCard(new Date());
-    await ctx.replyWithPhoto({ source: png });
+    await sendCard(ctx.telegram, ctx.chat!.id, { render: () => renderWeekCard(new Date()) });
   });
 }

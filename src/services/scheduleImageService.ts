@@ -332,3 +332,39 @@ export async function renderTaskCard(subjectName: string, task: any): Promise<Bu
 </svg>`;
   return toPng(svg);
 }
+
+/**
+ * Шапка екрана: використовуємо там, де немає власної картки, щоб кожне
+ * повідомлення бота лишалось медіа і його можна було редагувати на місці.
+ */
+export async function renderBanner(title: string, subtitle: string): Promise<Buffer> {
+  const H = 260;
+  const t = plain(title).slice(0, 42);
+  const s = plain(subtitle).slice(0, 64);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${CARD}"/>
+      <stop offset="100%" stop-color="#232a3d"/>
+    </linearGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <rect x="${PAD}" y="${PAD}" width="${W - PAD * 2}" height="${H - PAD * 2}" rx="22" fill="url(#g)"/>
+  <rect x="${PAD}" y="${PAD}" width="8" height="${H - PAD * 2}" rx="4" fill="${ACCENT}"/>
+  <circle cx="${W - PAD - 60}" cy="${PAD + 60}" r="46" fill="${ACCENT}" opacity="0.12"/>
+  <circle cx="${W - PAD - 60}" cy="${PAD + 60}" r="26" fill="${ACCENT}" opacity="0.18"/>
+  <text x="${PAD + 44}" y="${PAD + 82}" fill="${TEXT}" font-size="40" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(t)}</text>
+  <text x="${PAD + 44}" y="${PAD + 122}" fill="${MUTED}" font-size="20" font-family="DejaVu Sans, sans-serif">${esc(s)}</text>
+  <text x="${PAD + 44}" y="${H - PAD - 22}" fill="${MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif" opacity="0.7">КН-1124А · помічник з домашками</text>
+</svg>`;
+  return toPng(svg);
+}
+
+/** Емодзі у зображенні не рендеряться шрифтом DejaVu, тому прибираємо їх. */
+function plain(s: string): string {
+  return s
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2B00}-\u{2BFF}]/gu, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}

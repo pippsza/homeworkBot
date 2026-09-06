@@ -2,6 +2,7 @@ import { Telegraf } from "telegraf";
 import * as scheduleService from "./scheduleService";
 import * as subjectService from "./subjectService";
 import * as notifyTargetService from "./notifyTargetService";
+import { sendCard } from "./cardService";
 import { renderDayCard } from "./scheduleImageService";
 import { ISubject, ITask } from "../models/Subject";
 
@@ -103,14 +104,15 @@ export function startDailyDigest(bot: Telegraf): ReturnType<typeof setInterval> 
       if (!targets.length) return;
 
       const { text, lessons } = await buildDigest(now);
-      const png = await renderDayCard(now, lessons).catch(() => null);
+      // Одну й ту саму картку розсилаємо в усі чати: перший чат її вивантажує,
+      // решта беруть file_id з кешу.
+      const card = { key: `day:${stamp}`, render: () => renderDayCard(now, lessons) };
 
       for (const t of targets) {
-        if (png) {
-          await bot.telegram.sendPhoto(t.chatId, { source: png }, { caption: text, parse_mode: "HTML" });
-        } else {
+        await sendCard(bot.telegram, t.chatId, card, { caption: text }).catch(async (e) => {
+          console.error("[dailyDigest] card failed:", (e as Error).message);
           await bot.telegram.sendMessage(t.chatId, text, { parse_mode: "HTML" });
-        }
+        });
       }
     } catch (e) {
       console.error("[dailyDigest]", e);
