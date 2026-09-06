@@ -80,8 +80,9 @@ export default function notifyHandler(bot: Telegraf): void {
       // Мовчазна відмова виглядає як зламаний бот, тому відповідаємо явно
       return ctx.reply("Підключати чати може лише суперадмін.");
     }
-    const title = "title" in ctx.chat ? (ctx.chat.title as string) : String(ctx.chat.id);
-    await targets.upsert(String(ctx.chat.id), title);
+    const chat = ctx.chat;
+    const title = "title" in chat ? chat.title : String(chat.id);
+    await targets.upsert(String(chat.id), title);
     await ctx.reply(`✅ Чат «${title}» підключено. Що саме надсилати — у налаштуваннях бота.`);
   });
 
