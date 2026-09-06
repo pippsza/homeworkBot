@@ -4,6 +4,8 @@ import { editOrSend } from "../helpers/editOrSend";
 import * as targets from "../../services/notifyTargetService";
 import { renderWeekCard, renderDayCard, renderSubjectCard, renderDeadlineTimeline } from "../../services/scheduleImageService";
 import { buildDigest, lessonsFor } from "../../services/dailyDigestService";
+import { syncLinks } from "../../services/icsService";
+import Settings from "../../models/Settings";
 
 const KINDS: { key: targets.NotifyKind; label: string }[] = [
   { key: "daily", label: "Ранковий дайджест 8:30" },
@@ -104,6 +106,37 @@ export default function notifyHandler(bot: Telegraf): void {
     const png = await renderDayCard(now, await lessonsFor(now)).catch(() => null);
     if (png) await ctx.replyWithPhoto({ source: png }, { caption: text, parse_mode: "HTML" });
     else await ctx.reply(text, { parse_mode: "HTML" });
+  });
+
+  // /ics <посилання> - зберегти календар; /ics без аргументів - пересинхронити
+  bot.command("ics", async (ctx) => {
+    if (!(await isSuperadmin(ctx))) return;
+    const arg = (ctx.message as any)?.text?.split(/\s+/)[1];
+    const settings = await Settings.findOneAndUpdate(
+      { key: "main" },
+      arg ? { icsUrl: arg } : {},
+      { upsert: true, returnDocument: "after" }
+    );
+    const url = settings?.icsUrl;
+    if (!url) {
+      return ctx.reply("Надішли: /ics <посилання на .ics з Outlook>");
+    }
+    if (arg && ctx.chat && ctx.chat.type !== "private") {
+      await ctx.deleteMessage().catch(() => {});
+    }
+    const msg = await ctx.reply("Тягну календар…");
+    try {
+      const { matched, skipped } = await syncLinks(url);
+      await ctx.telegram.editMessageText(
+        msg.chat.id, msg.message_id, undefined,
+        `✅ Календар прочитано.\nПредметів зіставлено: ${matched}\nПодій без пари: ${skipped}`
+      );
+    } catch (e) {
+      await ctx.telegram.editMessageText(
+        msg.chat.id, msg.message_id, undefined,
+        `❌ Не вийшло: ${e instanceof Error ? e.message : e}`
+      );
+    }
   });
 
   bot.command("deadlines", async (ctx) => {

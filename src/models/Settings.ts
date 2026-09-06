@@ -16,6 +16,7 @@ export interface ISettings extends Document {
   superusers: string[];
   models: ISettingsModels;
   modelConfig: Record<string, unknown>;
+  icsUrl: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,6 +46,9 @@ const settingsSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+
+    // Посилання на календар Outlook (містить доступ до розкладу, як пароль)
+    icsUrl: { type: String, default: "" },
   },
   { timestamps: true }
 );
