@@ -125,10 +125,49 @@ function wrap(text: string, perLine: number, maxLines: number): string[] {
   return lines;
 }
 
-/** Картка предмета: викладачі, умови автомата, посилання. Зручно переслати. */
+/** Картка предмета: викладачі, шкала балів, умови автомата. */
 export async function renderSubjectCard(subjectId: string): Promise<Buffer> {
   const subj = await subjectService.getById(subjectId);
   if (!subj) throw new Error("subject not found");
+
+  const bullets = (text: string): string[] =>
+    text
+      .split(/(?<=\.)\s+(?=[А-ЯІЇЄҐA-Z])/)
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .flatMap((sentence) => wrap(sentence, 74, 4).map((l, i) => (i === 0 ? "• " + l : "   " + l)));
+
+  const grading = (subj as any).grading as { label: string; points: number }[] | undefined;
+  const palette = ["#4f8cff", "#4ecdc4", "#ffc857", "#c77dff", "#ff6b6b"];
+
+  let y = PAD + 104;
+  let body = "";
+
+  // Шкала: 100 балів у пропорції, підписи під нею
+  if (grading && grading.length) {
+    const total = grading.reduce((a, g) => a + g.points, 0) || 100;
+    const barW = W - PAD * 2;
+    const barH = 34;
+    body += `<text x="${PAD}" y="${y}" fill="${ACCENT}" font-size="16" font-family="DejaVu Sans, sans-serif">З чого складаються ${total} балів</text>`;
+    y += 20;
+    let x = PAD;
+    grading.forEach((g, i) => {
+      const w = (barW * g.points) / total;
+      const color = palette[i % palette.length];
+      body += `<rect x="${x}" y="${y}" width="${w}" height="${barH}" fill="${color}" ${i === 0 ? 'rx="8"' : ""}/>`;
+      if (w > 44)
+        body += `<text x="${x + w / 2}" y="${y + 23}" fill="#12151c" font-size="15" font-weight="bold" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${g.points}</text>`;
+      x += w;
+    });
+    y += barH + 24;
+    grading.forEach((g, i) => {
+      const color = palette[i % palette.length];
+      body += `<rect x="${PAD}" y="${y - 12}" width="12" height="12" rx="3" fill="${color}"/>`;
+      body += `<text x="${PAD + 22}" y="${y - 1}" fill="${TEXT}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(g.label)} — ${g.points}</text>`;
+      y += 24;
+    });
+    y += 12;
+  }
 
   const blocks: { label: string; lines: string[] }[] = [];
   const teachers: string[] = [];
@@ -136,19 +175,16 @@ export async function renderSubjectCard(subjectId: string): Promise<Buffer> {
   if (subj.practitionerName && subj.practitionerName !== subj.lecturerName)
     teachers.push(`Практик: ${subj.practitionerName}`);
   if (teachers.length) blocks.push({ label: "Викладачі", lines: teachers });
-  if (subj.autoPass) blocks.push({ label: "Умови автомата", lines: wrap(subj.autoPass, 78, 8) });
-  if (subj.practitionerNote) blocks.push({ label: "Про викладача", lines: wrap(subj.practitionerNote, 78, 4) });
-  if (subj.notes) blocks.push({ label: "Нюанси", lines: wrap(subj.notes, 78, 9) });
+  if (subj.autoPass) blocks.push({ label: "Як закрити предмет", lines: bullets(subj.autoPass) });
+  if (subj.practitionerNote) blocks.push({ label: "Про викладача", lines: bullets(subj.practitionerNote) });
+  if (subj.notes) blocks.push({ label: "Нюанси", lines: bullets(subj.notes) });
 
-  const tasks = (subj.tasks || []).length;
   const links: string[] = [];
-  if (subj.classroomUrl) links.push("Classroom підключено");
-  if (subj.telegramChat) links.push(`TG: ${subj.telegramChat}`);
-  if (subj.teamsLink) links.push("Teams-посилання збережено");
+  if (subj.classroomUrl) links.push("• Classroom підключено");
+  if (subj.telegramChat) links.push(`• TG: ${subj.telegramChat}`);
+  if (subj.teamsLink) links.push("• Teams-посилання збережено");
   if (links.length) blocks.push({ label: "Де матеріали", lines: links });
 
-  let y = PAD + 110;
-  let body = "";
   for (const b of blocks) {
     body += `<text x="${PAD}" y="${y}" fill="${ACCENT}" font-size="16" font-family="DejaVu Sans, sans-serif">${esc(b.label)}</text>`;
     y += 26;
@@ -160,6 +196,7 @@ export async function renderSubjectCard(subjectId: string): Promise<Buffer> {
   }
   const H = y + PAD;
 
+  const tasks = (subj.tasks || []).length;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${BG}"/>
   <text x="${PAD}" y="${PAD + 36}" fill="${TEXT}" font-size="28" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(subj.name)}</text>

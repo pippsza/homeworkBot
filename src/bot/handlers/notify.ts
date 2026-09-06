@@ -7,6 +7,23 @@ import { buildDigest, lessonsFor } from "../../services/dailyDigestService";
 import { syncLinks, syncSchedule } from "../../services/icsService";
 import Settings from "../../models/Settings";
 
+
+/**
+ * Показуємо картинку замість поточного повідомлення.
+ * Telegram не дозволяє перетворити текстове повідомлення на медіа, тому
+ * прибираємо старе і шлемо нове: у чаті лишається одне повідомлення, а не два.
+ */
+async function showPhoto(ctx: Context, png: Buffer, back: string, caption?: string): Promise<void> {
+  await ctx.deleteMessage().catch(() => {});
+  await ctx.replyWithPhoto(
+    { source: png },
+    {
+      ...(caption ? { caption, parse_mode: "HTML" as const } : {}),
+      reply_markup: Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад", back)]]).reply_markup,
+    }
+  );
+}
+
 const KINDS: { key: targets.NotifyKind; label: string }[] = [
   { key: "daily", label: "Ранковий дайджест 8:30" },
   { key: "lessons", label: "За 15 хв до пари" },
@@ -91,16 +108,14 @@ export default function notifyHandler(bot: Telegraf): void {
   // Картинки розкладу
   bot.action("sch_img_week", async (ctx) => {
     await ctx.answerCbQuery("Малюю…");
-    const png = await renderWeekCard(new Date());
-    await ctx.replyWithPhoto({ source: png });
+    await showPhoto(ctx, await renderWeekCard(new Date()), "sch");
   });
 
   bot.action("sch_img_day", async (ctx) => {
     await ctx.answerCbQuery("Малюю…");
     const now = new Date();
     const { text } = await buildDigest(now);
-    const png = await renderDayCard(now, await lessonsFor(now));
-    await ctx.replyWithPhoto({ source: png }, { caption: text, parse_mode: "HTML" });
+    await showPhoto(ctx, await renderDayCard(now, await lessonsFor(now)), "sch", text);
   });
 
   bot.command("today", async (ctx) => {
@@ -153,8 +168,8 @@ export default function notifyHandler(bot: Telegraf): void {
 
   bot.action(/^subjimg_(\w+)$/, async (ctx) => {
     await ctx.answerCbQuery("Малюю…");
-    const png = await renderSubjectCard((ctx.match as RegExpMatchArray)[1]);
-    await ctx.replyWithPhoto({ source: png });
+    const id = (ctx.match as RegExpMatchArray)[1];
+    await showPhoto(ctx, await renderSubjectCard(id), `subject_${id}`);
   });
 
   bot.command("week", async (ctx) => {

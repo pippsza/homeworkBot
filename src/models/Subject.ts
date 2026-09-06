@@ -52,6 +52,7 @@ export interface ISubject extends Document {
   classroomUrl: string;
   teamsLink: string;
   matchKeys: string[];
+  grading: { label: string; points: number }[];
   tasks: mongoose.Types.DocumentArray<ITask>;
   order: number;
   createdAt: Date;
@@ -122,6 +123,9 @@ const subjectSchema = new mongoose.Schema(
     // Явні уривки назви з календаря: у розкладі багато схожих назв
     // («системи», «безпеки»), і пошук по словах плутає предмети.
     matchKeys: [{ type: String }],
+
+    // З чого складаються 100 балів: малюємо шкалою на картці предмета
+    grading: [{ label: { type: String }, points: { type: Number } }],
     tasks: [taskSchema],
     order: { type: Number, default: 0 },
   },

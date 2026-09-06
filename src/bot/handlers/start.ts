@@ -40,12 +40,6 @@ function startHandler(bot: Telegraf): void {
     try {
       inputState.delete(ctx.from!.id);
       await mainMenu(ctx);
-      await trackSend(ctx, () =>
-        ctx.reply("Или используйте кнопку ниже для возврата в меню:", {
-          ...replyKeyboard,
-          disable_notification: !isPrivate(ctx),
-        })
-      );
     } catch (e) {
       console.error("[start error]", e);
     }
