@@ -43,8 +43,8 @@ export function startScheduleNotifier(bot: Telegraf): ReturnType<typeof setInter
           `${emoji} <b>${name}</b>${kind}\nпочинається через ${Math.round(diff)} хв\n` +
           `🕐 ${lesson.startTime} — ${lesson.endTime}`;
 
-        // Посилання одне на всю серію занять, тому тримаємо його на предметі
-        const link = lesson.subject?.teamsLink;
+        // Посилання зберігається в слоті: у лекції і лабораторної воно різне
+        const link = lesson.link;
         const extra: any = { parse_mode: "HTML" };
         if (link) {
           extra.reply_markup = Markup.inlineKeyboard([

@@ -1,9 +1,11 @@
 FROM node:20-alpine
 WORKDIR /app
 
-# resvg малює картки розкладу системними шрифтами:
-# без цього пакета кирилиця перетворюється на порожні прямокутники.
-RUN apk add --no-cache font-dejavu font-noto-emoji
+# resvg малює картки розкладу системними шрифтами: без цього пакета
+# кирилиця перетворюється на порожні прямокутники.
+# tzdata потрібна, бо розклад заданий київським часом, а образ живе в UTC:
+# без неї TZ=Europe/Kyiv не діє і нагадування спізнюються на три години.
+RUN apk add --no-cache font-dejavu font-noto-emoji tzdata
 
 COPY package*.json ./
 RUN npm ci --omit=dev

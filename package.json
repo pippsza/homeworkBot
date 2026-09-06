@@ -7,7 +7,8 @@
     "dev:client": "cd client && npx vite",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx src/migrate.ts",
+    "dev:local": "DOTENV_CONFIG_PATH=.env.local tsx -r dotenv/config index.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.29",
