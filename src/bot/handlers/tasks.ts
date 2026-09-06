@@ -271,32 +271,47 @@ function tasksHandler(bot: Telegraf): void {
     const taskId = (ctx as any).match![1];
     const { task } = await subjectService.getTask(taskId);
     if (!task?.attachments?.length) return ctx.answerCbQuery("Немає вкладень.");
-    await ctx.answerCbQuery("Надсилаю списком…").catch(() => {});
     await dropListed(ctx, taskId);
 
-    const ids: number[] = [];
-    const items = task.attachments.map((a: any) => ({
-      type: a.type === "photo" ? "photo" : "document",
-      media: a.file_id,
-    }));
-    // Telegram бере в альбом не більше десяти файлів за раз
-    for (let i = 0; i < items.length; i += 10) {
-      const sent = await ctx.telegram
-        .sendMediaGroup(ctx.chat!.id, items.slice(i, i + 10) as any, {
-          disable_notification: true,
-        } as any)
-        .catch((e: Error) => {
-          console.error("[attachments] альбом не пішов:", e.message);
-          return [] as any[];
-        });
-      ids.push(...sent.map((m: any) => m.message_id));
+    // Telegram не змішує документи з фото в одному альбомі і бере не більше
+    // десяти за раз, тому ділимо спершу за типом, потім по десять.
+    const groups: { type: string; media: string }[][] = [];
+    for (const kind of ["photo", "document"]) {
+      const same = task.attachments
+        .filter((a: any) => (a.type === "photo" ? "photo" : "document") === kind)
+        .map((a: any) => ({ type: kind, media: a.file_id }));
+      for (let i = 0; i < same.length; i += 10) groups.push(same.slice(i, i + 10));
     }
-    if (!ids.length) return ctx.answerCbQuery("Не вийшло надіслати файли.", { show_alert: true });
+
+    const ids: number[] = [];
+    let failed = "";
+    for (const g of groups) {
+      try {
+        const sent = await ctx.telegram.sendMediaGroup(ctx.chat!.id, g as any, {
+          disable_notification: true,
+        } as any);
+        ids.push(...sent.map((m: any) => m.message_id));
+      } catch (e) {
+        failed = (e as Error).message || "невідома помилка";
+        console.error("[attachments] альбом не пішов:", failed);
+      }
+    }
+
+    if (!ids.length) {
+      const alien = /MEDIA_EMPTY|wrong file identifier/i.test(failed);
+      return ctx.answerCbQuery(
+        alien ? "Файли завантажені іншим ботом - тут вони недоступні" : "Не вдалося надіслати файли",
+        { show_alert: true }
+      );
+    }
     listed.set(listedKey(ctx, taskId), ids);
 
+    const lost = task.attachments.length - ids.length;
     await editOrSend(
       ctx,
-      `📎 <b>${escapeHtml(task.title)}</b>\nФайлів: ${task.attachments.length} - показані нижче.`,
+      `📎 <b>${escapeHtml(task.title)}</b>\nФайлів: ${task.attachments.length}` +
+        (lost > 0 ? ` (не відкрилось: ${lost})` : "") +
+        " - показані нижче.",
       Markup.inlineKeyboard([
         [Markup.button.callback("🔽 Згорнути список", `attfold_${taskId}`)],
         [Markup.button.callback("⬅️ До завдання", `attback_${taskId}`)],
