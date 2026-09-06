@@ -3,6 +3,27 @@ import { isStudent } from "../middleware/auth";
 import { editOrSend, trackSend, isPrivate } from "../helpers/editOrSend";
 import * as inputState from "../helpers/inputState";
 import * as subjectService from "../../services/subjectService";
+import { renderTaskCard } from "../../services/scheduleImageService";
+
+/**
+ * Показуємо картинку в поточному повідомленні. editMessageMedia міняє медіа
+ * на медіа будь-якого типу, тому картка і файли живуть в одному повідомленні.
+ * Текст на медіа Telegram замінити не дає - тоді доводиться пересилати.
+ */
+async function swapMedia(
+  ctx: Context,
+  media: { type: "photo" | "document"; media: any },
+  keyboard: any
+): Promise<void> {
+  try {
+    await ctx.editMessageMedia(media as any, { reply_markup: keyboard.reply_markup } as any);
+    return;
+  } catch {
+    await ctx.deleteMessage().catch(() => {});
+    if (media.type === "photo") await ctx.replyWithPhoto(media.media, { reply_markup: keyboard.reply_markup } as any);
+    else await ctx.replyWithDocument(media.media, { reply_markup: keyboard.reply_markup } as any);
+  }
+}
 
 function taskEditMenu(taskId: string) {
   return Markup.inlineKeyboard([
@@ -19,18 +40,10 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
   if (!task) {
     return editOrSend(
       ctx,
-      "❌ Задание не найдено.\n\n---",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("⬅️ Назад", "subjects")],
-      ]) as any
+      "❌ Завдання не знайдено.\n\n---",
+      Markup.inlineKeyboard([[Markup.button.callback("⬅️ Назад", "subjects")]]) as any
     );
   }
-
-  let msg = `*${task.emoji || "📄"} ${task.title}*\n\n`;
-  if (task.deadline) {
-    msg += `🗓 Дедлайн: ${new Date(task.deadline).toLocaleDateString("uk-UA")}\n\n`;
-  }
-  if (task.description) msg += `${task.description}\n\n---\n`;
 
   const buttons: any[][] = [];
   if ((await isStudent(ctx)) && task.answers?.length) {
@@ -61,22 +74,8 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
   buttons.push([
     Markup.button.callback("⬅️ Назад", `subject_${subject!._id}`),
   ]);
-  await editOrSend(ctx, msg, Markup.inlineKeyboard(buttons) as any);
-}
-
-function attachmentKeyboard(taskId: string, idx: number, total: number) {
-  const rows: any[] = [];
-  if (total > 1) {
-    const prev = (idx - 1 + total) % total;
-    const next = (idx + 1) % total;
-    rows.push([
-      Markup.button.callback("◀️", `att_${taskId}_${prev}`),
-      Markup.button.callback(`${idx + 1}/${total}`, "noop"),
-      Markup.button.callback("▶️", `att_${taskId}_${next}`),
-    ]);
-  }
-  rows.push([Markup.button.callback("⬅️ До завдання", `attback_${taskId}`)]);
-  return Markup.inlineKeyboard(rows);
+  const png = await renderTaskCard(subject!.name, task);
+  await swapMedia(ctx, { type: "photo", media: { source: png } }, Markup.inlineKeyboard(buttons));
 }
 
 function tasksHandler(bot: Telegraf): void {
@@ -156,11 +155,12 @@ function tasksHandler(bot: Telegraf): void {
     const taskId = (ctx as any).match![1];
     const { task } = await subjectService.getTask(taskId);
     if (!task?.attachments?.length) return;
-    await ctx.deleteMessage().catch(() => {});
     const att = task.attachments[0];
-    const extra = { reply_markup: attachmentKeyboard(taskId, 0, task.attachments.length).reply_markup };
-    if (att.type === "photo") await ctx.replyWithPhoto(att.file_id, extra as any);
-    else await ctx.replyWithDocument(att.file_id, extra as any);
+    await swapMedia(
+      ctx,
+      { type: att.type === "photo" ? "photo" : "document", media: att.file_id },
+      attachmentKeyboard(taskId, 0, task.attachments.length)
+    );
   });
 
   bot.action(/^att_([a-f0-9]{24})_(\d+)$/, async (ctx: Context) => {
@@ -184,7 +184,6 @@ function tasksHandler(bot: Telegraf): void {
   // прибираємо його і малюємо картку заново.
   bot.action(/^attback_([a-f0-9]{24})$/, async (ctx: Context) => {
     await ctx.answerCbQuery().catch(() => {});
-    await ctx.deleteMessage().catch(() => {});
     await showTask(ctx, (ctx as any).match![1]);
   });
 

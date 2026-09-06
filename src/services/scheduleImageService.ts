@@ -282,3 +282,53 @@ export async function renderDeadlineTimeline(from: Date, days: number = 21): Pro
 </svg>`;
   return toPng(svg);
 }
+
+
+/** Картка завдання: назва, дедлайн, опис і список вкладень. */
+export async function renderTaskCard(subjectName: string, task: any): Promise<Buffer> {
+  const left = PAD;
+  let y = PAD + 96;
+  let body = "";
+
+  if (task.deadline) {
+    const d = new Date(task.deadline);
+    const days = Math.ceil((d.getTime() - Date.now()) / 86400000);
+    const color = days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : ACCENT;
+    const human = days < 0 ? "прострочено" : days === 0 ? "сьогодні" : days === 1 ? "завтра" : `через ${days} дн.`;
+    body += `<rect x="${left}" y="${y - 26}" width="${W - PAD * 2}" height="42" rx="10" fill="${CARD}"/>`;
+    body += `<circle cx="${left + 24}" cy="${y - 5}" r="9" fill="${color}"/>`;
+    body += `<text x="${left + 46}" y="${y}" fill="${TEXT}" font-size="17" font-family="DejaVu Sans, sans-serif">Дедлайн: ${d.toLocaleDateString("uk-UA")} — ${human}</text>`;
+    y += 46;
+  }
+
+  if (task.description) {
+    for (const line of wrap(String(task.description), 74, 8)) {
+      body += `<text x="${left}" y="${y}" fill="${TEXT}" font-size="16" font-family="DejaVu Sans, sans-serif">${esc(line)}</text>`;
+      y += 23;
+    }
+    y += 14;
+  }
+
+  const atts = task.attachments || [];
+  if (atts.length) {
+    body += `<text x="${left}" y="${y}" fill="${ACCENT}" font-size="16" font-family="DejaVu Sans, sans-serif">Вкладення: ${atts.length}</text>`;
+    y += 26;
+    body += `<text x="${left}" y="${y}" fill="${MUTED}" font-size="15" font-family="DejaVu Sans, sans-serif">Гортай кнопками нижче - файли відкриваються тут же</text>`;
+    y += 28;
+  }
+
+  const answers = task.answers || [];
+  if (answers.length) {
+    body += `<text x="${left}" y="${y}" fill="${ACCENT}" font-size="16" font-family="DejaVu Sans, sans-serif">Відповіді: ${answers.length}</text>`;
+    y += 26;
+  }
+
+  const H = Math.max(y + PAD, 220);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <text x="${left}" y="${PAD + 38}" fill="${TEXT}" font-size="27" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(task.title)}</text>
+  <text x="${left}" y="${PAD + 66}" fill="${MUTED}" font-size="16" font-family="DejaVu Sans, sans-serif">${esc(subjectName)}</text>
+  ${body}
+</svg>`;
+  return toPng(svg);
+}
