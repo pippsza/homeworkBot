@@ -175,50 +175,66 @@ export async function renderDeadlineTimeline(from: Date, days: number = 21): Pro
   const until = new Date(from);
   until.setDate(until.getDate() + days);
 
-  const items: { day: number; title: string; subject: string; emoji: string }[] = [];
+  const items: { day: number; title: string; subject: string; date: Date }[] = [];
   for (const s of subjects) {
     for (const t of (s.tasks || []) as any[]) {
       if (!t.deadline) continue;
       const d = new Date(t.deadline);
       if (d < from || d > until) continue;
-      const day = Math.round((d.getTime() - from.getTime()) / 86400000);
-      items.push({ day, title: t.title, subject: s.name, emoji: s.emoji || "📚" });
+      items.push({
+        day: Math.round((d.getTime() - from.getTime()) / 86400000),
+        title: t.title,
+        subject: s.name,
+        date: d,
+      });
     }
   }
   items.sort((a, b) => a.day - b.day);
 
-  const axisY = PAD + 96;
-  const left = PAD + 10;
-  const right = W - PAD - 10;
+  // Колір за терміновістю: три дні - червоний, тиждень - жовтий, далі синій
+  const urgency = (d: number) => (d <= 3 ? "#ff6b6b" : d <= 7 ? "#ffc857" : ACCENT);
+  const human = (d: number) => (d === 0 ? "сьогодні" : d === 1 ? "завтра" : `через ${d} дн.`);
+
+  const axisY = PAD + 104;
+  const left = PAD + 14;
+  const right = W - PAD - 14;
   const span = right - left;
-  const H = axisY + 60 + Math.max(items.length, 1) * 46 + PAD;
+  const rowH = 54;
+  const listTop = axisY + 62;
+  const H = listTop + Math.max(items.length, 1) * rowH + PAD;
 
   let ticks = "";
   for (let d = 0; d <= days; d += 7) {
     const x = left + (span * d) / days;
     const date = new Date(from);
     date.setDate(date.getDate() + d);
-    ticks += `<line x1="${x}" y1="${axisY - 12}" x2="${x}" y2="${axisY + 12}" stroke="${MUTED}" stroke-width="2"/>`;
-    ticks += `<text x="${x}" y="${axisY + 34}" fill="${MUTED}" font-size="14" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</text>`;
+    ticks += `<line x1="${x}" y1="${axisY - 10}" x2="${x}" y2="${axisY + 10}" stroke="${MUTED}" stroke-width="2"/>`;
+    ticks += `<text x="${x}" y="${axisY + 32}" fill="${MUTED}" font-size="14" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</text>`;
   }
 
   let marks = "";
   let rows = "";
   items.forEach((it, i) => {
     const x = left + (span * it.day) / days;
-    const y = axisY + 60 + i * 46;
-    marks += `<circle cx="${x}" cy="${axisY}" r="7" fill="${ACCENT}"/>`;
-    marks += `<line x1="${x}" y1="${axisY + 7}" x2="${x}" y2="${y - 14}" stroke="${ACCENT}" stroke-width="1.5" opacity="0.5"/>`;
-    rows += `<rect x="${PAD}" y="${y - 26}" width="${W - PAD * 2}" height="38" rx="10" fill="${CARD}"/>`;
-    rows += `<text x="${PAD + 16}" y="${y}" fill="${TEXT}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(it.title)} — ${esc(it.subject)}</text>`;
-    const d = new Date(from);
-    d.setDate(d.getDate() + it.day);
-    rows += `<text x="${W - PAD - 16}" y="${y}" fill="${MUTED}" font-size="15" text-anchor="end" font-family="DejaVu Sans, sans-serif">${d.toLocaleDateString("uk-UA")}</text>`;
+    const y = listTop + i * rowH;
+    const color = urgency(it.day);
+    // Номер зв'язує мітку на осі з рядком нижче: лінії між ними перетинались
+    // і читались гірше, ніж просто однакова цифра.
+    marks += `<circle cx="${x}" cy="${axisY}" r="11" fill="${color}"/>`;
+    marks += `<text x="${x}" y="${axisY + 5}" fill="#12151c" font-size="14" font-weight="bold" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${i + 1}</text>`;
+
+    rows += `<rect x="${PAD}" y="${y}" width="${W - PAD * 2}" height="${rowH - 12}" rx="12" fill="${CARD}"/>`;
+    rows += `<circle cx="${PAD + 26}" cy="${y + (rowH - 12) / 2}" r="11" fill="${color}"/>`;
+    rows += `<text x="${PAD + 26}" y="${y + (rowH - 12) / 2 + 5}" fill="#12151c" font-size="14" font-weight="bold" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${i + 1}</text>`;
+    rows += `<text x="${PAD + 52}" y="${y + 22}" fill="${TEXT}" font-size="17" font-family="DejaVu Sans, sans-serif">${esc(it.title)}</text>`;
+    rows += `<text x="${PAD + 52}" y="${y + 38}" fill="${MUTED}" font-size="14" font-family="DejaVu Sans, sans-serif">${esc(it.subject)}</text>`;
+    rows += `<text x="${W - PAD - 18}" y="${y + 22}" fill="${TEXT}" font-size="15" text-anchor="end" font-family="DejaVu Sans, sans-serif">${it.date.toLocaleDateString("uk-UA")}</text>`;
+    rows += `<text x="${W - PAD - 18}" y="${y + 38}" fill="${color}" font-size="14" text-anchor="end" font-family="DejaVu Sans, sans-serif">${human(it.day)}</text>`;
   });
 
   const empty = items.length
     ? ""
-    : `<text x="${PAD}" y="${axisY + 80}" fill="${MUTED}" font-size="18" font-family="DejaVu Sans, sans-serif">Дедлайнів на найближчі ${days} днів немає</text>`;
+    : `<text x="${PAD}" y="${listTop + 20}" fill="${MUTED}" font-size="18" font-family="DejaVu Sans, sans-serif">Дедлайнів на найближчі ${days} днів немає</text>`;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${BG}"/>
