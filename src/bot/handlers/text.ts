@@ -19,6 +19,7 @@ import { checkRateLimit } from "../helpers/rateLimit";
 import { editOrSend } from "../helpers/editOrSend";
 import { debugLog } from "../../lib/debugLog";
 import * as groupMemberService from "../../services/groupMemberService";
+import { AI_ENABLED } from "../../config/features";
 
 async function deleteUserMsg(ctx: Context): Promise<void> {
   await ctx
@@ -159,6 +160,10 @@ export function textHandler(bot: Telegraf): void {
     const isAiReply =
       isAiSession ||
       (!state && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id);
+
+    // Відповідь на повідомлення бота - це запит до ШІ. Поки він вимкнений,
+    // бот не відповідає взагалі: заглушка в чаті лише заважає.
+    if (isAiReply && !AI_ENABLED) return;
 
     if (isAiReply && (await isStudent(ctx))) {
       const question = (ctx.message as any).text.trim();

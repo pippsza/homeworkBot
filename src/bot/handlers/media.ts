@@ -8,6 +8,7 @@ import ChatHistory from "../../models/ChatHistory";
 import { mdToHtml } from "./ai";
 import { collect as collectMediaGroup } from "../helpers/mediaGroupCollector";
 import { checkRateLimit } from "../helpers/rateLimit";
+import { AI_ENABLED } from "../../config/features";
 
 async function deleteUserMsg(ctx: Context): Promise<void> {
   await ctx
@@ -292,6 +293,8 @@ export function mediaHandler(bot: Telegraf): void {
     const isAiSession = docState?.mode === "ai_session";
     const isAiReply = isAiSession || (!docState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id);
 
+    if (isAiReply && !AI_ENABLED) return;
+
     if (isAiReply && (await isStudent(ctx))) {
       if (isAiSession) inputState.set(ctx.from!.id, { mode: "ai_session" });
 
@@ -358,6 +361,8 @@ export function mediaHandler(bot: Telegraf): void {
     const photoState = inputState.get(ctx.from!.id);
     const isAiSession = photoState?.mode === "ai_session";
     const isAiReply = isAiSession || (!photoState && (ctx.message as any).reply_to_message?.from?.id === ctx.botInfo.id);
+
+    if (isAiReply && !AI_ENABLED) return;
 
     if (isAiReply && (await isStudent(ctx))) {
       if (isAiSession) inputState.set(ctx.from!.id, { mode: "ai_session" });
