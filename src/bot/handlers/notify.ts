@@ -59,7 +59,10 @@ export default function notifyHandler(bot: Telegraf): void {
     if (!ctx.chat || ctx.chat.type === "private") {
       return ctx.reply("Команда працює лише в групі.");
     }
-    if (!(await isSuperadmin(ctx))) return;
+    if (!(await isSuperadmin(ctx))) {
+      // Мовчазна відмова виглядає як зламаний бот, тому відповідаємо явно
+      return ctx.reply("Підключати чати може лише суперадмін.");
+    }
     const title = "title" in ctx.chat ? (ctx.chat.title as string) : String(ctx.chat.id);
     await targets.upsert(String(ctx.chat.id), title);
     await ctx.reply(`✅ Чат «${title}» підключено. Що саме надсилати — у налаштуваннях бота.`);
