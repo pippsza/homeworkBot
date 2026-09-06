@@ -32,8 +32,14 @@ function formatScheduleCaption(date: Date, plan: DayPlan): string {
   return lines.join("\n");
 }
 
-function navKeyboard(offset: number) {
+function shortName(name?: string): string {
+  if (!name) return "пара";
+  return name.length > 18 ? name.slice(0, 17) + "…" : name;
+}
+
+function navKeyboard(offset: number, joins: any[] = []) {
   return Markup.inlineKeyboard([
+    ...joins.map((b) => [b]),
     [
       Markup.button.callback("◀️", `schd_${offset - 1}`),
       Markup.button.callback("Сегодня", "sch"),
@@ -48,7 +54,17 @@ async function showSchedule(ctx: Context, offset: number = 0): Promise<void> {
   date.setDate(date.getDate() + offset);
 
   const plan = await dayPlan(date);
-  await editOrSend(ctx, formatScheduleCaption(date, plan), navKeyboard(offset) as any, {
+  // Посилання на пару: беремо збережене в слоті, інакше загальне у предмета.
+  const joins: any[] = [];
+  const seen = new Set<string>();
+  for (const l of plan.lessons) {
+    const url = (l as any).link || (l.subject as any)?.teamsLink;
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    joins.push(Markup.button.url(`🎥 ${l.startTime} ${shortName(l.subject?.name)}`, url));
+  }
+
+  await editOrSend(ctx, formatScheduleCaption(date, plan), navKeyboard(offset, joins) as any, {
     render: () => renderDayCard(date, plan.lessons, plan.followsDayName ? `за ${plan.followsDayName.toLowerCase()}` : undefined),
   });
 }

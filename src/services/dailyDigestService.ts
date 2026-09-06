@@ -16,6 +16,8 @@ export interface DayLesson {
   startTime: string;
   endTime: string;
   kind: string;
+  /** Посилання на конкретну пару, якщо його зберегли в розкладі. */
+  link?: string;
   subject: ISubject | null;
 }
 
@@ -63,6 +65,7 @@ export async function dayPlan(date: Date): Promise<DayPlan> {
       startTime: time?.startTime ?? "",
       endTime: time?.endTime ?? "",
       kind: (slot.isAlternating && !odd ? slot.kindEven : slot.kind) || "",
+      link: slot.link || undefined,
       subject: byId.get(String(id)) ?? null,
     });
   }
