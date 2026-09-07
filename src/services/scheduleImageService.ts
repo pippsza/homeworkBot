@@ -411,8 +411,9 @@ export async function renderSubjectStrip(subjectId: string, showDone = false): P
   }
 
   if (grading.length) {
-    body += pointsBar(grading, left, right, y);
-    y += 88;
+    const bar = pointsBar(grading, left, right, y);
+    body += bar.svg;
+    y += bar.height;
   }
   if (marks.length) {
     body += deadlineRibbon(marks, now, left, right, y);
@@ -420,7 +421,7 @@ export async function renderSubjectStrip(subjectId: string, showDone = false): P
   }
   if (tasks.length) {
     const sorted = [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    body += taskColumns(sorted, now, left, right, y, showDone);
+    body += taskColumns(sorted, now, left, right, y, showDone, grading);
     y += 26 + Math.ceil(sorted.length / 3) * 26;
   }
 
@@ -441,18 +442,21 @@ function taskColumns(
   left: number,
   right: number,
   y: number,
-  showDone = false
+  showDone = false,
+  grading: { label: string; points: number }[] = []
 ): string {
   const cols = 3;
   const colW = (right - left) / cols;
   let out = `
-  <text x="${left}" y="${y}" fill="${ACCENT}" font-size="14" font-family="DejaVu Sans, sans-serif">Завдання</text>`;
+  <text x="${left}" y="${y}" fill="${ACCENT}" font-size="14" font-family="DejaVu Sans, sans-serif">Завдання${grading.length ? " · колір = звідки бали" : ""}</text>`;
   tasks.forEach((t, i) => {
     const x = left + (i % cols) * colW;
     const ty = y + 26 + Math.floor(i / cols) * 26;
     const overdue = t.deadline && new Date(t.deadline) < now;
     const done = showDone && t.done;
-    const dot = done ? DONE_COLOR : overdue ? "#ff6b6b" : ACCENT;
+    const gi = gradeIndexOf(t.title, grading);
+    // Колір крапки = сегмент шкали, у який ця робота дає бали
+    const dot = done ? DONE_COLOR : gi >= 0 ? GRADE_COLORS[gi % GRADE_COLORS.length] : overdue ? "#ff6b6b" : MUTED;
     out += `
   <circle cx="${x + 4}" cy="${ty - 5}" r="${done ? 5 : 3}" fill="${dot}"/>
   <text x="${x + 16}" y="${ty}" fill="${done ? MUTED : TEXT}" font-size="15" font-family="DejaVu Sans, sans-serif">${esc(plain(t.title).slice(0, 26))}</text>`;
@@ -500,6 +504,63 @@ export async function renderSubjectsList(showDone = false): Promise<Buffer> {
 
 const DONE_COLOR = "#3ddc84";
 
+/**
+ * До якого сегмента шкали належить завдання. Порівнюємо основи слів у назві
+ * сегмента і завдання: "Контрольна 1" знаходить саме першу контрольну, а
+ * "4 лабораторні по 10" - усі лабораторні. Викладачі називають ті самі роботи
+ * то практичними, то лабораторними, тому тримаємо пари синонімів.
+ */
+const GRADE_SYNONYMS: [string, string][] = [
+  ["лаборат", "практич"],
+  ["контрол", "модульн"],
+];
+
+function stems(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-zа-яіїєґ'0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 5)
+    .map((w) => w.slice(0, 7));
+}
+
+function taskNumber(text: string): string | null {
+  const m = text.match(/(\d{1,2})\s*$/);
+  return m ? m[1] : null;
+}
+
+/** Номер, що йде одразу за ключовим словом: він називає конкретну роботу. */
+function labelNumber(label: string): string | null {
+  const m = label.match(/(?:контрольн|лаборатор|практичн|тест|модул)\S*\s+(\d{1,2})/i);
+  return m ? m[1] : null;
+}
+
+function gradeIndexOf(title: string, grading: { label: string }[]): number {
+  const tStems = stems(title);
+  const tNum = taskNumber(title);
+  let best = -1;
+  let bestScore = 0;
+  grading.forEach((g, i) => {
+    const gStems = stems(g.label);
+    let shared = gStems.filter((x) => tStems.includes(x)).length;
+    if (!shared) {
+      for (const [a, b] of GRADE_SYNONYMS) {
+        const has = (list: string[], p: string) => list.some((x) => x.startsWith(p));
+        if ((has(gStems, a) && has(tStems, b)) || (has(gStems, b) && has(tStems, a))) shared = 1;
+      }
+    }
+    if (!shared) return;
+    const gNum = labelNumber(g.label);
+    const score = gNum ? (gNum === tNum ? shared + 5 : 0) : shared;
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  });
+  return best;
+}
+
+
 /** Скільки робіт здано: рахуємо за відміткою, а не за пройденими дедлайнами. */
 function progressBar(done: number, total: number, left: number, right: number, y: number): string {
   const w = right - left;
@@ -518,7 +579,7 @@ function pointsBar(
   left: number,
   right: number,
   y: number
-): string {
+): { svg: string; height: number } {
   const total = grading.reduce((a, g) => a + g.points, 0) || 100;
   const barW = right - left;
   const barH = 26;
@@ -534,10 +595,23 @@ function pointsBar(
   <text x="${x + w / 2 - 1}" y="${y + 31}" fill="#12151c" font-size="14" font-weight="bold" text-anchor="middle" font-family="DejaVu Sans, sans-serif">${g.points}</text>`;
     x += w;
   });
-  const legend = grading.map((g) => `${plain(g.label)} ${g.points}`).join("  ·  ");
-  out += `
-  <text x="${left}" y="${y + 58}" fill="${MUTED}" font-size="14" font-family="DejaVu Sans, sans-serif">${esc(legend.slice(0, 110))}</text>`;
-  return out;
+  // Підпис кожного сегмента - його кольором: так видно, звідки бали
+  let lx = left;
+  let ly = y + 58;
+  grading.forEach((g, i) => {
+    const text = `${plain(g.label)} ${g.points}`;
+    const w = [...text].length * 8.4 + 34;
+    if (lx + w > right && lx > left) {
+      lx = left;
+      ly += 22;
+    }
+    out += `
+  <circle cx="${lx + 5}" cy="${ly - 5}" r="5" fill="${GRADE_COLORS[i % GRADE_COLORS.length]}"/>
+  <text x="${lx + 16}" y="${ly}" fill="${GRADE_COLORS[i % GRADE_COLORS.length]}" font-size="14" font-family="DejaVu Sans, sans-serif">${esc(text)}</text>`;
+    lx += w;
+  });
+  // Скільки рядків зайняли підписи, стільки місця й віддаємо наступному блоку
+  return { svg: out, height: ly - y + 30 };
 }
 
 /**
