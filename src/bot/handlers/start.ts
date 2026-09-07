@@ -17,6 +17,7 @@ async function mainMenu(ctx: Context): Promise<void> {
       Markup.button.callback("⏳ Дедлайни", "deadlines_img"),
       Markup.button.callback("ℹ️ Інформація", "infos"),
     ],
+    [Markup.button.callback("👨‍🏫 Викладачі", "teachers")],
   ];
   if (await isSuperadmin(ctx)) {
     buttons.push([

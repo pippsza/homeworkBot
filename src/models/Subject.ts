@@ -48,6 +48,9 @@ export interface ISubject extends Document {
   lecturerName: string;
   lecturerContact: string;
   lecturerNote: string;
+  /** Посилання на окремий запис викладача; рядкові поля лишились як запас. */
+  lecturer: mongoose.Types.ObjectId | null;
+  practitioner: mongoose.Types.ObjectId | null;
   practitionerName: string;
   practitionerContact: string;
   practitionerNote: string;
@@ -121,6 +124,8 @@ const subjectSchema = new mongoose.Schema(
     name: { type: String, required: true },
     emoji: { type: String, default: "📚" },
     lecturerName: { type: String, default: "" },
+    lecturer: { type: mongoose.Schema.Types.ObjectId, ref: "Teacher", default: null },
+    practitioner: { type: mongoose.Schema.Types.ObjectId, ref: "Teacher", default: null },
     lecturerContact: { type: String, default: "" },
     lecturerNote: { type: String, default: "" },
     practitionerName: { type: String, default: "" },

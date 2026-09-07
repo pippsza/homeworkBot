@@ -259,9 +259,14 @@ function infosHandler(bot: Telegraf): void {
       const { mainMenu } = await import("./start");
       await mainMenu(ctx);
     } else if (state.mode === "edit_info" && state.step === "attachments") {
-      await infoService.setAttachments(state.infoId, state.attachments);
+      // Дописуємо до наявних: «Готово» без файлів колись стирало все
+      if (state.attachments?.length) {
+        const info = await infoService.getById(state.infoId);
+        const kept = (info?.attachments || []).map((a: any) => ({ type: a.type, file_id: a.file_id }));
+        await infoService.setAttachments(state.infoId, [...kept, ...state.attachments]);
+      }
       inputState.delete(ctx.from!.id);
-      await editOrSend(ctx, "✅ Вложения обновлены!\n\n---");
+      await editOrSend(ctx, "✅ Вкладення оновлені.", Markup.inlineKeyboard([[Markup.button.callback("⬅️ До запису", `info_${state.infoId}`)]]) as any);
     }
   });
 

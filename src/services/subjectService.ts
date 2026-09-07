@@ -96,3 +96,33 @@ export async function setSubmission(taskId: string, username: string, submitted:
 }
 
 export { deleteSubject as delete };
+
+/** Додаємо файли до наявних. Заміна всього списку вже коштувала нам вкладень. */
+export async function addTaskAttachments(
+  taskId: string,
+  attachments: Partial<ISubjectAttachment>[]
+): Promise<{ subject: ISubject; task: ITask } | null> {
+  const subject = await getByTaskId(taskId);
+  if (!subject) return null;
+  const task = subject.tasks.id(taskId);
+  if (!task) return null;
+  task.attachments.push(...(attachments as ISubjectAttachment[]));
+  await subject.save();
+  return { subject, task };
+}
+
+/** Прибираємо один файл за його id. */
+export async function removeTaskAttachment(
+  taskId: string,
+  attachmentId: string
+): Promise<{ subject: ISubject; task: ITask } | null> {
+  const subject = await getByTaskId(taskId);
+  if (!subject) return null;
+  const task = subject.tasks.id(taskId);
+  if (!task) return null;
+  const idx = task.attachments.findIndex((a: any) => String(a._id) === attachmentId);
+  if (idx < 0) return null;
+  task.attachments.splice(idx, 1);
+  await subject.save();
+  return { subject, task };
+}

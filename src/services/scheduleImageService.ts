@@ -2,6 +2,7 @@ import { Resvg } from "@resvg/resvg-js";
 import type { DayLesson } from "./dailyDigestService";
 import * as scheduleService from "./scheduleService";
 import * as subjectService from "./subjectService";
+import * as teacherService from "./teacherService";
 
 const W = 900;
 const ROW = 78;
@@ -573,4 +574,87 @@ function deadlineRibbon(
   <text x="${x}" y="${ty}" fill="${past || m.done ? MUTED : TEXT}" font-size="13" text-anchor="${anchor}" font-family="DejaVu Sans, sans-serif">${esc(m.date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" }))} ${esc(m.title.slice(0, 16))}</text>`;
   });
   return out;
+}
+
+/** Список викладачів: хто що веде видно одразу, без заходу в картку. */
+export async function renderTeachersList(): Promise<Buffer> {
+  const teachers = await teacherService.getAll();
+  const left = PAD + 28;
+  const right = W - PAD - 28;
+  const ROWH = 40;
+
+  const rows: string[] = [];
+  let y = PAD + 100;
+  for (const t of teachers) {
+    const used = await teacherService.subjectsOf(String(t._id));
+    const what = used.map((u) => plain(u.name)).join(", ") || "предметів не закріплено";
+    rows.push(`
+  <circle cx="${left + 5}" cy="${y - 6}" r="5" fill="${used.length ? ACCENT : MUTED}"/>
+  <text x="${left + 22}" y="${y}" fill="${TEXT}" font-size="19" font-family="DejaVu Sans, sans-serif">${esc(plain(t.name).slice(0, 40))}</text>
+  <text x="${left + 22}" y="${y + 18}" fill="${MUTED}" font-size="14" font-family="DejaVu Sans, sans-serif">${esc(what.slice(0, 70))}</text>`);
+    y += ROWH;
+  }
+
+  const H = Math.max(200, y + PAD - 10);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <rect x="${PAD}" y="${PAD}" width="${W - PAD * 2}" height="${H - PAD * 2}" rx="20" fill="${CARD}"/>
+  <rect x="${PAD}" y="${PAD}" width="8" height="${H - PAD * 2}" rx="4" fill="${ACCENT}"/>
+  <text x="${left}" y="${PAD + 52}" fill="${TEXT}" font-size="30" font-weight="bold" font-family="DejaVu Sans, sans-serif">Викладачі</text>
+  <text x="${left}" y="${PAD + 78}" fill="${MUTED}" font-size="16" font-family="DejaVu Sans, sans-serif">${teachers.length} осіб · сірим ті, кого ще не закріпили за предметом</text>
+  ${rows.join("")}
+</svg>`;
+  return toPng(svg);
+}
+
+/** Картка викладача: контакти, де веде і що ми про нього знаємо. */
+export async function renderTeacherCard(teacherId: string): Promise<Buffer> {
+  const t = await teacherService.getById(teacherId);
+  if (!t) throw new Error("teacher not found");
+  const used = await teacherService.subjectsOf(teacherId);
+  const left = PAD + 28;
+
+  let y = PAD + 56;
+  let body = `
+  <text x="${left}" y="${y}" fill="${TEXT}" font-size="28" font-weight="bold" font-family="DejaVu Sans, sans-serif">${esc(plain(t.name).slice(0, 42))}</text>`;
+  y += 28;
+  const sub = [t.chair, t.contact].filter(Boolean).join(" · ");
+  if (sub) {
+    body += `
+  <text x="${left}" y="${y}" fill="${MUTED}" font-size="16" font-family="DejaVu Sans, sans-serif">${esc(plain(sub).slice(0, 70))}</text>`;
+    y += 26;
+  }
+  y += 14;
+
+  if (used.length) {
+    body += `
+  <text x="${left}" y="${y}" fill="${ACCENT}" font-size="14" font-family="DejaVu Sans, sans-serif">Веде</text>`;
+    y += 24;
+    for (const u of used) {
+      body += `
+  <text x="${left}" y="${y}" fill="${TEXT}" font-size="16" font-family="DejaVu Sans, sans-serif">• ${esc(plain(u.name).slice(0, 44))} — ${esc(u.role)}</text>`;
+      y += 24;
+    }
+    y += 12;
+  }
+
+  if (t.note) {
+    body += `
+  <text x="${left}" y="${y}" fill="${ACCENT}" font-size="14" font-family="DejaVu Sans, sans-serif">Що памʼятати</text>`;
+    y += 24;
+    for (const line of wrap(plain(t.note), 74, 8)) {
+      body += `
+  <text x="${left}" y="${y}" fill="${TEXT}" font-size="16" font-family="DejaVu Sans, sans-serif">${esc(line)}</text>`;
+      y += 23;
+    }
+  }
+
+  const H = Math.max(170, y + PAD);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <rect x="${PAD}" y="${PAD}" width="${W - PAD * 2}" height="${H - PAD * 2}" rx="20" fill="${CARD}"/>
+  <rect x="${PAD}" y="${PAD}" width="8" height="${H - PAD * 2}" rx="4" fill="${ACCENT}"/>
+  ${body}
+</svg>`;
+  return toPng(svg);
 }

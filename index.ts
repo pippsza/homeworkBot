@@ -24,6 +24,12 @@ async function main(): Promise<void> {
   await migrateRoles().catch((e: Error) => console.error("[migrate] roles:", e.message));
   await migrateModelsToModelConfig().catch((e: Error) => console.error("[migrate] models:", e.message));
 
+  // Викладачі з рядкових полів предметів переїжджають в окремі записи
+  const { migrateFromSubjects } = await import("./src/services/teacherService");
+  await migrateFromSubjects()
+    .then((n) => n && console.log(`[migrate] викладачів привʼязано: ${n}`))
+    .catch((e: Error) => console.error("[migrate] teachers:", e.message));
+
   // Sync model catalog on startup
   const { syncAll } = await import("./src/services/modelCatalogService");
   syncAll().catch((e: Error) => console.error("[modelCatalog] sync error:", e.message));

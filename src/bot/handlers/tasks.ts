@@ -4,6 +4,7 @@ import { editOrSend, newScreen, trackSend, isPrivate, notice } from "../helpers/
 import * as inputState from "../helpers/inputState";
 import * as subjectService from "../../services/subjectService";
 import { renderTaskCard } from "../../services/scheduleImageService";
+import { packRows } from "../helpers/buttonRows";
 
 /**
  * Показуємо файл у поточному повідомленні: editMessageMedia міняє медіа на
@@ -173,9 +174,9 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
   }
 
   const buttons: any[][] = [];
-  if ((await isStudent(ctx)) && task.answers?.length) {
+  if (task.answers?.length && (await isStudent(ctx))) {
     buttons.push([
-      Markup.button.callback("📖 Показать ответы", `sa_${taskId}`),
+      Markup.button.callback(`📖 Відповіді (${task.answers.length})`, `sa_${taskId}`),
     ]);
   }
   if (task.attachments && task.attachments.length > 0) {
@@ -186,15 +187,21 @@ async function showTask(ctx: Context, taskId: string): Promise<void> {
       ),
     ]);
   }
+  const student = await isStudent(ctx);
+  // Відповіді - окремим підписаним пунктом: іконка тут нічого не пояснює
+  if (student) {
+    buttons.push([Markup.button.callback("💬 Додати відповідь", `aa_${taskId}`)]);
+  }
+
   const actions = [Markup.button.callback("⬅️", `subject_${subject!._id}`)];
   // Відмітка «здано» - особистий облік суперадміна, решті її не видно взагалі.
   const boss = await isSuperadmin(ctx);
   if (boss) {
     actions.push(Markup.button.callback((task as any).done ? "✅" : "⬜", `tdone_${taskId}`));
   }
-  if (await isStudent(ctx)) {
+  if (student) {
     actions.push(
-      Markup.button.callback("➕", `aa_${taskId}`),
+      Markup.button.callback("🗂", `atm_${taskId}`),
       Markup.button.callback("✏️", `etm_${taskId}`),
       Markup.button.callback("⚙️", `tlay_${taskId}`),
       Markup.button.callback("🗑", `trc_${taskId}`)
@@ -237,6 +244,30 @@ function linkLabel(url: string): string {
 
 function escapeHtml(s: string): string {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Список вкладень із кнопками на кожен файл: додати, глянути, прибрати. */
+async function showAttachmentManager(ctx: Context, taskId: string): Promise<void> {
+  const { subject, task } = await subjectService.getTask(taskId);
+  if (!task) return;
+  const atts = task.attachments || [];
+  const rows = packRows(
+    atts.map((a: any, i: number) => {
+      const label = `${a.type === "photo" ? "🖼" : "📄"} ${i + 1}`;
+      return { btn: Markup.button.callback(label, `atmv_${taskId}_${i}`), label };
+    })
+  ) as any[][];
+  rows.push([
+    Markup.button.callback("➕ Додати файли", `atmadd_${taskId}`),
+    Markup.button.callback("⬅️ До завдання", `task_${taskId}`),
+  ]);
+  await editOrSend(
+    ctx,
+    `📎 <b>Вкладення</b>\n${escapeHtml(task.title)} · файлів: ${atts.length}` +
+      (atts.length ? "\n\nНатисніть на номер, щоб глянути або прибрати." : "\n\nПоки порожньо."),
+    Markup.inlineKeyboard(rows) as any,
+    { render: () => renderTaskCard(subject!.name, task) }
+  );
 }
 
 /** Один файл у поточному вікні: індекс закільцьовуємо. */
@@ -526,18 +557,63 @@ function tasksHandler(bot: Telegraf): void {
     });
   }
 
-  // Edit task attachments
-  bot.action(/^eta_([a-f0-9]{24})$/, async (ctx: Context) => {
+  // Керування вкладеннями. Стара кнопка правки просто перезаписувала список
+  // порожнім, тому додавання і видалення тепер окремі дії.
+  bot.action(/^(eta|atm)_([a-f0-9]{24})$/, async (ctx: Context) => {
+    await ctx.answerCbQuery().catch(() => {});
+    if (!(await isStudent(ctx))) return;
+    inputState.delete(ctx.from!.id);
+    await showAttachmentManager(ctx, (ctx as any).match![2]);
+  });
+
+  // Один файл із кнопкою видалення
+  bot.action(/^atmv_([a-f0-9]{24})_(\d+)$/, async (ctx: Context) => {
+    const m = (ctx as any).match as RegExpMatchArray;
+    const { task } = await subjectService.getTask(m[1]);
+    const att = task?.attachments?.[Number(m[2])] as any;
+    if (!att) return ctx.answerCbQuery("Файл не знайдено.");
+    await swapMedia(
+      ctx,
+      { type: att.type === "photo" ? "photo" : "document", media: att.file_id },
+      Markup.inlineKeyboard([
+        [Markup.button.callback("🗑 Видалити цей файл", `atmdel_${m[1]}_${att._id}`)],
+        [Markup.button.callback("⬅️ До списку", `atm_${m[1]}`)],
+      ])
+    );
+  });
+
+  bot.action(/^atmdel_([a-f0-9]{24})_([a-f0-9]{24})$/, async (ctx: Context) => {
+    if (!(await isStudent(ctx))) return ctx.answerCbQuery("❌ Нет прав.", { show_alert: true });
+    const m = (ctx as any).match as RegExpMatchArray;
+    const res = await subjectService.removeTaskAttachment(m[1], m[2]);
+    await ctx.answerCbQuery(res ? "Файл прибрано" : "Не знайшов файл");
+    await showAttachmentManager(ctx, m[1]);
+  });
+
+  // Додавання: файли накопичуються в стані і дописуються до наявних
+  bot.action(/^atmadd_([a-f0-9]{24})$/, async (ctx: Context) => {
+    await ctx.answerCbQuery().catch(() => {});
+    if (!(await isStudent(ctx))) return;
     const taskId = (ctx as any).match![1];
-    inputState.set(ctx.from!.id, {
-      mode: "edit_task",
-      step: "attachments",
-      taskId,
-      attachments: [],
-    });
-    await editOrSend(ctx, '📎 Отправьте новые файлы/фото для задания. Когда закончите, нажмите "✅ Готово".\n\n---', Markup.inlineKeyboard([
-            [Markup.button.callback("✅ Готово", `fta_${taskId}`)],
-          ]) as any);
+    inputState.set(ctx.from!.id, { mode: "task_files", step: "attachments", taskId, attachments: [] });
+    await editOrSend(
+      ctx,
+      "📎 Надішліть файли або фото - вони додадуться до наявних.\nКоли закінчите, натисніть «Готово».",
+      Markup.inlineKeyboard([
+        [Markup.button.callback("✅ Готово", `atmfin_${taskId}`)],
+        [Markup.button.callback("❌ Скасувати", `atm_${taskId}`)],
+      ]) as any
+    );
+  });
+
+  bot.action(/^atmfin_([a-f0-9]{24})$/, async (ctx: Context) => {
+    const taskId = (ctx as any).match![1];
+    const state = inputState.get(ctx.from!.id);
+    const added = state?.attachments?.length || 0;
+    if (added) await subjectService.addTaskAttachments(taskId, state!.attachments);
+    inputState.delete(ctx.from!.id);
+    await ctx.answerCbQuery(added ? `Додано: ${added}` : "Нічого не додано");
+    await showAttachmentManager(ctx, taskId);
   });
 
   // Finish task attachments (add or edit)
@@ -558,8 +634,9 @@ function tasksHandler(bot: Telegraf): void {
       await editOrSend(ctx, "✅ Задание сохранено!\n\n---");
       const { mainMenu } = await import("./start");
       await mainMenu(ctx);
-    } else if (state.mode === "edit_task" && state.step === "attachments") {
-      await subjectService.setTaskAttachments(taskId, state.attachments);
+    } else if (state.step === "attachments") {
+      // Дописуємо, а не замінюємо: інакше «Готово» без файлів стирає все
+      if (state.attachments?.length) await subjectService.addTaskAttachments(taskId, state.attachments);
       inputState.delete(ctx.from!.id);
       await showTask(ctx, taskId);
     }

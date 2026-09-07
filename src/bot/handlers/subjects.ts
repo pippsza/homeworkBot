@@ -10,10 +10,8 @@ function subjectEditMenu(subjectId: string) {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📘 Название", `esn_${subjectId}`)],
     [Markup.button.callback("😀 Emoji", `ese_${subjectId}`)],
-    [Markup.button.callback("👨‍🏫 ФИО лектора", `esln_${subjectId}`)],
-    [Markup.button.callback("📞 Контакты лектора", `eslc_${subjectId}`)],
-    [Markup.button.callback("👩‍🏫 ФИО практики", `espn_${subjectId}`)],
-    [Markup.button.callback("📞 Контакты практики", `espc_${subjectId}`)],
+    [Markup.button.callback("👨‍🏫 Лектор", `pick_lecturer_${subjectId}`)],
+    [Markup.button.callback("👩‍🏫 Практик", `pick_practitioner_${subjectId}`)],
     [Markup.button.callback("✅ Готово", `subject_${subjectId}`)],
   ]);
 }

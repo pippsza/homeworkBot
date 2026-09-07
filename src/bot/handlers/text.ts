@@ -11,6 +11,7 @@ import { infoEditMenu } from "./infos";
 import { showSettings } from "./settings";
 import { showSchedule } from "./schedule";
 import * as scheduleService from "../../services/scheduleService";
+import * as teacherService from "../../services/teacherService";
 import { isStudent } from "../middleware/auth";
 import { processQuery } from "../../services/orchestratorService";
 import ChatHistory from "../../models/ChatHistory";
@@ -225,6 +226,46 @@ export function textHandler(bot: Telegraf): void {
     const text = (ctx.message as any).text.trim();
 
     try {
+    // Викладачі: додавання і правка полів
+    if (state.mode === "add_teacher") {
+      if (!text) {
+        await editOrSend(ctx, "❌ ПІБ не може бути порожнім.");
+        await deleteUserMsg(ctx);
+        return;
+      }
+      const t = await teacherService.create({ name: text, short: teacherService.shortName(text) });
+      inputState.delete(ctx.from!.id);
+      await deleteUserMsg(ctx);
+      await editOrSend(
+        ctx,
+        `👤 <b>${text}</b>\nДодано. Що ще заповнити?`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback("✏️ Заповнити поля", `etm_teacher_${t._id}`)],
+          [Markup.button.callback("⬅️ До списку", "teachers")],
+        ]) as any
+      );
+      return;
+    }
+
+    if (state.mode === "edit_teacher") {
+      const value = text === "-" ? "" : text;
+      const patch: Record<string, string> = { [state.step]: value };
+      // ПІБ змінили - перерахуємо коротке ім'я для кнопок
+      if (state.step === "name" && value) patch.short = teacherService.shortName(value);
+      await teacherService.update(state.teacherId, patch);
+      inputState.delete(ctx.from!.id);
+      await deleteUserMsg(ctx);
+      await editOrSend(
+        ctx,
+        "✅ Збережено.",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("✏️ Ще поле", `etm_teacher_${state.teacherId}`)],
+          [Markup.button.callback("⬅️ До картки", `teacher_${state.teacherId}`)],
+        ]) as any
+      );
+      return;
+    }
+
     // Посилання на пару зберігаємо в слоті розкладу
     if (state.mode === "set_slot_link") {
       const url = text === "-" ? "" : text;
