@@ -77,9 +77,10 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
 
     // Classroom один на предмет, а посилання на Teams у кожної пари своє -
     // воно живе в розкладі, не тут.
-    if (subject.classroomUrl) {
-      buttons.push([Markup.button.url("🎓 Classroom", subject.classroomUrl)]);
-    }
+    const links: any[] = [];
+    if (subject.classroomUrl) links.push(Markup.button.url("🎓 Classroom", subject.classroomUrl));
+    if ((subject as any).telegramUrl) links.push(Markup.button.url("💬 Група", (subject as any).telegramUrl));
+    if (links.length) buttons.push(links);
     // Дії одним рядком іконок: підписи тут нічого не додають, а рядків їдять багато.
     const actions = [Markup.button.callback("⬅️", "subjects"), Markup.button.callback("🖼", `subjimg_${id}`)];
     if (await isStudent(ctx)) {

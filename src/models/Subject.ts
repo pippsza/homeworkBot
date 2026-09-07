@@ -57,6 +57,8 @@ export interface ISubject extends Document {
   notes: string;
   autoPass: string;
   telegramChat: string;
+  /** Посилання на групу предмета: назви мало, з бота треба вміти туди перейти. */
+  telegramUrl: string;
   classroomUrl: string;
   teamsLink: string;
   matchKeys: string[];
@@ -134,6 +136,7 @@ const subjectSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     autoPass: { type: String, default: "" },
     telegramChat: { type: String, default: "" },
+    telegramUrl: { type: String, default: "" },
     classroomUrl: { type: String, default: "" },
     teamsLink: { type: String, default: "" },
 
