@@ -79,8 +79,15 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
     // воно живе в розкладі, не тут.
     const links: any[] = [];
     if (subject.classroomUrl) links.push(Markup.button.url("🎓 Classroom", subject.classroomUrl));
-    if ((subject as any).telegramUrl) links.push(Markup.button.url("💬 Група", (subject as any).telegramUrl));
-    if (links.length) buttons.push(links);
+    const chats = ((subject as any).chats || []) as { title: string; url: string }[];
+    if (chats.length) {
+      for (const c of chats) links.push(Markup.button.url(`💬 ${c.title}`, c.url));
+    } else if ((subject as any).telegramUrl) {
+      links.push(Markup.button.url("💬 Група", (subject as any).telegramUrl));
+    }
+    if (links.length) {
+      buttons.push(...(packRows(links.map((b) => ({ btn: b, label: b.text }))) as any[][]));
+    }
     // Дії одним рядком іконок: підписи тут нічого не додають, а рядків їдять багато.
     const actions = [Markup.button.callback("⬅️", "subjects"), Markup.button.callback("🖼", `subjimg_${id}`)];
     if (await isStudent(ctx)) {
