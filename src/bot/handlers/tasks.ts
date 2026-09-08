@@ -5,6 +5,7 @@ import * as inputState from "../helpers/inputState";
 import * as subjectService from "../../services/subjectService";
 import { renderTaskCard } from "../../services/scheduleImageService";
 import { packRows } from "../helpers/buttonRows";
+import { suggestedSubmitDate, fmt, daysLeft } from "../../lib/submitDate";
 
 /**
  * Показуємо файл у поточному повідомленні: editMessageMedia міняє медіа на
@@ -225,8 +226,31 @@ function taskCaption(task: any, showDone = false): string {
   const head = `${showDone && task.done ? "✅ " : ""}${task.emoji || "📌"} <b>${escapeHtml(task.title)}</b>`;
   const due = task.deadline ? `\n🗓 До ${new Date(task.deadline).toLocaleDateString("uk-UA")}` : "";
   const body = task.description ? `\n\n${escapeHtml(task.description)}` : "";
-  const caption = head + due + body;
+  const caption = head + due + suggestLine(task) + planLines(task) + body;
   return caption.length <= CAPTION_LIMIT ? caption : caption.slice(0, CAPTION_LIMIT - 1) + "…";
+}
+
+/** «Бажано здати до» - момент, коли від строку лишається 20 % часу. */
+function suggestLine(task: any): string {
+  if (task.done) return "";
+  const when = suggestedSubmitDate(task.issuedAt, task.deadline);
+  if (!when) return "";
+  const left = daysLeft(when);
+  const tail = left > 0 ? `, лишилось ${left} дн.` : " - вже час";
+  return `\n⏳ Бажано здати до ${fmt(when)}${tail}`;
+}
+
+/** Розбивка на частини: модулі курсу з власними датами. */
+function planLines(task: any): string {
+  const plan: any[] = Array.isArray(task.plan) ? task.plan : [];
+  if (!plan.length) return "";
+  const rows = plan.map((p) => {
+    const mark = p.done ? "✅" : daysLeft(new Date(p.due)) < 0 ? "🔴" : "▫️";
+    const when = p.due ? ` - до ${fmt(new Date(p.due))}` : "";
+    return `${mark} ${escapeHtml(p.title)}${when}`;
+  });
+  const doneCount = plan.filter((p) => p.done).length;
+  return `\n\n📆 План (${doneCount}/${plan.length}):\n` + rows.join("\n");
 }
 
 function extractLinks(text: string): string[] {

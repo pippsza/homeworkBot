@@ -22,6 +22,12 @@ export interface IAiAnswerFile {
   filename: string;
 }
 
+export interface IPlanItem {
+  title: string;
+  due: Date | null;
+  done: boolean;
+}
+
 export interface ITask extends Document {
   title: string;
   emoji: string;
@@ -32,6 +38,10 @@ export interface ITask extends Document {
   aiAnswerFiles: IAiAnswerFile[];
   autoSolve: boolean;
   deadline: Date | null;
+  /** Коли роботу видали. Потрібно, щоб порахувати рекомендовану дату здачі. */
+  issuedAt: Date | null;
+  /** Розбивка великої роботи на частини з власними датами (модулі курсу). */
+  plan: IPlanItem[];
   order: number;
   fullWidth: boolean;
   /** Робота здана. Ставить лише суперадмін - це його особистий облік. */
@@ -97,6 +107,13 @@ const submissionSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const planItemSchema = new mongoose.Schema(
+  { title: { type: String, required: true },
+    due: { type: Date, default: null },
+    done: { type: Boolean, default: false } },
+  { _id: true }
+);
+
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
@@ -112,6 +129,8 @@ const taskSchema = new mongoose.Schema(
     }],
     autoSolve: { type: Boolean, default: false },
     deadline: { type: Date, default: null },
+    issuedAt: { type: Date, default: null },
+    plan: [planItemSchema],
 
     // Розкладка кнопки завдання: порядок у сітці і чи займає весь рядок
     order: { type: Number, default: 0 },
