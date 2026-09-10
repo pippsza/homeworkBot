@@ -3,6 +3,7 @@ import type { DayLesson } from "./dailyDigestService";
 import * as scheduleService from "./scheduleService";
 import * as subjectService from "./subjectService";
 import * as teacherService from "./teacherService";
+import { daysUntil } from "../lib/days";
 
 const W = 900;
 const ROW = 78;
@@ -220,7 +221,7 @@ export async function renderDeadlineTimeline(from: Date, days: number = 21): Pro
       const d = new Date(t.deadline);
       if (d < from || d > until) continue;
       items.push({
-        day: Math.round((d.getTime() - from.getTime()) / 86400000),
+        day: daysUntil(d, from),
         title: t.title,
         subject: s.name,
         date: d,
@@ -293,7 +294,7 @@ export async function renderTaskCard(subjectName: string, task: any): Promise<Bu
 
   if (task.deadline) {
     const d = new Date(task.deadline);
-    const days = Math.ceil((d.getTime() - Date.now()) / 86400000);
+    const days = daysUntil(d);
     const color = days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : ACCENT;
     const human = days < 0 ? "прострочено" : days === 0 ? "сьогодні" : days === 1 ? "завтра" : `через ${days} дн.`;
     body += `<rect x="${left}" y="${y - 26}" width="${W - PAD * 2}" height="42" rx="10" fill="${CARD}"/>`;
@@ -481,7 +482,7 @@ export async function renderSubjectsList(showDone = false): Promise<Buffer> {
         .filter((t) => t.deadline && new Date(t.deadline) >= now)
         .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0];
       const due = next ? new Date(next.deadline!) : null;
-      const days = due ? Math.ceil((due.getTime() - now.getTime()) / 86_400_000) : 0;
+      const days = due ? daysUntil(due, now) : 0;
       const color = !due ? MUTED : days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
       return `
   <circle cx="${left + 5}" cy="${y - 6}" r="5" fill="${color}"/>
@@ -639,7 +640,7 @@ function deadlineRibbon(
   marks.forEach((m, i) => {
     const x = at(m.date.getTime());
     const past = m.date.getTime() < now.getTime();
-    const days = Math.ceil((m.date.getTime() - now.getTime()) / 86_400_000);
+    const days = daysUntil(m.date, now);
     const color = m.done ? DONE_COLOR : past ? MUTED : days <= 3 ? "#ff6b6b" : days <= 7 ? "#ffc857" : "#4ecdc4";
     const ty = y + (i % 2 === 0 ? 48 : 66);
     const anchor = x > right - 90 ? "end" : x < left + 60 ? "start" : "middle";

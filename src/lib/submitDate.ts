@@ -1,5 +1,7 @@
 /** Рекомендована дата здачі: коли лишилось 20 % часу від строку виконання. */
 
+import { daysUntil } from "./days";
+
 const SHARE_LEFT = 0.2;
 
 export function suggestedSubmitDate(
@@ -20,7 +22,7 @@ export function fmt(d: Date): string {
 
 /** Скільки днів лишилось: відʼємне означає, що дата вже минула. */
 export function daysLeft(d: Date, now = new Date()): number {
-  return Math.ceil((d.getTime() - now.getTime()) / 864e5);
+  return daysUntil(d, now);
 }
 
 /**

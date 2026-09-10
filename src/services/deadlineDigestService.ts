@@ -4,6 +4,7 @@ import * as notifyTargetService from "./notifyTargetService";
 import { sendCard } from "./cardService";
 import { renderDeadlineTimeline } from "./scheduleImageService";
 import { ISubject, ITask } from "../models/Subject";
+import { daysUntil, humanDays } from "../lib/days";
 
 const DIGEST_HOUR = 13;
 const DIGEST_MINUTE = 0;
@@ -67,8 +68,8 @@ export async function buildDeadlineDigest(now: Date): Promise<string> {
   if (next.length) {
     lines.push("", `<b>Найближчі ${HORIZON_DAYS} днів</b>`);
     for (const i of next) {
-      const days = Math.ceil((i.deadline.getTime() - now.getTime()) / 86_400_000);
-      lines.push(`• ${day(i.deadline)}, через ${days} дн. — ${i.emoji} ${i.title} · ${short(i.subject)}`);
+      const days = daysUntil(i.deadline, now);
+      lines.push(`• ${day(i.deadline)}, ${humanDays(days)} — ${i.emoji} ${i.title} · ${short(i.subject)}`);
     }
   }
 

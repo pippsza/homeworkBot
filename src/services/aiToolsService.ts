@@ -673,7 +673,14 @@ ${scheduleContext}
       }),
       execute: async ({ taskId, deadline }: { taskId: string; deadline: string }) => {
         debugLog("tool", `setTaskDeadline: ${taskId} → ${deadline}`);
-        const date = new Date(deadline);
+        // «2026-09-20» без часу JS розбирає як ПІВНІЧ UTC. У Києві це 03:00
+        // того ж дня, тобто дедлайн «до кінця дня» протухає вранці, а при
+        // 23:59 UTC дата взагалі з'їжджає на наступну добу. Тому дату без
+        // часу трактуємо як кінець дня за місцевим часом.
+        const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(deadline.trim());
+        const date = dateOnly
+          ? new Date(`${deadline.trim()}T23:59:00`)
+          : new Date(deadline);
         if (isNaN(date.getTime())) return { error: "Некорректная дата" };
         const result = await subjectService.updateTask(taskId, { deadline: date });
         if (!result) return { error: "Задание не найдено" };
