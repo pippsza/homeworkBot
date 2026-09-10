@@ -55,7 +55,11 @@ function shortTitle(title: string): string {
 }
 
 /** Картка предмета. Винесена, щоб її могли перемалювати налаштування вигляду. */
-export async function showSubject(ctx: Context, id: string): Promise<void> {
+/**
+ * @param back куди веде «назад». За замовчуванням - список предметів, але з
+ * розкладу передаємо `schd_<зміщення>`, щоб повернутись у той самий день.
+ */
+export async function showSubject(ctx: Context, id: string, back = "subjects"): Promise<void> {
     
     const subject = await subjectService.getById(id);
     if (!subject) {
@@ -63,7 +67,7 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
         ctx,
         "❌ Предмет не найден.\n\n---",
         Markup.inlineKeyboard([
-          [Markup.button.callback("⬅️ Назад", "subjects")],
+          [Markup.button.callback("⬅️ Назад", back)],
         ]) as any
       );
     }
@@ -89,7 +93,7 @@ export async function showSubject(ctx: Context, id: string): Promise<void> {
       buttons.push(...(packRows(links.map((b) => ({ btn: b, label: b.text }))) as any[][]));
     }
     // Дії одним рядком іконок: підписи тут нічого не додають, а рядків їдять багато.
-    const actions = [Markup.button.callback("⬅️", "subjects"), Markup.button.callback("🖼", `subjimg_${id}`)];
+    const actions = [Markup.button.callback("⬅️", back), Markup.button.callback("🖼", `subjimg_${id}`)];
     if (await isStudent(ctx)) {
       actions.push(
         Markup.button.callback("➕", `add_task_${id}`),
@@ -149,6 +153,12 @@ function subjectsHandler(bot: Telegraf): void {
 
   // View single subject
   bot.action(/^subject_([a-f0-9]{24})$/, (ctx: Context) => showSubject(ctx, (ctx as any).match![1]));
+  // Вхід у предмет із розкладу: зміщення дня їде разом, щоб «назад» повернуло
+  // в розклад на той самий день, а не в загальний список предметів.
+  bot.action(/^subjsch_([a-f0-9]{24})_(-?\d+)$/, (ctx: Context) => {
+    const m = (ctx as any).match!;
+    return showSubject(ctx, m[1], `schd_${m[2]}`);
+  });
 
 
   // Confirm delete subject

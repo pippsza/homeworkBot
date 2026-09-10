@@ -40,6 +40,29 @@ function shortName(name?: string): string {
   return name.length > 18 ? name.slice(0, 17) + "…" : name;
 }
 
+/**
+ * Рядок на кожну пару: ліворуч посилання на саму пару, праворуч - перехід у
+ * предмет усередині бота. Праву кнопку веземо разом зі зміщенням дня, щоб
+ * «назад» у картці предмета повернуло в розклад саме на цей день, а не в
+ * загальне меню.
+ *
+ * Якщо посилання на пару немає, лівої кнопки не робимо: порожньої кнопки в
+ * Telegram не буває, а заглушка лише збиває з пантелику.
+ */
+function lessonRows(plan: DayPlan, offset: number): any[][] {
+  return plan.lessons
+    .filter((l) => l.subject)
+    .map((l) => {
+      const open = Markup.button.callback(
+        `📘 ${shortName(l.subject!.name)}`,
+        `subjsch_${l.subject!._id}_${offset}`
+      );
+      return l.link
+        ? [Markup.button.url(`🎥 ${l.startTime}`, l.link), open]
+        : [Markup.button.callback(`🕘 ${l.startTime}`, "schnolink"), open];
+    });
+}
+
 function navKeyboard(offset: number, joins: any[] = [], canEdit = false) {
   const nav = [
     Markup.button.callback("◀️", `schd_${offset - 1}`),
@@ -47,7 +70,7 @@ function navKeyboard(offset: number, joins: any[] = [], canEdit = false) {
     Markup.button.callback("▶️", `schd_${offset + 1}`),
   ];
   if (canEdit) nav.push(Markup.button.callback("🔗", `schlnk_${offset}`));
-  return Markup.inlineKeyboard([...joins.map((b) => [b]), nav, [Markup.button.callback("🏠 Меню", "main_menu")]]);
+  return Markup.inlineKeyboard([...joins, nav, [Markup.button.callback("🏠 Меню", "main_menu")]]);
 }
 
 export async function showSchedule(ctx: Context, offset: number = 0): Promise<void> {
@@ -57,9 +80,7 @@ export async function showSchedule(ctx: Context, offset: number = 0): Promise<vo
   const plan = await dayPlan(date);
   // Посилання зберігається в слоті: у лекції і лабораторної воно різне,
   // тому на рівні предмета його тримати не можна.
-  const joins = plan.lessons
-    .filter((l) => l.link)
-    .map((l) => Markup.button.url(`🎥 ${l.startTime} ${shortName(l.subject?.name)}`, l.link!));
+  const joins = lessonRows(plan, offset);
 
   const canEdit = plan.lessons.length > 0 && (await isStudent(ctx));
   await editOrSend(ctx, formatScheduleCaption(date, plan), navKeyboard(offset, joins, canEdit) as any, {
@@ -68,6 +89,14 @@ export async function showSchedule(ctx: Context, offset: number = 0): Promise<vo
 }
 
 function scheduleHandler(bot: Telegraf): void {
+  // Пара без збереженого посилання. Мовчазна кнопка збиває з пантелику,
+  // тому прямо кажемо, чому нічого не сталось і хто це може виправити.
+  bot.action("schnolink", async (ctx: Context) => {
+    await ctx
+      .answerCbQuery("Посилання на цю пару ще немає. Додати - кнопкою 🔗 у розкладі.", { show_alert: false })
+      .catch(() => {});
+  });
+
   // Посилання на пару: у кожної своє, тому прив'язуємо до слота розкладу.
   bot.action(/^schlnk_(-?\d+)$/, async (ctx: Context) => {
     await ctx.answerCbQuery().catch(() => {});
