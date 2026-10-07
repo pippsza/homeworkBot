@@ -13,6 +13,8 @@ export interface INotifyTarget extends Document {
   lessons: boolean;
   deadlines: boolean;
   weekly: boolean;
+  /** Писати й у суботу та неділю. За замовчуванням у вихідні бот мовчить. */
+  weekends: boolean;
 }
 
 const schema = new mongoose.Schema<INotifyTarget>(
@@ -24,6 +26,7 @@ const schema = new mongoose.Schema<INotifyTarget>(
     lessons: { type: Boolean, default: false },
     deadlines: { type: Boolean, default: true },
     weekly: { type: Boolean, default: false },
+    weekends: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

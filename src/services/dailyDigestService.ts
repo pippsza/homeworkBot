@@ -138,7 +138,7 @@ export function startDailyDigest(bot: Telegraf): ReturnType<typeof setInterval> 
       if (lastSent === stamp) return;
       lastSent = stamp;
 
-      const targets = await notifyTargetService.forKind("daily");
+      const targets = await notifyTargetService.forKind("daily", now);
       if (!targets.length) return;
 
       const { text, lessons } = await buildDigest(now);

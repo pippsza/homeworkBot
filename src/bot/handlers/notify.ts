@@ -61,6 +61,7 @@ async function chatCard(ctx: Context, chatId: string): Promise<void> {
   const rows = KINDS.map((k) => [
     Markup.button.callback(`${mark((t as any)[k.key])} ${k.label}`, `ntk_${chatId}_${k.key}`),
   ]);
+  rows.push([Markup.button.callback(`${mark(t.weekends)} Писати у вихідні`, `ntk_${chatId}_weekends`)]);
   rows.push([Markup.button.callback(`${mark(t.enabled)} Чат увімкнено`, `ntk_${chatId}_enabled`)]);
   rows.push([Markup.button.callback("⬅️ До списку", "notify")]);
 
@@ -102,7 +103,7 @@ export default function notifyHandler(bot: Telegraf): void {
   bot.action(/^ntk_(-?\d+)_(\w+)$/, async (ctx) => {
     const m = ctx.match as RegExpMatchArray;
     if (!(await isSuperadmin(ctx))) return;
-    await targets.toggle(m[1], m[2] as targets.NotifyKind);
+    await targets.toggle(m[1], m[2] as targets.NotifyKind | "enabled" | "weekends");
     await ctx.answerCbQuery("Змінено");
     await chatCard(ctx, m[1]);
   });

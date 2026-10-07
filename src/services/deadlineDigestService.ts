@@ -10,6 +10,8 @@ const DIGEST_HOUR = 13;
 const DIGEST_MINUTE = 0;
 /** Скільки днів уперед показуємо: далі за два тижні нагадувати ще рано. */
 const HORIZON_DAYS = 14;
+/** Скільки днів після дедлайну завдання ще висить у «Прострочено». Далі список тільки розростався б. */
+const OVERDUE_DAYS = 7;
 const CAPTION_LIMIT = 1024;
 
 let lastSent = "";
@@ -26,6 +28,8 @@ function collect(subjects: ISubject[], now: Date): { overdue: Item[]; today: Ite
   until.setDate(until.getDate() + HORIZON_DAYS);
   const endOfDay = new Date(now);
   endOfDay.setHours(23, 59, 59, 999);
+  const overdueSince = new Date(now);
+  overdueSince.setDate(overdueSince.getDate() - OVERDUE_DAYS);
 
   const overdue: Item[] = [];
   const today: Item[] = [];
@@ -34,7 +38,7 @@ function collect(subjects: ISubject[], now: Date): { overdue: Item[]; today: Ite
   for (const s of subjects) {
     for (const t of (s.tasks || []) as ITask[]) {
       // Відмітка «здано» особиста, а розсилка спільна - тут її не враховуємо
-      if (!t.deadline) continue;
+      if (!t.deadline || t.deadline < overdueSince) continue;
       const item: Item = { subject: s.name, emoji: t.emoji || "📄", title: t.title, deadline: t.deadline };
       if (t.deadline < now) overdue.push(item);
       else if (t.deadline <= endOfDay) today.push(item);
@@ -88,7 +92,7 @@ export function startDeadlineDigest(bot: Telegraf): ReturnType<typeof setInterva
       if (lastSent === stamp) return;
       lastSent = stamp;
 
-      const targets = await notifyTargetService.forKind("deadlines");
+      const targets = await notifyTargetService.forKind("deadlines", now);
       if (!targets.length) return;
 
       const text = await buildDeadlineDigest(now);

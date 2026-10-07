@@ -6,8 +6,9 @@ export async function all(): Promise<INotifyTarget[]> {
   return NotifyTarget.find().sort({ createdAt: 1 });
 }
 
-export async function forKind(kind: NotifyKind): Promise<INotifyTarget[]> {
-  return NotifyTarget.find({ enabled: true, [kind]: true });
+export async function forKind(kind: NotifyKind, now: Date = new Date()): Promise<INotifyTarget[]> {
+  const weekend = now.getDay() === 0 || now.getDay() === 6;
+  return NotifyTarget.find({ enabled: true, [kind]: true, ...(weekend && { weekends: true }) });
 }
 
 export async function upsert(chatId: string, title: string): Promise<INotifyTarget> {
@@ -19,7 +20,7 @@ export async function upsert(chatId: string, title: string): Promise<INotifyTarg
   return doc!;
 }
 
-export async function toggle(chatId: string, kind: NotifyKind | "enabled"): Promise<INotifyTarget | null> {
+export async function toggle(chatId: string, kind: NotifyKind | "enabled" | "weekends"): Promise<INotifyTarget | null> {
   const doc = await NotifyTarget.findOne({ chatId });
   if (!doc) return null;
   (doc as any)[kind] = !(doc as any)[kind];
